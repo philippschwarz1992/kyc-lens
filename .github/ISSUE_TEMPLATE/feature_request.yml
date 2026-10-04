@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose an improvement to KYC Lens.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        KYC Lens is a media capture SDK. Proposals should preserve the distinction between capture guidance and authoritative identity verification.
+        Do not include private media or personal data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Explain who needs this and what is difficult with the current behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the user-facing result and any public API you would like to add or change.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing configuration, application-level solutions, or other approaches.
+  - type: textarea
+    id: considerations
+    attributes:
+      label: Compatibility and privacy considerations
+      description: Affected browsers/devices, accessibility, asset size, sensitive media handling, or migration needs.
+  - type: checkboxes
+    id: preparation
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the documentation and existing issues for this request.
+          required: true

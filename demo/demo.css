@@ -1,0 +1,95 @@
+:root {
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #eef0f4;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, input, select { font: inherit; }
+button, a, input, select { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+a { color: inherit; text-decoration: none; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, [role="tabpanel"]:focus-visible { outline: 3px solid #93b4fa; outline-offset: 3px; }
+.demo-preview-page { width: 100%; height: 100svh; min-height: 0; display: grid; place-items: center; padding: 24px; overflow: hidden; }
+.demo-phone { width: 100%; max-width: 420px; }
+.demo-settings-page { min-height: 100svh; background: #f7f8fa; }
+.demo-settings-header { max-width: 720px; margin: 0 auto; padding: 24px 24px 0; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #697386; }
+.demo-brand { display: inline-flex; gap: 9px; align-items: center; min-height: 44px; color: #172033; font-size: 15px; font-weight: 650; }
+.demo-brand svg { color: #2563eb; }
+.demo-settings-main { max-width: 672px; margin: 0 auto; padding: 30px 24px 36px; }
+.demo-settings-title { margin-bottom: 24px; }
+.demo-settings-title h1 { font-size: 28px; font-weight: 650; letter-spacing: -.8px; margin: 0 0 8px; }
+.demo-settings-title p { color: #6b7485; font-size: 14px; line-height: 1.6; margin: 0; }
+.demo-config-panel, .demo-code-panel { background: #fff; border: 1px solid #e6e9ef; border-radius: 16px; }
+.demo-config-panel { padding: 0 24px; }
+.demo-config-panel fieldset { min-width: 0; padding: 24px 0; border: 0; margin: 0; }
+.demo-config-panel fieldset + fieldset { border-top: 1px solid #edf0f4; }
+.demo-config-panel legend { float: left; width: 100%; margin: 0 0 13px; padding: 0; color: #172033; font-size: 13px; font-weight: 650; }
+.demo-config-panel legend + * { clear: both; }
+.demo-switch-row { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 48px; cursor: pointer; }
+.demo-switch-row > span:first-child { padding: 5px 0; }
+.demo-option-label { display: block; color: #394355; font-size: 13px; }
+.demo-option-detail { display: block; color: #697386; font-size: 11px; line-height: 1.5; margin-top: 3px; }
+.demo-switch-row input { position: absolute; right: 0; width: 44px; height: 44px; margin: 0; z-index: 1; cursor: pointer; opacity: 0; }
+.demo-switch { position: relative; flex: 0 0 36px; width: 36px; height: 21px; background: #d9dfe9; border-radius: 20px; pointer-events: none; transition: background 140ms; }
+.demo-switch::after { content: ''; position: absolute; left: 3px; top: 3px; width: 15px; height: 15px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 10%); transition: transform 140ms; }
+.demo-switch-row input:checked + .demo-switch { background: #2563eb; }
+.demo-switch-row input:checked + .demo-switch::after { transform: translateX(15px); }
+.demo-switch-row input:focus-visible + .demo-switch { outline: 3px solid #93b4fa; outline-offset: 3px; }
+.demo-required-step { min-height: 44px; display: flex; justify-content: space-between; align-items: center; color: #394355; font-size: 13px; }
+.demo-required-badge { font-size: 10px; color: #697386; background: #f4f6f9; border-radius: 5px; padding: 3px 7px; }
+.demo-field-help { clear: both; color: #697386; font-size: 11px; margin: 0 0 14px; }
+.demo-challenges { clear: both; display: flex; flex-wrap: wrap; gap: 8px; }
+.demo-challenge-option { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 10px 12px; color: #697386; background: #fff; border: 1px solid #e6e9ef; border-radius: 9px; font-size: 12px; cursor: pointer; }
+.demo-challenge-option.selected { color: #2455bd; border-color: #cbdcfd; background: #f4f8ff; }
+.demo-challenge-option input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.demo-challenge-option:has(input:focus-visible) { outline: 3px solid #93b4fa; outline-offset: 3px; }
+.demo-challenge-order { display: grid; place-items: center; min-width: 18px; height: 18px; border-radius: 5px; background: #e4edff; font-size: 10px; }
+.demo-locale-row, .demo-accent-row { display: flex; justify-content: space-between; align-items: center; gap: 18px; clear: both; min-height: 48px; color: #394355; font-size: 13px; }
+.demo-locale-row select { border: 1px solid #e6e9ef; border-radius: 8px; min-height: 44px; padding: 8px 10px; color: #4e586a; background: #fff; font-size: 12px; }
+.demo-color-options { display: flex; }
+.demo-color-options button { display: grid; place-items: center; width: 44px; height: 44px; background: none; border: 0; border-radius: 9px; padding: 5px; }
+.demo-color-options button > span { display: grid; place-items: center; width: 26px; height: 26px; color: #fff; background: var(--swatch); border-radius: 50%; }
+.demo-color-options button.selected > span { box-shadow: 0 0 0 3px #fff, 0 0 0 4px #dbe1ed; }
+.demo-open-preview { clear: both; padding: 0 0 21px; }
+.demo-primary-button { display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; min-height: 48px; border: 0; border-radius: 10px; background: #2563eb; color: #fff; font-size: 13px; font-weight: 600; }
+.demo-primary-button:hover { background: #1d55d7; }
+.demo-open-preview p { text-align: center; font-size: 11px; color: #697386; margin: 10px 0 0; }
+.demo-code-panel { margin-top: 20px; overflow: hidden; }
+.demo-code-heading { border-bottom: 1px solid #edf0f4; padding: 0 16px; }
+.demo-tabs { display: flex; gap: 14px; }
+.demo-tabs button { position: relative; min-height: 52px; display: inline-flex; align-items: center; gap: 6px; padding: 0 5px; border: 0; color: #697386; background: none; font-size: 12px; white-space: nowrap; }
+.demo-tabs button[aria-selected="true"] { color: #1d4fb9; }
+.demo-tabs button[aria-selected="true"]::after { content: ''; position: absolute; bottom: -1px; left: 5px; right: 5px; height: 2px; background: #2563eb; }
+.demo-result-dot { width: 5px; height: 5px; border-radius: 50%; background: #16a177; }
+.demo-code-caption { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 20px 0; font-size: 11px; color: #697386; }
+.demo-copy { border: 0; background: none; min-height: 44px; padding: 8px 0 8px 10px; font-size: 11px; color: #2563eb; }
+.demo-code-panel pre { max-width: 100%; overflow-x: auto; padding: 0 20px 20px; margin: 0; color: #566175; font-size: 11px; line-height: 1.9; tab-size: 2; }
+.demo-code-panel code { font-family: "SFMono-Regular", Consolas, monospace; }
+.demo-code-footer { border-top: 1px solid #edf0f4; padding: 16px 20px; background: #fbfcfe; font-size: 10px; color: #697386; overflow-wrap: anywhere; }
+.demo-empty-result { display: flex; align-items: center; flex-direction: column; text-align: center; padding: 40px 24px; color: #697386; }
+.demo-empty-result svg { color: #a4afbf; }
+.demo-empty-result p { max-width: 260px; font-size: 13px; line-height: 1.6; }
+.demo-empty-result > span { font-size: 10px; line-height: 1.6; }
+.demo-validation { font-size: 12px; line-height: 1.6; color: #c24135; margin: 12px 0 0; }
+.demo-clipboard-error { padding: 0 20px 16px; }
+.demo-settings-note { color: #697386; font-size: 11px; line-height: 1.6; text-align: center; max-width: 400px; margin: 24px auto 0; }
+@media (max-width: 480px) {
+  :root { background: #fff; }
+  .demo-preview-page { height: 100svh; height: 100dvh; padding: 0; background: #fff; }
+  .demo-phone { max-width: none; }
+  .demo-phone > .kyc-kit { max-width: none; height: 100svh; height: 100dvh; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+  .demo-settings-header { padding: 16px 20px 0; }
+  .demo-settings-main { padding: 22px 16px 28px; }
+  .demo-settings-title { padding: 0 4px; }
+  .demo-settings-title h1 { font-size: 26px; }
+  .demo-config-panel { padding: 0 20px; }
+  .demo-code-heading { padding: 0 12px; }
+  .demo-tabs { gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .demo-switch, .demo-switch::after { transition: none; } }
