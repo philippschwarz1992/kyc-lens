@@ -129,15 +129,21 @@ export function useFaceCapture({
         const poses: Partial<Record<FaceChallenge, Partial<FaceObservation>>> = {
           'turn-left': { yaw: 32 }, 'turn-right': { yaw: -32 }, 'look-up': { pitch: -25 }, 'look-down': { pitch: 25 }, closer: { relativeSize: .65 }, further: { relativeSize: .22 },
         };
-        setStatus('tracking');
+        let canObserve = false;
+        setStatus('loading');
         simulationTimer.current = setInterval(() => {
           const pose = { ...neutral, ...(poses[feedbackRef.current?.guideDirection ?? 'center'] ?? {}) };
           simulator.render(pose);
-          observe({ ...pose, timestamp: performance.now() }, attempt);
+          if (canObserve) observe({ ...pose, timestamp: performance.now() }, attempt);
         }, 100);
+        await recorderRef.current?.ready;
+        if (!mounted.current || generation.current !== attempt) return;
+        canObserve = true; setStatus('tracking');
         return;
       }
       setStatus('loading');
+      await recorderRef.current?.ready;
+      if (!mounted.current || generation.current !== attempt) return;
       const { createFaceTracker } = await import('../camera/tracker.js');
       if (!mounted.current || generation.current !== attempt) return;
       const tracker = await createFaceTracker({ video, assets, previewFit: 'cover', signal: controller.signal, trackingFps: options.trackingFps ?? 12, onObservation: value => observe(value, attempt), onError: error => fail(error, attempt) });
@@ -147,7 +153,13 @@ export function useFaceCapture({
   }, [fail, observe, simulation, stop]);
 
   useEffect(() => {
-    if (options.autoStart !== false) void start();
+    let cancelled = false;
+    // StrictMode replays effects before this microtask. Open only the surviving
+    // camera attempt, so stopping a stale stream cannot interrupt a new device open.
+    if (options.autoStart !== false) queueMicrotask(() => {
+      if (!cancelled && mounted.current) void start();
+    });
+    return () => { cancelled = true; };
     // Configuration changes remount the flow; mutable callbacks never restart a recording.
   }, [options.autoStart, start]);
 

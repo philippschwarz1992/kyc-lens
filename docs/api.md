@@ -16,7 +16,7 @@ All flow props are optional. The default steps are `['intro', 'face', 'review', 
 | --- | --- | --- |
 | `face.challenges` | `['center', 'turn-left', 'turn-right', 'closer', 'further']` | 1–20 supported entries; repeats are allowed. |
 | `face.holdDurationMs` | `650` | 100–10,000 ms for a matching pose hold. |
-| `face.timeoutMs` | `90_000` | 1,000–600,000 ms for the attempt, starting before camera permission, preview playback and tracker initialization. Increasing it does not extend the recorder's separate 90-second limit. |
+| `face.timeoutMs` | `90_000` | 1,000–600,000 ms for the attempt, starting before camera permission, preview playback, encoder startup and tracker initialization. Increasing it does not extend the recorder's separate 90-second limit. |
 | `face.trackingFps` | `12` | Target inference rate, 3–30 fps. Actual performance depends on the device. |
 | `face.camera` | Front camera, ideal 1280×720 | `MediaTrackConstraints` merged over the defaults. |
 | `face.autoStart` | `true` | Start on face-screen entry; `false` shows a start button. |
@@ -85,9 +85,9 @@ interface CaptureResult {
 
 `capturedAt` is an ISO date string from the client clock. `ChallengeEvidence.completedAt` is a monotonic browser timestamp in milliseconds, not a Unix timestamp; `durationMs` measures the completed hold. Built-in capture produces JPEG images. Without an API, `sessionId` and `serverResult` are absent.
 
-The face step starts automatically after entry and browser camera permission. A silent recording begins once the camera is ready, including the tracker initialization period. The local challenge runner then checks centering, configured head movements and relative distance changes. The SDK stops the recording and captures the still after every challenge and a final neutral centered hold are complete. Retaking clears the previous clip and starts a new check. `face.autoStart: false` restores a start button; `face.recordVideo: false` explicitly disables recording and returns a still-only payload. Neither setting changes the movement checks.
+The face step starts automatically after entry and browser camera permission. A silent recording begins once the camera is ready. The SDK waits for the recorder's first nonempty encoded chunk before starting the tracker or accepting any pose hold, then checks centering, configured head movements and relative distance changes. The recording includes encoder/tracker startup and the movement sequence from its first accepted hold. The SDK stops the recording and captures the still after every challenge and a final neutral centered hold are complete. Retaking clears the previous clip and starts a new check. `face.autoStart: false` restores a start button; `face.recordVideo: false` explicitly disables recording and returns a still-only payload. Neither setting changes the movement checks.
 
-`video` uses the format supported by the browser's `MediaRecorder`: WebM (VP8, then VP9) where available, otherwise MP4. Inspect `video.type`; do not assume every browser returns WebM. The recorder requests a 1 Mbps video bitrate; actual output depends on the browser. The clip contains no audio and is capped at 12 MiB and 90 seconds. The face check also has its own overall timeout (90 seconds by default); a longer face timeout does not extend the recording limit. A missing/unsupported recorder, recording error, size limit or tracking timeout is recoverable and produces no completed capture. There is no implicit fallback to a photograph when video recording is enabled.
+`video` uses the format supported by the browser's `MediaRecorder`: WebM (VP8, then VP9) where available, otherwise MP4. Inspect `video.type`; do not assume every browser returns WebM. The recorder requests a 1 Mbps video bitrate; actual output depends on the browser. The clip contains no audio and is capped at 12 MiB and 90 seconds. Encoder startup has a separate 10-second deadline for its first nonempty chunk. The face check also has its own overall timeout (90 seconds by default); a longer face timeout does not extend the recording limit. A missing/unsupported recorder, startup/recording error, size limit or tracking timeout is recoverable and produces no completed capture. There is no implicit fallback to a photograph when video recording is enabled.
 
 Enable document photographs with `steps={['intro', 'document', 'face', 'review', 'result']}`. `document={{ types: ['passport'] }}` restricts the available choices. The document screen always reviews each photo; the optional `review` step controls the final face media review. Identity cards and driving licenses provide `front` and `back`; a passport's `front` is its photo page and has no `back`. The package's default steps remain face-only. Neither document photographs nor head movements establish identity verification.
 
@@ -208,7 +208,23 @@ Metadata is `{ challenges: ChallengeEvidence[], capturedAt: string, mode: 'camer
 
 Non-success HTTP responses throw the exported `KycHttpError` with a numeric `status`; a JSON `{ error: string }` supplies its message. Network errors and malformed successful JSON use ordinary errors. Submission retry preserves captured media and reuses its session. Built-in HTTP errors 401, 404 and 410 clear the stored session so the next retry creates a new one. Cross-origin cookie authentication needs a custom adapter and appropriate server CORS behavior.
 
-The local sample also implements authenticated `GET /api/kyc/sessions/:id`. Before upload it returns `pending_capture`; afterwards it returns `capture_complete` with capture metadata and media type/size. A recorded clip adds `video: { type, sizeBytes }` to the receipt. Document receipts include `document: { type, front: { type, sizeBytes }, back?: { type, sizeBytes } }`. It never returns captured media or an identity approval. The sample limits the total request to 24 MiB, each image to 6 MiB and the video to 12 MiB; it accepts WebM or MP4 video with matching basic container signatures.
+The local sample also implements authenticated `GET /api/kyc/sessions/:id`. Before upload it returns `pending_capture`; afterwards it returns `capture_complete` with capture metadata, media type/size and saved file names. A recorded clip adds `video: { type, sizeBytes }` to the receipt. Document receipts include `document: { type, front: { type, sizeBytes }, back?: { type, sizeBytes } }`. It never returns captured media bytes or an identity approval. The sample limits the total request to 24 MiB, each image to 6 MiB and the video to 12 MiB; it accepts WebM or MP4 video with matching basic container signatures.
+
+The development receiver validates the complete upload before committing files to the checkout's `results/<sessionId>/` directory. The receipt adds this filename map:
+
+```ts
+interface SavedCaptureFiles {
+  selfie: 'selfie.jpg' | 'selfie.png';
+  faceVideo?: 'face-video.webm' | 'face-video.mp4';
+  documentFront?: 'document-front.jpg' | 'document-front.png';
+  documentBack?: 'document-back.jpg' | 'document-back.png';
+  metadata: 'metadata.json';
+}
+```
+
+`metadata.json` contains the session ID, `capture_complete` status and receipt fields, including timestamps, evidence, type/size information and the filename map. No bearer token or authorization header is written. Saving occurs only at successful submission; the built-in final review triggers submission after confirmation when enabled. Retaking and camera recording do not write folders. Saved folders survive session expiry and server restarts, and require manual deletion. In-memory sessions still expire after 15 minutes, so a restart or expiry also ends access through the development GET endpoint.
+
+The playground enables its local upload API by default. Turning it off returns a browser-only result without saving files. The installed SDK has no filesystem access and requires your own backend to implement storage; `apiBaseUrl` alone does not install the development receiver in your host.
 
 ## Assets
 

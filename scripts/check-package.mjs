@@ -67,11 +67,12 @@ function checkPublicTypes(packageName) {
   // A virtual consumer inside this package uses the published export map and declaration files.
   const filename = resolve(root, '__kyc_lens_typecheck__.mts');
   const source = `
-    import { KycFlow, createHttpApi, type KycFlowProps, type CapturePayload, type CaptureResult } from '${packageName}';
+    import { KycFlow, createHttpApi, type KycFlowProps, type CapturePayload, type CaptureResult, type KycScreenContext } from '${packageName}';
     import { ChallengeRunner, isCenteredFace, type FaceObservation } from '${packageName}/core';
-    const props = { face: { challenges: ['center'], holdDurationMs: 100 }, locale: 'en' } satisfies KycFlowProps;
+    const props = { face: { challenges: ['center'], holdDurationMs: 100, autoStart: true, recordVideo: true }, locale: 'en' } satisfies KycFlowProps;
     KycFlow(props);
-    const payload = { selfie: new Blob(), challenges: [], capturedAt: new Date().toISOString(), mode: 'camera' } satisfies CapturePayload;
+    const payload = { selfie: new Blob(), video: new Blob([], { type: 'video/webm' }), challenges: [], capturedAt: new Date().toISOString(), mode: 'camera' } satisfies CapturePayload;
+    const context = { next() {}, cancel() {}, retry() {}, videoUrl: 'blob:example', selfieUrl: 'blob:poster' } satisfies KycScreenContext;
     const result: CaptureResult = { status: 'capture_complete', payload };
     createHttpApi('/api/kyc').submitCapture({ id: 'session' }, result.payload, new AbortController().signal);
     const observation: FaceObservation = { timestamp: 0, faceCount: 1, centerX: 0.5, centerY: 0.5, relativeSize: 0.4, yaw: 0, pitch: 0 };
@@ -208,7 +209,7 @@ async function checkPackage() {
   ];
   for (const path of required) assert(packed.has(path), `npm pack omitted ${path}`);
   for (const path of packed) {
-    assert(path === 'demo/server.ts' || !/^(?:src|demo|tests|node_modules|\.github|\.git|\.cache|test-results|playwright-report)\//.test(path), `Development file would be published: ${path}`);
+    assert(path === 'demo/server.ts' || !/^(?:src|demo|tests|node_modules|results|\.github|\.git|\.cache|test-results|playwright-report)\//.test(path), `Private or development file would be published: ${path}`);
     assert(!/(?:^|\/)(?:\.env(?:\..*)?|\.npmrc)$|\.(?:log|tgz)$/.test(path), `Local file would be published: ${path}`);
   }
   await checkCopyAssets(assetFiles, builtFiles);

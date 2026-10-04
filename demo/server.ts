@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, posix, resolve } from 'node:path';
 import type { Plugin } from 'vite';
 
 /** Local development receiver only. Completed uploads are saved locally; identity is never approved. */
@@ -222,8 +222,12 @@ async function saveCapture(storageDir: string, sessionId: string, receipt: Captu
   const finalDir = resolve(storageDir, sessionId);
   let stagingDir: string | undefined;
   try {
+    await mkdir(storageDir, { recursive: true, mode: 0o700 });
+    const storageInfo = await lstat(storageDir);
+    if (!storageInfo.isDirectory() || storageInfo.isSymbolicLink()) throw new Error('Unsafe result directory.');
     await mkdir(pendingDir, { recursive: true, mode: 0o700 });
-    if ((await lstat(pendingDir)).isSymbolicLink()) throw new Error('Unsafe staging directory.');
+    const pendingInfo = await lstat(pendingDir);
+    if (!pendingInfo.isDirectory() || pendingInfo.isSymbolicLink()) throw new Error('Unsafe staging directory.');
     stagingDir = await mkdtemp(join(pendingDir, `${sessionId}-`));
     for (const file of media) await writeFile(join(stagingDir, file.filename), file.bytes, { flag: 'wx', mode: 0o600 });
     await writeFile(join(stagingDir, receipt.files.metadata), `${JSON.stringify({ sessionId, status: 'capture_complete', ...receipt }, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
@@ -257,7 +261,16 @@ export function demoApiPlugin({ storageDir = resolve(process.cwd(), 'results') }
       timer.unref();
       server.httpServer?.once('close', () => { clearInterval(timer); sessions.clear(); });
       server.middlewares.use((request, response, next) => {
-        const pathname = (request.url ?? '').split('?')[0];
+        let pathname: string;
+        try { pathname = posix.normalize(decodeURIComponent((request.url ?? '').split('?')[0]).replace(/\\/g, '/')); }
+        catch { json(response, 400, { error: 'Invalid request path.' }); return; }
+        const privateRoot = storageDir.replace(/\\/g, '/').toLowerCase();
+        const fsPath = /^\/@fs\/(.*)$/i.exec(pathname);
+        const fsTarget = fsPath ? resolve(fsPath[1]).replace(/\\/g, '/').toLowerCase() : undefined;
+        if (/^\/results(?:\/|$)/i.test(pathname) || (fsTarget && (fsTarget === privateRoot || fsTarget.startsWith(`${privateRoot}/`)))) {
+          json(response, 403, { error: 'Saved captures are private local files.' });
+          return;
+        }
         if (!pathname.startsWith('/api/kyc/')) return next();
         void (async () => {
           checkLocalRequest(request);

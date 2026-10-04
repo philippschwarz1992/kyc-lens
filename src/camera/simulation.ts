@@ -6,11 +6,14 @@ export function createSimulatedCamera() {
   canvas.width = 720; canvas.height = 900;
   const context = canvas.getContext('2d');
   if (!context || typeof canvas.captureStream !== 'function') throw new Error('videoUnsupported');
+  let captureTrack: CanvasCaptureMediaStreamTrack | undefined;
   const render = (pose: Pick<FaceObservation, 'relativeSize' | 'yaw' | 'pitch'>) => {
     const gradient = context.createLinearGradient(0, 0, 720, 900);
     gradient.addColorStop(0, '#d7eaf4'); gradient.addColorStop(1, '#e8def4');
     context.fillStyle = gradient; context.fillRect(0, 0, 720, 900);
-    const height = pose.relativeSize * canvas.height;
+    // Canvas streams can skip identical frames. Keep even a neutral demo hold
+    // visibly animated so a short center-only clip actually reaches the encoder.
+    const height = pose.relativeSize * canvas.height * (1 + .012 * Math.sin(performance.now() / 350));
     const width = height * .74;
     context.fillStyle = '#6991b3'; context.beginPath(); context.ellipse(360, 900, width * 1.5, height * .9, 0, 0, Math.PI * 2); context.fill();
     context.save(); context.translate(360, 450); context.scale(width / 280, height / 390);
@@ -23,9 +26,11 @@ export function createSimulatedCamera() {
     context.fillStyle = '#112741'; context.font = 'bold 24px sans-serif'; context.textAlign = 'center';
     context.fillText('SIMULATION · DEMO ONLY', 360, 86);
     context.fillText('SIMULATION · DEMO ONLY', 360, 820);
+    captureTrack?.requestFrame?.();
   };
   render({ relativeSize: .4, yaw: 0, pitch: 0 });
   const stream = canvas.captureStream(12);
+  captureTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
   return {
     stream, render,
     snapshot(): Promise<Blob> {

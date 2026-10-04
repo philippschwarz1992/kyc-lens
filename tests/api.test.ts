@@ -1,15 +1,30 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
+import { mkdtempSync } from 'node:fs';
+import * as fs from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { tmpdir } from 'node:os';
+import { basename, dirname, join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import type { ViteDevServer } from 'vite';
 import { createHttpApi } from '../src/api';
 import { demoApiPlugin } from '../demo/server';
 
+vi.mock('node:fs/promises', async () => {
+  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+  return { ...actual, writeFile: vi.fn(actual.writeFile), rename: vi.fn(actual.rename) };
+});
+
 const receivers: EventEmitter[] = [];
-afterEach(() => {
+const storageRoots: string[] = [];
+afterEach(async () => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   for (const receiver of receivers.splice(0)) receiver.emit('close');
+  for (const root of storageRoots.splice(0)) {
+    if (dirname(resolve(root)) !== resolve(tmpdir()) || !basename(root).startsWith('kyc-api-test-')) throw new Error('Unsafe test cleanup path.');
+    await fs.rm(root, { recursive: true, force: true });
+  }
 });
 describe('HTTP adapter', () => {
   it('sends session-scoped auth and lets the browser choose multipart boundaries', async () => {
@@ -92,15 +107,21 @@ describe('HTTP adapter', () => {
 
 interface ReceiverResponse { status: number; body: Record<string, any> }
 
-function localReceiver() {
+function isolatedStorage() {
+  const root = mkdtempSync(join(tmpdir(), 'kyc-api-test-'));
+  storageRoots.push(root);
+  return join(root, 'results');
+}
+
+function localReceiver(storageDir = isolatedStorage()) {
   let middleware: (request: IncomingMessage, response: ServerResponse, next: () => void) => void;
   const httpServer = new EventEmitter();
   receivers.push(httpServer);
-  const plugin = demoApiPlugin();
+  const plugin = demoApiPlugin({ storageDir });
   const configure = plugin.configureServer;
   if (typeof configure !== 'function') throw new Error('Expected a sample server configuration hook.');
   configure.call({} as ThisParameterType<typeof configure>, { httpServer, middlewares: { use(handler: typeof middleware) { middleware = handler; } } } as unknown as ViteDevServer);
-  return async (path: string, { method = 'POST', body, token, headers = {} }: { method?: string; body?: FormData; token?: string; headers?: Record<string, string> } = {}): Promise<ReceiverResponse> => {
+  const receive = async (path: string, { method = 'POST', body, token, headers = {} }: { method?: string; body?: FormData; token?: string; headers?: Record<string, string> } = {}): Promise<ReceiverResponse> => {
     const upload = body ? new Request('http://localhost', { method: 'POST', body }) : undefined;
     const bytes = upload ? Buffer.from(await upload.arrayBuffer()) : Buffer.alloc(0);
     const request = Object.assign(Readable.from([bytes]), {
@@ -117,6 +138,7 @@ function localReceiver() {
       middleware(request as unknown as IncomingMessage, response as unknown as ServerResponse, () => { throw new Error('Unexpected middleware fallthrough.'); });
     });
   };
+  return Object.assign(receive, { storageDir, close: () => httpServer.emit('close') });
 }
 
 const sampleImage = new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7t8AAAAASUVORK5CYII=', 'base64')], { type: 'image/png' });
@@ -139,7 +161,7 @@ describe('local capture receiver video contract', () => {
   it.each([
     ['video/webm;codecs=vp8', webmBytes, 'video/webm'],
     ['video/mp4;codecs=avc1.42e01e', mp4Bytes, 'video/mp4'],
-  ])('accepts %s container signatures and only retains a video receipt', async (claimedType, bytes, type) => {
+  ])('accepts %s container signatures and returns only a video receipt', async (claimedType, bytes, type) => {
     const receive = localReceiver();
     const session = (await receive('/api/kyc/sessions')).body;
     const path = `/api/kyc/sessions/${session.id}/capture`;
@@ -148,6 +170,11 @@ describe('local capture receiver video contract', () => {
     expect(first.status).toBe(200);
     expect(first.body.video).toEqual({ type, sizeBytes: bytes.length });
     expect(first.body.status).toBe('capture_complete');
+    const savedFolder = join(receive.storageDir, session.id);
+    expect(first.body.files).toEqual({ selfie: 'selfie.png', faceVideo: `face-video.${type === 'video/mp4' ? 'mp4' : 'webm'}`, metadata: 'metadata.json' });
+    expect(await fs.readFile(join(savedFolder, first.body.files.faceVideo))).toEqual(Buffer.from(bytes));
+    expect(await fs.readFile(join(savedFolder, first.body.files.selfie))).toEqual(Buffer.from(await sampleImage.arrayBuffer()));
+    expect(JSON.parse(await fs.readFile(join(savedFolder, 'metadata.json'), 'utf8'))).toEqual(first.body);
     expect(await receive(path, { body, token: session.token })).toEqual(first);
     const receipt = await receive(`/api/kyc/sessions/${session.id}`, { method: 'GET', token: session.token });
     expect(receipt.body.video).toEqual(first.body.video);
@@ -181,6 +208,7 @@ describe('local capture receiver video contract', () => {
     expect(result.status).toBe(video.size > 12 * 1024 * 1024 ? 413 : 400);
     expect(result.body.error).toContain(error);
     expect((await receive(`/api/kyc/sessions/${session.id}`, { method: 'GET', token: session.token })).body.status).toBe('pending_capture');
+    await expect(fs.stat(receive.storageDir)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('rejects duplicate video fields, non-file video, and requests above the total bound', async () => {
@@ -210,5 +238,172 @@ describe('local capture receiver video contract', () => {
     const changed = captureForm(new Blob([changedBytes], { type: 'video/webm' }), capturedAt);
     expect((await receive(path, { body: changed, token: session.token })).status).toBe(409);
     expect((await receive(path, { body: captureForm(undefined, capturedAt), token: session.token })).status).toBe(409);
+  });
+});
+
+describe('local completed capture storage', () => {
+  it('saves every image, video and movement entry using fixed filenames without credentials', async () => {
+    const receive = localReceiver();
+    const session = (await receive('/api/kyc/sessions')).body;
+    const jpegBytes = new Uint8Array([255, 216, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 217]);
+    const jpeg = new Blob([jpegBytes], { type: 'image/jpeg' });
+    const body = captureForm(new Blob([mp4Bytes], { type: 'video/mp4' }));
+    body.set('selfie', jpeg, '../../untrusted-name.jpg');
+    body.append('documentFront', sampleImage, 'arbitrary.png');
+    body.append('documentBack', jpeg, 'arbitrary.jpg');
+    const metadata = JSON.parse(body.get('metadata') as string);
+    metadata.document = { type: 'id-card' };
+    metadata.challenges.push({ challenge: 'closer', completedAt: 2500, durationMs: 650 });
+    body.set('metadata', JSON.stringify(metadata));
+    const result = await receive(`/api/kyc/sessions/${session.id}/capture`, { body, token: session.token, headers: { 'x-private-app-key': 'must-never-be-saved' } });
+    expect(result.status).toBe(200);
+    expect(result.body.files).toEqual({ selfie: 'selfie.jpg', faceVideo: 'face-video.mp4', documentFront: 'document-front.png', documentBack: 'document-back.jpg', metadata: 'metadata.json' });
+    const folder = join(receive.storageDir, session.id);
+    expect((await fs.readdir(folder)).sort()).toEqual(Object.values(result.body.files).sort());
+    expect(await fs.readFile(join(folder, 'selfie.jpg'))).toEqual(Buffer.from(jpegBytes));
+    expect(await fs.readFile(join(folder, 'document-front.png'))).toEqual(Buffer.from(await sampleImage.arrayBuffer()));
+    expect(await fs.readFile(join(folder, 'document-back.jpg'))).toEqual(Buffer.from(jpegBytes));
+    expect(await fs.readFile(join(folder, 'face-video.mp4'))).toEqual(Buffer.from(mp4Bytes));
+    const raw = await fs.readFile(join(folder, 'metadata.json'), 'utf8');
+    expect(JSON.parse(raw)).toEqual(result.body);
+    expect(JSON.parse(raw).challenges).toEqual(metadata.challenges);
+    expect(raw).not.toContain(session.token);
+    expect(raw).not.toMatch(/authorization|x-private-app-key|must-never-be-saved|untrusted-name/i);
+    expect(await fs.readdir(join(receive.storageDir, '.pending'))).toEqual([]);
+  });
+
+  it('validates the complete capture before creating any result or staging files', async () => {
+    const receive = localReceiver();
+    const session = (await receive('/api/kyc/sessions')).body;
+    const body = captureForm(new Blob([webmBytes], { type: 'video/webm' }));
+    const metadata = JSON.parse(body.get('metadata') as string);
+    metadata.document = { type: 'id-card' };
+    body.set('metadata', JSON.stringify(metadata));
+    body.append('documentFront', sampleImage, 'front.png');
+    body.append('documentBack', new Blob(['invalid'], { type: 'image/png' }), 'back.png');
+    const result = await receive(`/api/kyc/sessions/${session.id}/capture`, { body, token: session.token });
+    expect(result.status).toBe(400);
+    await expect(fs.stat(receive.storageDir)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('cleans only its partial staging folder after a failed write and permits an identical retry', async () => {
+    const receive = localReceiver();
+    const session = (await receive('/api/kyc/sessions')).body;
+    const path = `/api/kyc/sessions/${session.id}/capture`;
+    const body = captureForm(new Blob([webmBytes], { type: 'video/webm' }));
+    await fs.mkdir(join(receive.storageDir, '.pending', 'another-owned-request'), { recursive: true });
+    await fs.writeFile(join(receive.storageDir, '.pending', 'another-owned-request', 'keep.txt'), 'keep');
+    const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+    vi.mocked(fs.writeFile).mockImplementationOnce(actual.writeFile).mockRejectedValueOnce(new Error('disk full'));
+    const failure = await receive(path, { body, token: session.token });
+    expect(failure.status).toBe(500);
+    expect(failure.body.error).toContain('Please try again');
+    expect(failure.body.error).not.toContain(receive.storageDir);
+    expect((await receive(`/api/kyc/sessions/${session.id}`, { method: 'GET', token: session.token })).body.status).toBe('pending_capture');
+    await expect(fs.stat(join(receive.storageDir, session.id))).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(await fs.readdir(join(receive.storageDir, '.pending'))).toEqual(['another-owned-request']);
+    expect(await fs.readFile(join(receive.storageDir, '.pending', 'another-owned-request', 'keep.txt'), 'utf8')).toBe('keep');
+    const retry = await receive(path, { body, token: session.token });
+    expect(retry.status).toBe(200);
+    expect(await fs.readFile(join(receive.storageDir, session.id, 'face-video.webm'))).toEqual(Buffer.from(webmBytes));
+  });
+
+  it('publishes one complete folder for concurrent identical requests and conflicts changed media', async () => {
+    const receive = localReceiver();
+    const session = (await receive('/api/kyc/sessions')).body;
+    const path = `/api/kyc/sessions/${session.id}/capture`;
+    const capturedAt = new Date().toISOString();
+    const body = captureForm(new Blob([webmBytes], { type: 'video/webm' }), capturedAt);
+    let signalSaving!: () => void;
+    let releaseSave!: () => void;
+    const saving = new Promise<void>(resolve => { signalSaving = resolve; });
+    const blocked = new Promise<void>(resolve => { releaseSave = resolve; });
+    const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+    const callsBefore = vi.mocked(fs.rename).mock.calls.length;
+    vi.mocked(fs.rename).mockImplementationOnce(async (from, to) => { signalSaving(); await blocked; return actual.rename(from, to); });
+    const first = receive(path, { body, token: session.token });
+    await saving;
+    const same = receive(path, { body, token: session.token });
+    const changedBytes = webmBytes.slice(); changedBytes[changedBytes.length - 1] = 1;
+    const changed = captureForm(new Blob([changedBytes], { type: 'video/webm' }), capturedAt);
+    try {
+      expect((await receive(path, { body: changed, token: session.token })).status).toBe(409);
+      expect((await receive(`/api/kyc/sessions/${session.id}`, { method: 'GET', token: session.token })).body.status).toBe('pending_capture');
+      await expect(fs.stat(join(receive.storageDir, session.id))).rejects.toMatchObject({ code: 'ENOENT' });
+      const staged = await fs.readdir(join(receive.storageDir, '.pending'));
+      expect(staged).toHaveLength(1);
+      expect((await fs.readdir(join(receive.storageDir, '.pending', staged[0]))).sort()).toEqual(['face-video.webm', 'metadata.json', 'selfie.png']);
+    } finally { releaseSave(); }
+    const accepted = await first;
+    expect(accepted.status).toBe(200);
+    expect(await same).toEqual(accepted);
+    const file = join(receive.storageDir, session.id, 'metadata.json');
+    const beforeRetry = await fs.stat(file);
+    expect(await receive(path, { body, token: session.token })).toEqual(accepted);
+    expect((await fs.stat(file)).mtimeMs).toBe(beforeRetry.mtimeMs);
+    expect(vi.mocked(fs.rename).mock.calls.length - callsBefore).toBe(1);
+    expect(await fs.readdir(join(receive.storageDir, '.pending'))).toEqual([]);
+  });
+
+  it('never overwrites an existing completed folder and retries after a failed atomic rename', async () => {
+    const receive = localReceiver();
+    const session = (await receive('/api/kyc/sessions')).body;
+    const path = `/api/kyc/sessions/${session.id}/capture`;
+    const body = captureForm();
+    const folder = join(receive.storageDir, session.id);
+    await fs.mkdir(folder, { recursive: true });
+    await fs.writeFile(join(folder, 'keep.txt'), 'existing result');
+    expect((await receive(path, { body, token: session.token })).status).toBe(500);
+    expect(await fs.readFile(join(folder, 'keep.txt'), 'utf8')).toBe('existing result');
+    expect(await fs.readdir(join(receive.storageDir, '.pending'))).toEqual([]);
+    // This test owns this exact temporary UUID directory; completed user results are never removed.
+    expect(dirname(resolve(folder))).toBe(resolve(receive.storageDir));
+    await fs.rm(folder, { recursive: true });
+    vi.mocked(fs.rename).mockRejectedValueOnce(new Error('rename unavailable'));
+    expect((await receive(path, { body, token: session.token })).status).toBe(500);
+    await expect(fs.stat(folder)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(await fs.readdir(join(receive.storageDir, '.pending'))).toEqual([]);
+    expect((await receive(`/api/kyc/sessions/${session.id}`, { method: 'GET', token: session.token })).body.status).toBe('pending_capture');
+    expect((await receive(path, { body, token: session.token })).status).toBe(200);
+  });
+
+  it('keeps completed files after auth expiry and server close or restart', async () => {
+    const receive = localReceiver();
+    const session = (await receive('/api/kyc/sessions')).body;
+    const accepted = await receive(`/api/kyc/sessions/${session.id}/capture`, { body: captureForm(), token: session.token });
+    const file = join(receive.storageDir, session.id, 'metadata.json');
+    const saved = await fs.readFile(file, 'utf8');
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 16 * 60 * 1000);
+    expect((await receive(`/api/kyc/sessions/${session.id}`, { method: 'GET', token: session.token })).status).toBe(404);
+    expect(await fs.readFile(file, 'utf8')).toBe(saved);
+    receive.close();
+    expect(await fs.readFile(file, 'utf8')).toBe(saved);
+    const restarted = localReceiver(receive.storageDir);
+    expect((await restarted(`/api/kyc/sessions/${session.id}`, { method: 'GET', token: session.token })).status).toBe(404);
+    expect(JSON.parse(await fs.readFile(file, 'utf8'))).toEqual(accepted.body);
+  });
+
+  it('blocks saved captures and configured storage directories from browser file routes', async () => {
+    const receive = localReceiver();
+    const fsUrl = `/@fs/${receive.storageDir.replace(/\\/g, '/')}/anything/metadata.json`;
+    for (const path of ['/results', '/ReSuLtS/anything', '/%72%65sults%2Fanything', '/a/../results/private.png', fsUrl, encodeURI(fsUrl.toUpperCase())]) {
+      const result = await receive(path, { method: 'GET' });
+      expect(result.status).toBe(403);
+      expect(JSON.stringify(result.body)).not.toContain(receive.storageDir);
+    }
+  });
+
+  it.each(['results', '.pending'])('rejects a %s symlink or junction before writing outside the storage root', async field => {
+    const receive = localReceiver();
+    const target = isolatedStorage();
+    await fs.mkdir(target, { recursive: true });
+    const link = field === 'results' ? receive.storageDir : join(receive.storageDir, '.pending');
+    await fs.mkdir(dirname(link), { recursive: true });
+    await fs.symlink(target, link, 'junction');
+    const session = (await receive('/api/kyc/sessions')).body;
+    const failed = await receive(`/api/kyc/sessions/${session.id}/capture`, { body: captureForm(), token: session.token });
+    expect(failed.status).toBe(500);
+    expect(await fs.readdir(target)).toEqual([]);
+    expect((await receive(`/api/kyc/sessions/${session.id}`, { method: 'GET', token: session.token })).body.status).toBe('pending_capture');
   });
 });

@@ -51,7 +51,7 @@ For slow devices, lower `face.trackingFps` within the supported 3–30 range or 
 
 Recording needs `MediaRecorder` and a supported encoder in the target browser. Inspect the actual Blob MIME type: browsers can use WebM or MP4. Test playback and upload on the same devices you support, including mobile Safari, Chrome and any embedded WebView.
 
-When recording is enabled, unsupported recording, recording errors, a clip exceeding 12 MiB or recording longer than 90 seconds produce a recoverable error; the SDK does not silently substitute a still image. Retake starts a fresh recording/check. If your product explicitly needs still images only, configure `face={{ recordVideo: false }}`; omitting recording support is then intentional.
+When recording is enabled, unsupported recording, recording errors, a clip exceeding 12 MiB or recording longer than 90 seconds produce a recoverable error; the SDK does not silently substitute a still image. Recording starts when the camera is ready, and pose checks wait for its first nonempty encoded chunk. If no chunk arrives within 10 seconds, startup fails with a recoverable recording error. Encoder and tracker startup use part of the recording time. Retake starts a fresh recording/check. If your product explicitly needs still images only, configure `face={{ recordVideo: false }}`; omitting recording support is then intentional.
 
 Simulation produces marked synthetic media and is useful for UI tests. It cannot diagnose real camera, tracking or hardware encoder quality.
 
@@ -71,7 +71,17 @@ When a session returns a token, the adapter uses it as the submission bearer tok
 
 The development receiver expires sessions after 15 minutes and accepts only local same-origin requests. It limits requests to 24 MiB total, individual images to 6 MiB and video to 12 MiB. An identical retry receives the earlier receipt; changed media/metadata for an already completed session is rejected. A development server restart clears all sessions.
 
+Saved result folders remain on disk after session expiry or a restart. Clearing the settings summary also does not remove files.
+
 SDK submission retry preserves the captured media. Built-in HTTP errors 401, 404 and 410 clear the SDK's stored session so retry creates a new one. Your backend must still enforce its own session ownership, expiry and retry policy.
+
+## No results folder was saved
+
+Use the running development server and enable **Local upload API** in settings; it is enabled by default. Finish capture and confirm the final review. When review is omitted, the completed capture submits automatically. Recording and retaking alone do not save files. A successful capture summary shows `savedDirectory: "results/<sessionId>"`.
+
+Look under the checkout's `results/` directory for the session ID in that summary. Each folder contains `metadata.json`, a selfie and whichever document photos/face clip were captured. If submission failed, check the displayed error and the network response, then retry. The server must be able to create files in the checkout's results directory. It validates the upload before committing the final folder, so an invalid upload does not produce a completed result folder.
+
+Turning off **Local upload API** gives browser-only capture and creates no folder. The installed package likewise needs a host backend that saves media; a static demo or a local `onComplete` callback does not write files to the server. Saved folders persist until manually deleted; session expiry, closing the browser, clearing the summary and server restarts do not delete them.
 
 ## Camera stays active after closing the host UI
 

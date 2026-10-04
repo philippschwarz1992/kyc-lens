@@ -77,7 +77,9 @@ import 'kyc-lens-react/styles.css';
 function summaryFor(result: CaptureResult) {
   const receipt = result.serverResult && typeof result.serverResult === 'object' && !Array.isArray(result.serverResult)
     ? result.serverResult as Record<string, unknown> : undefined;
-  const hasSavedFiles = receipt?.files !== null && typeof receipt?.files === 'object' && !Array.isArray(receipt?.files);
+  const files = receipt?.files !== null && typeof receipt?.files === 'object' && !Array.isArray(receipt?.files)
+    ? receipt.files as Record<string, unknown> : undefined;
+  const hasSavedFiles = files?.metadata === 'metadata.json' && (files.selfie === 'selfie.jpg' || files.selfie === 'selfie.png');
   const savedDirectory = hasSavedFiles && result.sessionId && /^[A-Za-z0-9_-]{1,128}$/.test(result.sessionId)
     ? `results/${result.sessionId}` : undefined;
   return {
@@ -205,7 +207,7 @@ function SettingsPage() {
         </fieldset>
         <fieldset><legend>Testing</legend>
           <Switch label="Simulation mode" description="Try the flow without a camera" checked={config.simulation} onChange={value => update('simulation', value)} />
-          <Switch label="Local upload API" description="Save captures in results under their session ID" checked={config.upload} onChange={value => update('upload', value)} />
+          <Switch label="Local upload API" description="Save captures to results/<session ID>" checked={config.upload} onChange={value => update('upload', value)} />
         </fieldset>
         <div className="demo-open-preview">{config.challenges.length > 0 ? <a className="demo-primary-button" href={previewUrl} target="_blank" rel="noopener">Open preview<Icon name="external" size={17} /></a> : <button className="demo-primary-button" disabled>Open preview</button>}<p>Opens a new tab with only the KYC flow.</p></div>
       </section>

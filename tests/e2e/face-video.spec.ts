@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-type Pose = 'no-face' | 'off-center' | 'crop-off-center' | 'center' | 'closer' | 'further' | 'turned' | 'worker-error';
+type Pose = 'no-face' | 'off-center' | 'crop-off-center' | 'center' | 'closer' | 'further' | 'turned' | 'turn-left' | 'turn-right' | 'worker-error';
 interface FaceVideoFixture {
   pose: Pose;
   streams: MediaStream[];
@@ -80,7 +80,7 @@ async function installFaceVideoCamera(page: Page, deferPermission = false): Prom
                   timestamp: request.timestamp, faceCount: pose === 'no-face' ? 0 : 1,
                   centerX: pose === 'off-center' ? 0.85 : pose === 'crop-off-center' ? 0.62 : 0.5, centerY: 0.5,
                   relativeSize: pose === 'closer' ? 0.56 : pose === 'further' ? 0.26 : 0.4,
-                  yaw: pose === 'turned' ? 35 : 0, pitch: 0,
+                  yaw: pose === 'turned' || pose === 'turn-left' ? 35 : pose === 'turn-right' ? -35 : 0, pitch: 0,
                 } };
             }
             if (response) queueMicrotask(() => {
@@ -143,19 +143,50 @@ async function finishDistanceChecks(page: Page): Promise<void> {
   await pose(page, 'center');
   await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'closer');
   await pose(page, 'closer');
-  await expect(page.locator('.kyc-challenge-list .is-done')).toHaveCount(2);
   await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'normal');
+  await expect(page.locator('.kyc-current-instruction')).toHaveText('Face the camera straight on');
   await pose(page, 'center');
   await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'further');
   await pose(page, 'further');
-  await expect(page.locator('.kyc-challenge-list .is-done')).toHaveCount(3);
+  await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'normal');
+  await expect(page.locator('.kyc-current-instruction')).toHaveText('Face the camera straight on');
   // Finishing the last movement still requires a neutral frontal pose.
   await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
   await pose(page, 'center');
   await expect(page.getByRole('button', { name: 'Confirm & continue', exact: true })).toBeVisible();
 }
 
-for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+async function faceWindowGeometry(page: Page, scale: number) {
+  await expect.poll(() => page.locator('.kyc-camera-stage').evaluate(element => new DOMMatrixReadOnly(getComputedStyle(element).transform).a))
+    .toBeCloseTo(scale, 3);
+  const geometry = await page.evaluate(() => {
+    const bounds = (selector: string) => {
+      const element = document.querySelector(selector);
+      if (!element) throw new Error(`Face capture is missing ${selector}.`);
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height };
+    };
+    return { stage: bounds('.kyc-camera-stage'), aperture: bounds('.kyc-camera-aperture'),
+      video: bounds('.kyc-camera-stage video'), ring: bounds('.kyc-guide-track'),
+      frame: bounds('.kyc-kit'), instruction: bounds('.kyc-current-instruction'), actions: bounds('.kyc-actions'),
+      noScroll: document.documentElement.scrollWidth <= innerWidth + 1 && document.documentElement.scrollHeight <= innerHeight + 1 };
+  });
+  // The green ellipse must sit at the live-video mask edge, and both must grow
+  // together. Scaling only an overlay would leave the video bounds unchanged.
+  for (const key of ['x', 'y', 'width', 'height'] as const) {
+    expect(Math.abs(geometry.aperture[key] - geometry.video[key])).toBeLessThan(0.5);
+    expect(Math.abs(geometry.aperture[key] - geometry.ring[key])).toBeLessThan(0.5);
+  }
+  expect(geometry.noScroll).toBe(true);
+  expect(geometry.stage.x).toBeGreaterThanOrEqual(geometry.frame.x);
+  expect(geometry.stage.x + geometry.stage.width).toBeLessThanOrEqual(geometry.frame.x + geometry.frame.width);
+  expect(geometry.stage.y).toBeGreaterThanOrEqual(geometry.frame.y);
+  expect(geometry.stage.y + geometry.stage.height).toBeLessThanOrEqual(geometry.instruction.y);
+  return geometry;
+}
+
+const faceViewports = [{ width: 1280, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 568 }];
+for (const viewport of faceViewports) {
   test(`automatic face video requires valid centered distance holds at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await installFaceVideoCamera(page);
@@ -167,32 +198,55 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await expect(page.getByRole('button', { name: /Start camera|Start simulation|Simulate this movement|Take photo|Cancel|Close/ })).toHaveCount(0);
     const frame = await page.locator('.kyc-kit').boundingBox();
     await expect(page.getByRole('status').filter({ hasText: 'Bring your face into the circle' })).toBeVisible();
+    await expect(page.locator('.kyc-challenge-list, .kyc-challenge-progress')).toHaveCount(0);
+    const normalWindow = await faceWindowGeometry(page, 0.8);
+    await page.screenshot({ path: `.cache/face-window-center-${viewport.width}.png` });
     await page.waitForTimeout(800);
-    await expect(page.locator('.kyc-challenge-list .is-done')).toHaveCount(0);
+    await expect(page.locator('.kyc-current-instruction')).toHaveText('Bring your face into the circle');
+    await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'normal');
     // This pose is centered in the full landscape camera frame but falls outside
     // the allowed center tolerance after the portrait preview's visible crop.
     await pose(page, 'crop-off-center');
     await expect(page.getByRole('status').filter({ hasText: 'Center your face' })).toBeVisible();
     await page.waitForTimeout(800);
-    await expect(page.locator('.kyc-challenge-list .is-done')).toHaveCount(0);
+    await expect(page.locator('.kyc-current-instruction')).toHaveText('Center your face inside the circle');
+    await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'normal');
     await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
     await pose(page, 'off-center');
     await expect(page.getByRole('status').filter({ hasText: 'Center your face' })).toBeVisible();
     await page.waitForTimeout(800);
-    await expect(page.locator('.kyc-challenge-list .is-done')).toHaveCount(0);
+    await expect(page.locator('.kyc-current-instruction')).toHaveText('Center your face inside the circle');
+    await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'normal');
     await pose(page, 'center');
     await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'closer');
     await expect.poll(() => page.evaluate(() => (window as unknown as { faceVideoFixture: FaceVideoFixture }).faceVideoFixture.recorders.filter(recorder => recorder.starts > 0).length)).toBe(1);
     await page.waitForTimeout(800);
     // Merely keeping the centered baseline cannot satisfy the closer movement.
-    await expect(page.locator('.kyc-challenge-list .is-done')).toHaveCount(1);
+    await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'closer');
+    await expect(page.locator('.kyc-current-instruction')).toHaveText('Move a little closer');
     await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
+    const closerWindow = await faceWindowGeometry(page, 1);
+    expect(closerWindow.video.width / normalWindow.video.width).toBeCloseTo(1.25, 2);
+    expect(closerWindow.video.height / normalWindow.video.height).toBeCloseTo(1.25, 2);
+    expect(closerWindow.frame).toEqual(normalWindow.frame);
+    expect(closerWindow.instruction).toEqual(normalWindow.instruction);
+    expect(closerWindow.actions).toEqual(normalWindow.actions);
+    await page.screenshot({ path: `.cache/face-window-closer-${viewport.width}.png` });
     await pose(page, 'closer');
-    await expect(page.locator('.kyc-challenge-list .is-done')).toHaveCount(2);
+    await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'normal');
+    await expect(page.locator('.kyc-current-instruction')).toHaveText('Face the camera straight on');
     await pose(page, 'center');
     await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'further');
+    const furtherWindow = await faceWindowGeometry(page, 0.624);
+    expect(furtherWindow.video.width / normalWindow.video.width).toBeCloseTo(0.78, 2);
+    expect(furtherWindow.video.height / normalWindow.video.height).toBeCloseTo(0.78, 2);
+    expect(furtherWindow.frame).toEqual(normalWindow.frame);
+    expect(furtherWindow.instruction).toEqual(normalWindow.instruction);
+    expect(furtherWindow.actions).toEqual(normalWindow.actions);
+    await page.screenshot({ path: `.cache/face-window-further-${viewport.width}.png` });
     await pose(page, 'further');
-    await expect(page.locator('.kyc-challenge-list .is-done')).toHaveCount(3);
+    await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'normal');
+    await expect(page.locator('.kyc-current-instruction')).toHaveText('Face the camera straight on');
     await page.waitForTimeout(800);
     await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
     await pose(page, 'turned');
@@ -254,6 +308,69 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     }
     await expect(page.getByRole('heading', { name: 'Your capture is complete.' })).toBeVisible();
     expect(errors).toEqual([]);
+  });
+}
+
+for (const viewport of faceViewports) {
+  test(`curved head-turn arrows stay visible and follow the required direction at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await installFaceVideoCamera(page);
+    await page.goto(previewUrl(false, ['center', 'turn-left', 'turn-right']));
+    await pose(page, 'center');
+    const stage = page.locator('.kyc-camera-stage');
+    const arrow = page.locator('.kyc-direction-arrow');
+    await expect(stage).toHaveAttribute('data-direction', 'turn-left');
+    const initial = await faceWindowGeometry(page, 0.8);
+    const expectArrow = async (direction: 'turn-left' | 'turn-right') => {
+      await expect(arrow).toHaveAttribute('data-direction', direction);
+      await expect(arrow.locator('svg path')).toBeVisible();
+      const visual = await arrow.evaluate(element => {
+        const arrow = element.getBoundingClientRect();
+        const frame = document.querySelector('.kyc-kit')!.getBoundingClientRect();
+        const aperture = document.querySelector('.kyc-camera-aperture')!.getBoundingClientRect();
+        const svg = element.querySelector('svg')!;
+        const transform = getComputedStyle(svg).transform;
+        return { left: arrow.left, right: arrow.right, top: arrow.top, bottom: arrow.bottom,
+          frameLeft: frame.left, frameRight: frame.right, frameTop: frame.top, frameBottom: frame.bottom,
+          apertureLeft: aperture.left, apertureRight: aperture.right,
+          centerOffset: Math.abs(arrow.y + arrow.height / 2 - aperture.y - aperture.height / 2),
+          animated: getComputedStyle(element).animationName !== 'none',
+          mirrored: transform !== 'none' && new DOMMatrixReadOnly(transform).a < 0 };
+      });
+      expect(visual.left).toBeGreaterThanOrEqual(visual.frameLeft);
+      expect(visual.right).toBeLessThanOrEqual(visual.frameRight);
+      expect(visual.top).toBeGreaterThanOrEqual(visual.frameTop);
+      expect(visual.bottom).toBeLessThanOrEqual(visual.frameBottom);
+      expect(visual.centerOffset).toBeLessThan(1);
+      expect(visual.animated).toBe(true);
+      expect(visual.mirrored).toBe(direction === 'turn-right');
+      if (direction === 'turn-left') expect(visual.right).toBeLessThanOrEqual(visual.apertureLeft + 4);
+      else expect(visual.left).toBeGreaterThanOrEqual(visual.apertureRight - 4);
+      const current = await faceWindowGeometry(page, 0.8);
+      expect(current.frame).toEqual(initial.frame);
+      expect(current.actions).toEqual(initial.actions);
+      await page.screenshot({ path: `.cache/face-window-${direction}-${viewport.width}.png` });
+    };
+    await expectArrow('turn-left');
+    // The opposite turn cannot advance the capture, even when held long enough.
+    await pose(page, 'turn-right');
+    await page.waitForTimeout(800);
+    await expect(stage).toHaveAttribute('data-direction', 'turn-left');
+    await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
+    await pose(page, 'turn-left');
+    await expect(stage).toHaveAttribute('data-direction', 'center');
+    await expect(arrow).toHaveCount(0);
+    await pose(page, 'center');
+    await expect(stage).toHaveAttribute('data-direction', 'turn-right');
+    await expectArrow('turn-right');
+    await pose(page, 'turn-right');
+    await expect(stage).toHaveAttribute('data-direction', 'center');
+    await expect(arrow).toHaveCount(0);
+    await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
+    await pose(page, 'center');
+    await expect(page.getByLabel('Your recorded face video', { exact: true })).toBeVisible();
+    await expectStopped(page);
+    expect(await page.locator('.kyc-kit').boundingBox()).toEqual(initial.frame);
   });
 }
 

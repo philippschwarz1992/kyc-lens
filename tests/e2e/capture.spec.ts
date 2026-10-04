@@ -29,7 +29,15 @@ async function expectNoCancelControls(page: Page): Promise<void> {
 
 async function expectAutomaticFaceReview(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: /^(Start camera|Start simulation|Simulate this movement|Kamera starten|Simulation starten|Bewegung simulieren)$/ })).toHaveCount(0);
-  await expect(page.locator('.kyc-review-screen')).toBeVisible({ timeout: 25_000 });
+  try {
+    await expect(page.locator('.kyc-review-screen, .kyc-error-screen')).toBeVisible({ timeout: 25_000 });
+    if (await page.locator('.kyc-error-screen').isVisible()) throw new Error(`Automatic face recording failed: ${await page.locator('.kyc-error-detail').textContent()}`);
+  }
+  catch (error) {
+    const events = await page.evaluate(() => (window as unknown as { faceRecordingEvents?: unknown[] }).faceRecordingEvents);
+    if (events) throw new Error(`${String(error)}\nMediaRecorder events: ${JSON.stringify(events)}`);
+    throw error;
+  }
   await expect(page.locator('.kyc-review-screen video')).toBeVisible();
 }
 
@@ -65,11 +73,27 @@ async function fixedFrameChecks(page: Page): Promise<(phase: string) => Promise<
     });
     expect(overflow, `${phase}: capture content is scrollable or overflows`).toEqual([]);
     expect(await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY })), `${phase}: document scrolled`).toEqual({ x: 0, y: 0 });
-    const rail = page.locator('.kyc-actions');
-    if (initialActionBottom !== undefined && await rail.isVisible()) {
-      const box = (await rail.boundingBox())!;
-      expect(Math.abs(box.y + box.height - initialActionBottom), `${phase}: bottom actions moved`).toBeLessThanOrEqual(1);
-      for (const button of await rail.getByRole('button').all()) await expectInsideViewport(page, button);
+    if (initialActionBottom !== undefined) {
+      // Read the rail and its controls atomically: a fast upload may switch the
+      // submitting screen to the result between separate browser round trips.
+      const geometry = await page.evaluate(() => {
+        const element = document.querySelector('.kyc-actions');
+        if (!element) throw new Error('The capture actions rail is missing.');
+        const railBox = element.getBoundingClientRect();
+        return { bottom: railBox.y + railBox.height, controls: Array.from(element.querySelectorAll<HTMLButtonElement>('button'), button => {
+          const box = button.getBoundingClientRect();
+          return { x: box.x, y: box.y, width: box.width, height: box.height,
+            receivesPointer: button.disabled || button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)) };
+        }) };
+      });
+      expect(Math.abs(geometry.bottom - initialActionBottom), `${phase}: bottom actions moved`).toBeLessThanOrEqual(1);
+      for (const control of geometry.controls) {
+        expect(control.x).toBeGreaterThanOrEqual(0);
+        expect(control.y).toBeGreaterThanOrEqual(0);
+        expect(control.x + control.width).toBeLessThanOrEqual(viewport.width + 1);
+        expect(control.y + control.height).toBeLessThanOrEqual(viewport.height + 1);
+        expect(control.receivesPointer, `${phase}: a bottom control cannot receive a click`).toBe(true);
+      }
     }
   };
 }
@@ -93,11 +117,59 @@ test('simulation completes selected challenges, review and authenticated local u
   await expect(page.getByRole('heading', { name: 'Your capture is complete.' })).toBeVisible();
   await page.goto('/settings?document=0');
   await page.getByRole('tab', { name: 'Capture summary', exact: true }).click();
-  await expect(page.getByRole('tabpanel')).toContainText('local API returned capture metadata');
+  await expect(page.getByRole('tabpanel')).toContainText('local API saved capture files');
   expect(errors).toEqual([]);
 });
 
+async function installRecordingDiagnostics(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const events: Record<string, unknown>[] = [];
+    (window as unknown as { faceRecordingEvents: typeof events }).faceRecordingEvents = events;
+    const nativeCamera = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    let cameraRequest = 0;
+    navigator.mediaDevices.getUserMedia = async constraints => {
+      const request = ++cameraRequest;
+      events.push({ event: 'camera-request', time: performance.now(), request });
+      const stream = await nativeCamera(constraints);
+      events.push({ event: 'camera-ready', time: performance.now(), request, stream: stream.id,
+        tracks: stream.getTracks().map(track => ({ id: track.id, state: track.readyState, muted: track.muted })) });
+      for (const track of stream.getTracks()) {
+        const nativeStop = track.stop.bind(track);
+        track.stop = () => {
+          events.push({ event: 'track-stop', time: performance.now(), request, id: track.id,
+            state: track.readyState, caller: new Error().stack?.split('\n').slice(1, 5).join('\n') });
+          nativeStop();
+        };
+        track.addEventListener('ended', () => events.push({ event: 'track-ended', time: performance.now(), request, id: track.id }));
+      }
+      return stream;
+    };
+    const NativeRecorder = window.MediaRecorder;
+    window.MediaRecorder = new Proxy(NativeRecorder, {
+      construct(target, args, newTarget) {
+        const recorder = Reflect.construct(target, args, newTarget) as MediaRecorder;
+        events.push({ event: 'constructed', time: performance.now(), mime: recorder.mimeType,
+          tracks: recorder.stream.getTracks().map(track => ({ muted: track.muted, settings: track.getSettings() })) });
+        const samples = setInterval(() => {
+          const video = document.querySelector<HTMLVideoElement>('.kyc-video');
+          events.push({ event: 'sample', time: performance.now(), state: recorder.state,
+            videoTime: video?.currentTime, videoReadyState: video?.readyState, frames: video?.getVideoPlaybackQuality().totalVideoFrames,
+            muted: recorder.stream.getTracks().map(track => track.muted) });
+        }, 100);
+        for (const kind of ['start', 'stop', 'error', 'dataavailable']) recorder.addEventListener(kind, event => {
+          if (kind === 'stop') clearInterval(samples);
+          events.push({ event: kind, time: performance.now(), state: recorder.state,
+            ...(kind === 'dataavailable' ? { size: (event as BlobEvent).data.size } : {}),
+            trackStates: recorder.stream.getTracks().map(track => track.readyState) });
+        });
+        return recorder;
+      },
+    });
+  });
+}
+
 test('optional screens, German locale, retake and upload retry preserve the capture flow', async ({ page }) => {
+  await installRecordingDiagnostics(page);
   await page.goto('/settings?simulate=1&document=0');
   await page.getByRole('switch', { name: 'Introduction' }).uncheck();
   await page.locator('#demo-locale').selectOption('de');
@@ -123,6 +195,7 @@ test('optional screens, German locale, retake and upload retry preserve the capt
 });
 
 test('real worker initializes with local assets, runs on fake camera frames and cleans up after a camera frame error', async ({ page }) => {
+  await installRecordingDiagnostics(page);
   await page.addInitScript(() => {
     const state = { failFrame: false, workerTerminated: false };
     (window as unknown as { faceCameraFixture: typeof state }).faceCameraFixture = state;
@@ -146,11 +219,19 @@ test('real worker initializes with local assets, runs on fake camera frames and 
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) external.push(request.url()); });
   await page.goto('/?document=0');
-  const model = page.waitForResponse(response => response.url().endsWith('/face_landmarker.task'));
+  let modelLoaded = false;
+  page.on('response', response => { if (response.url().endsWith('/face_landmarker.task')) modelLoaded = response.ok(); });
   await page.getByRole('button', { name: 'Start face capture', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Start camera', exact: true })).toHaveCount(0);
-  expect((await model).ok()).toBe(true);
+  await expect(page.locator('.kyc-current-instruction[role="status"], .kyc-error-screen')).toBeVisible({ timeout: 30_000 });
+  if (await page.locator('.kyc-error-screen').isVisible()) {
+    const events = await page.evaluate(() => (window as unknown as { faceRecordingEvents?: unknown[] }).faceRecordingEvents);
+    throw new Error(`Real camera recording failed: ${await page.locator('.kyc-error-detail').textContent()}\nMediaRecorder events: ${JSON.stringify(events)}`);
+  }
+  expect(modelLoaded).toBe(true);
   await expect(page.getByRole('status').filter({ hasText: 'Bring your face into the circle' })).toBeVisible({ timeout: 30_000 });
+  // StrictMode's discarded effect must not open a second camera session.
+  expect(await page.evaluate(() => (window as unknown as { faceRecordingEvents: { event: string }[] }).faceRecordingEvents.filter(event => event.event === 'camera-request').length)).toBe(1);
   await expectNoCancelControls(page);
   const trackHandle = await page.evaluateHandle(() => (document.querySelector('video')!.srcObject as MediaStream).getVideoTracks()[0]);
   await page.evaluate(() => { (window as unknown as { faceCameraFixture: { failFrame: boolean } }).faceCameraFixture.failFrame = true; });
@@ -161,6 +242,7 @@ test('real worker initializes with local assets, runs on fake camera frames and 
   await page.evaluate(() => { (window as unknown as { faceCameraFixture: { failFrame: boolean } }).faceCameraFixture.failFrame = false; });
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Bring your face into the circle' })).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate(() => (window as unknown as { faceRecordingEvents: { event: string }[] }).faceRecordingEvents.filter(event => event.event === 'camera-request').length)).toBe(2);
   await expect(page.getByRole('button', { name: 'Start camera', exact: true })).toHaveCount(0);
   expect(external).toEqual([]);
   expect(errors).toEqual([]);
@@ -191,6 +273,13 @@ test('sample endpoint rejects missing tokens and fake image data', async ({ requ
     multipart: { selfie: { name: 'selfie.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('invalid image contents') }, metadata: JSON.stringify({ capturedAt: new Date().toISOString(), mode: 'camera', challenges: [{ challenge: 'center', completedAt: 1000, durationMs: 650 }] }) },
   });
   expect(rejected.status()).toBe(400);
+  await expect(readdir(resolve('results', session.id))).rejects.toMatchObject({ code: 'ENOENT' });
+  const unauthenticated = await request.post(`/api/kyc/sessions/${session.id}/capture`, {
+    multipart: { selfie: { name: 'fake.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('unauthenticated upload') },
+      metadata: JSON.stringify({ capturedAt: new Date().toISOString(), mode: 'camera', challenges: [{ challenge: 'center', completedAt: 1000, durationMs: 650 }] }) },
+  });
+  expect(unauthenticated.status()).toBe(401);
+  await expect(readdir(resolve('results', session.id))).rejects.toMatchObject({ code: 'ENOENT' });
 });
 
 test('sample API accepts repeated challenges and older review captures, and identical retries are idempotent', async ({ request }) => {
@@ -203,9 +292,12 @@ test('sample API accepts repeated challenges and older review captures, and iden
   const options = { headers: { Authorization: `Bearer ${session.token}` }, multipart: { selfie: { name: 'demo.png', mimeType: 'image/png', buffer: image }, metadata } };
   const first = await request.post(`/api/kyc/sessions/${session.id}/capture`, options);
   expect(first.status()).toBe(200);
+  const firstReceipt = await first.json();
+  const beforeRetryFiles = (await readdir(resolve('results', session.id))).sort();
   const retry = await request.post(`/api/kyc/sessions/${session.id}/capture`, options);
   expect(retry.status()).toBe(200);
-  expect(await retry.json()).toEqual(await first.json());
+  expect(await retry.json()).toEqual(firstReceipt);
+  expect((await readdir(resolve('results', session.id))).sort()).toEqual(beforeRetryFiles);
 });
 
 test('preview is a standalone capture page and configuration lives on its own route', async ({ page }) => {

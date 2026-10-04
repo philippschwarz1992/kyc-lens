@@ -82,6 +82,58 @@ afterEach(() => {
 });
 
 describe('silent face video recording', () => {
+  it('waits for the first nonempty encoded chunk before declaring the recorder ready', async () => {
+    const { recording, recorder, onError } = record();
+    let ready = false;
+    void recording.ready.then(() => { ready = true; });
+    await Promise.resolve();
+    expect(ready).toBe(false);
+    recorder.chunk('');
+    vi.advanceTimersByTime(9_999);
+    await Promise.resolve();
+    expect(ready).toBe(false);
+    expect(onError).not.toHaveBeenCalled();
+    recorder.chunk('initial encoded bytes');
+    await expect(recording.ready).resolves.toBeUndefined();
+    expect(ready).toBe(true);
+    // The startup deadline is gone after usable data; the capture deadline remains.
+    vi.advanceTimersByTime(1);
+    expect(onError).not.toHaveBeenCalled();
+    const finished = recording.finish();
+    recorder.chunk('final bytes');
+    recorder.stopped();
+    expect(await (await finished).text()).toBe('initial encoded bytesfinal bytes');
+    expectReleased(recorder);
+  });
+
+  it.each(['native error', 'unexpected stop', 'discard', 'oversized first chunk'] as const)('rejects startup readiness on %s', async reason => {
+    const { recording, recorder, onError } = record();
+    const rejection = reason === 'discard'
+      ? expect(recording.ready).rejects.toMatchObject({ name: 'AbortError' })
+      : expect(recording.ready).rejects.toThrow(reason === 'oversized first chunk' ? 'videoTooLarge' : 'videoRecordingFailed');
+    if (reason === 'native error') recorder.failed();
+    else if (reason === 'unexpected stop') recorder.stopped();
+    else if (reason === 'discard') recording.discard();
+    else recorder.chunk(new Uint8Array(MAX_VIDEO_BYTES + 1));
+    await rejection;
+    expect(onError).toHaveBeenCalledTimes(reason === 'discard' ? 0 : 1);
+    expectReleased(recorder);
+  });
+
+  it('rejects startup readiness at the bounded first-chunk deadline', async () => {
+    const { recording, recorder, onError } = record();
+    const rejected = expect(recording.ready).rejects.toThrow(/videoRecording/);
+    recorder.chunk('');
+    vi.advanceTimersByTime(9_999);
+    expect(onError).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    await rejected;
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(recorder.stop).toHaveBeenCalledTimes(1);
+    await expect(recording.finish()).rejects.toThrow(/videoRecording/);
+    expectReleased(recorder);
+  });
+
   it('records only live video tracks and leaves stream ownership with the caller', () => {
     const liveVideo = track();
     const endedVideo = track('video', 'ended');
@@ -240,6 +292,8 @@ describe('silent face video recording', () => {
 
   it('replaces the capture deadline with a bounded finalization wait', async () => {
     const { recording, recorder, onError } = record();
+    recorder.chunk('initial encoded bytes');
+    await recording.ready;
     vi.advanceTimersByTime(MAX_VIDEO_DURATION_MS - 1);
     const finished = recording.finish();
     const rejected = expect(finished).rejects.toThrow('videoRecordingFailed');
