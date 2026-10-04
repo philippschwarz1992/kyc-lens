@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { matchingModels } from './matching-assets.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const modelSha256 = '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff';
@@ -67,13 +68,15 @@ function checkPublicTypes(packageName) {
   // A virtual consumer inside this package uses the published export map and declaration files.
   const filename = resolve(root, '__kyc_lens_typecheck__.mts');
   const source = `
-    import { KycFlow, createHttpApi, type KycFlowProps, type CapturePayload, type CaptureResult, type KycScreenContext } from '${packageName}';
+    import { KycFlow, createHttpApi, compareFaces, type CompareFacesOptions, type FaceMatchResult, type KycFlowProps, type CapturePayload, type CaptureResult, type KycScreenContext } from '${packageName}';
     import { ChallengeRunner, isCenteredFace, type FaceObservation } from '${packageName}/core';
-    const props = { face: { challenges: ['center'], holdDurationMs: 100, autoStart: true, recordVideo: true }, locale: 'en' } satisfies KycFlowProps;
+    const props = { face: { challenges: ['center'], holdDurationMs: 100, autoStart: true, recordVideo: true }, document: { autoCapture: true, holdDurationMs: 800 }, faceMatch: { threshold: .363 }, locale: 'en' } satisfies KycFlowProps;
     KycFlow(props);
     const payload = { selfie: new Blob(), video: new Blob([], { type: 'video/webm' }), challenges: [], capturedAt: new Date().toISOString(), mode: 'camera' } satisfies CapturePayload;
     const context = { next() {}, cancel() {}, retry() {}, videoUrl: 'blob:example', selfieUrl: 'blob:poster' } satisfies KycScreenContext;
     const result: CaptureResult = { status: 'capture_complete', payload };
+    const matchOptions = { document: payload.selfie, selfie: payload.selfie, assets: { matchWorkerUrl: '/kyc-assets/match-worker.js' } } satisfies CompareFacesOptions;
+    const comparison: Promise<FaceMatchResult> = compareFaces(matchOptions);
     createHttpApi('/api/kyc').submitCapture({ id: 'session' }, result.payload, new AbortController().signal);
     const observation: FaceObservation = { timestamp: 0, faceCount: 1, centerX: 0.5, centerY: 0.5, relativeSize: 0.4, yaw: 0, pitch: 0 };
     new ChallengeRunner(['center'], 100).update(observation);
@@ -160,7 +163,7 @@ async function checkPackage() {
 
   const main = await import(pkg.name);
   const core = await import(`${pkg.name}/core`);
-  for (const name of ['KycFlow', 'createHttpApi', 'KycHttpError']) assert.equal(typeof main[name], 'function', `Missing public export: ${name}`);
+  for (const name of ['KycFlow', 'createHttpApi', 'KycHttpError', 'compareFaces']) assert.equal(typeof main[name], 'function', `Missing public export: ${name}`);
   for (const name of ['ChallengeRunner', 'validateChallenges', 'validateFaceOptions', 'isCenteredFace', 'isNeutralFace']) assert.equal(typeof core[name], 'function', `Missing core export: ${name}`);
   assert.deepEqual(main.DEFAULT_CHALLENGES, core.DEFAULT_CHALLENGES);
   const error = new main.KycHttpError('Example', 401);
@@ -177,7 +180,7 @@ async function checkPackage() {
   const builtFiles = await filesBelow(resolve(root, 'dist'));
   const assetFiles = await filesBelow(resolve(root, 'assets'));
   await checkJavaScriptImports(builtFiles, resolve(root, 'dist'));
-  for (const worker of ['face-worker.js', 'document-worker.js']) run(process.execPath, ['--check', resolve(root, 'dist', worker)]);
+  for (const worker of ['face-worker.js', 'document-worker.js', 'match-worker.js']) run(process.execPath, ['--check', resolve(root, 'dist', worker)]);
   const manifest = JSON.parse(await readText('assets/manifest.json'));
   assert.equal(manifest.runtime, '@mediapipe/tasks-vision');
   assert.equal(manifest.version, pkg.devDependencies['@mediapipe/tasks-vision']);
@@ -195,6 +198,24 @@ async function checkPackage() {
       assert.equal(hash(await read(`${base}.${extension}`)), hash(await readFile(join(visionRoot, 'wasm', filename))), `WASM assets do not match the pinned runtime: ${filename}`);
     }
   }
+  const matching = JSON.parse(await readText('assets/matching/manifest.json'));
+  assert.equal(matching.runtime, 'onnxruntime-web');
+  assert.equal(matching.version, pkg.devDependencies['onnxruntime-web']);
+  assert.equal(matching.backend, 'wasm');
+  const ortRoot = resolve(dirname(createRequire(import.meta.url).resolve('onnxruntime-web/wasm')), '..');
+  for (const file of matching.runtimeFiles) {
+    const bytes = await read(`assets/matching/ort/${file.name}`);
+    assert.equal(bytes.length, file.size);
+    assert.equal(hash(bytes), file.sha256);
+    assert.equal(hash(bytes), hash(await readFile(join(ortRoot, 'dist', file.name))));
+  }
+  for (const model of matchingModels) {
+    const bytes = await read(`assets/matching/${model.name}`);
+    assert.equal(bytes.length, model.size, `Truncated matching model: ${model.name}`);
+    assert.equal(hash(bytes), model.sha256, `Matching model checksum mismatch: ${model.name}`);
+    assert((await readText(`assets/matching/${model.directory}-LICENSE.txt`)).includes(model.license === 'MIT' ? 'MIT License' : 'Apache License'));
+  }
+  assert((await readText('assets/matching/ONNXRUNTIME-LICENSE.txt')).includes('MIT License'));
 
   const pack = await packedFiles();
   assert.equal(pack.name, pkg.name);

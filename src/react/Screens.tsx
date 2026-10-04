@@ -21,6 +21,8 @@ export function ReviewScreen({ next, retry, result, selfieUrl, videoUrl, strings
   </div>;
 }
 
-export function ResultScreen({ strings: s }: ScreenProps) {
-  return <div className="kyc-screen kyc-result-screen"><div className="kyc-screen-heading"><h2>{s.resultTitle}</h2><p className="kyc-description">{s.resultBody}</p></div><div className="kyc-media"><div className="kyc-result-icon"><Icon name="check" size={42} /></div></div><div className="kyc-actions" /></div>;
+export function ResultScreen({ result, strings: s }: ScreenProps) {
+  const comparison = result?.faceMatch;
+  const comparisonLabel = comparison?.status === 'match' ? s.faceMatch : comparison?.status === 'no_match' ? s.faceNoMatch : s.faceInconclusive;
+  return <div className="kyc-screen kyc-result-screen"><div className="kyc-screen-heading"><h2>{s.resultTitle}</h2><p className="kyc-description">{comparison ? comparison.reason === 'simulation' ? s.faceMatchSimulation : s.faceMatchBody : s.resultBody}</p></div><div className="kyc-media kyc-result-media"><div className="kyc-result-icon"><Icon name="check" size={42} /></div>{comparison ? <p className="kyc-comparison-result" role="status" data-match-status={comparison.status}>{comparisonLabel}</p> : null}</div><div className="kyc-actions" /></div>;
 }

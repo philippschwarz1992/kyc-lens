@@ -121,8 +121,8 @@ test('simulation completes selected challenges, review and authenticated local u
   expect(errors).toEqual([]);
 });
 
-async function installRecordingDiagnostics(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+async function installRecordingDiagnostics(page: Page, cameraCountOnly = false): Promise<void> {
+  await page.addInitScript(cameraCountOnly => {
     const events: Record<string, unknown>[] = [];
     (window as unknown as { faceRecordingEvents: typeof events }).faceRecordingEvents = events;
     const nativeCamera = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
@@ -133,6 +133,7 @@ async function installRecordingDiagnostics(page: Page): Promise<void> {
       const stream = await nativeCamera(constraints);
       events.push({ event: 'camera-ready', time: performance.now(), request, stream: stream.id,
         tracks: stream.getTracks().map(track => ({ id: track.id, state: track.readyState, muted: track.muted })) });
+      if (cameraCountOnly) return stream;
       for (const track of stream.getTracks()) {
         const nativeStop = track.stop.bind(track);
         track.stop = () => {
@@ -144,6 +145,7 @@ async function installRecordingDiagnostics(page: Page): Promise<void> {
       }
       return stream;
     };
+    if (cameraCountOnly) return;
     const NativeRecorder = window.MediaRecorder;
     window.MediaRecorder = new Proxy(NativeRecorder, {
       construct(target, args, newTarget) {
@@ -165,7 +167,7 @@ async function installRecordingDiagnostics(page: Page): Promise<void> {
         return recorder;
       },
     });
-  });
+  }, cameraCountOnly);
 }
 
 test('optional screens, German locale, retake and upload retry preserve the capture flow', async ({ page }) => {
@@ -195,7 +197,7 @@ test('optional screens, German locale, retake and upload retry preserve the capt
 });
 
 test('real worker initializes with local assets, runs on fake camera frames and cleans up after a camera frame error', async ({ page }) => {
-  await installRecordingDiagnostics(page);
+  await installRecordingDiagnostics(page, true);
   await page.addInitScript(() => {
     const state = { failFrame: false, workerTerminated: false };
     (window as unknown as { faceCameraFixture: typeof state }).faceCameraFixture = state;

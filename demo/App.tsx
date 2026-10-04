@@ -4,6 +4,7 @@ import { KycFlow } from '../src/index';
 import type { CaptureResult, FaceChallenge, KycStep } from '../src/index';
 import FaceWorkerUrl from '../src/camera/face.worker.ts?worker&url';
 import DocumentWorkerUrl from '../src/camera/document.worker.ts?worker&url';
+import MatchWorkerUrl from '../src/matching/match.worker.ts?worker&url';
 
 const challengeOptions: { id: FaceChallenge; label: string }[] = [
   { id: 'center', label: 'Center face' }, { id: 'turn-left', label: 'Turn left' },
@@ -22,13 +23,15 @@ const summaryChannel = 'kyc-kit-demo-completion';
 interface Config {
   intro: boolean; document: boolean; review: boolean; result: boolean; challenges: FaceChallenge[];
   color: string; locale: 'en' | 'de'; simulation: boolean; upload: boolean;
+  documentAutoCapture: boolean; documentHoldDurationMs: number; faceMatch: boolean;
 }
 
 function initialConfig(): Config {
   const params = new URLSearchParams(window.location.search);
   const defaults: Config = {
     intro: true, document: params.get('document') !== '0', review: true, result: true, challenges: [...defaultChallenges],
-    color: '#2563eb', locale: 'en', simulation: params.get('simulate') === '1', upload: true,
+    color: '#2563eb', locale: 'en', simulation: params.get('simulate') === '1', upload: false,
+    documentAutoCapture: true, documentHoldDurationMs: 800, faceMatch: true,
   };
   try {
     const raw = params.get('config');
@@ -46,6 +49,9 @@ function initialConfig(): Config {
       result: typeof value.result === 'boolean' ? value.result : defaults.result,
       simulation: typeof value.simulation === 'boolean' ? value.simulation : defaults.simulation,
       upload: typeof value.upload === 'boolean' ? value.upload : defaults.upload,
+      documentAutoCapture: typeof value.documentAutoCapture === 'boolean' ? value.documentAutoCapture : defaults.documentAutoCapture,
+      documentHoldDurationMs: typeof value.documentHoldDurationMs === 'number' && Number.isFinite(value.documentHoldDurationMs) && value.documentHoldDurationMs >= 200 && value.documentHoldDurationMs <= 10_000 ? value.documentHoldDurationMs : defaults.documentHoldDurationMs,
+      faceMatch: typeof value.faceMatch === 'boolean' ? value.faceMatch : defaults.faceMatch,
       color: colors.some(color => color.value === value.color) ? value.color as string : defaults.color,
       locale: value.locale === 'de' ? 'de' : 'en', challenges,
     };
@@ -64,12 +70,14 @@ import 'kyc-lens-react/styles.css';
 <KycFlow
   steps={${JSON.stringify(getSteps(config))}}
   face={{ challenges: ${JSON.stringify(config.challenges)} }}
+  document={{ autoCapture: ${config.documentAutoCapture}, holdDurationMs: ${config.documentHoldDurationMs} }}${config.faceMatch ? '' : '\n  faceMatch={false}'}
   locale="${config.locale}"
   theme={{ primaryColor: '${config.color}' }}
   assets={{ baseUrl: '/kyc-assets' }}${config.upload ? '\n  apiBaseUrl="/api/kyc"' : ''}${config.simulation ? '\n  simulation={true} // Demo only' : ''}
   onComplete={(result) => {
     // status is "capture_complete".
-    // Your backend decides verification separately.
+    // result.faceMatch contains the local photo comparison when a document is present.
+    // Capture and photo similarity do not establish identity or liveness.
   }}
 />`;
 }
@@ -137,8 +145,9 @@ function PreviewPage() {
   return <main className="demo-preview-page" aria-label="Identity capture preview"><div className="demo-phone" data-testid="sdk-preview">
     <KycFlow
       steps={getSteps(config)} face={{ challenges: config.challenges, trackingFps: 15 }}
+      document={{ autoCapture: config.documentAutoCapture, holdDurationMs: config.documentHoldDurationMs }} faceMatch={config.faceMatch ? {} : false}
       theme={{ primaryColor: config.color }} locale={config.locale}
-      assets={{ baseUrl: '/kyc-assets', workerUrl: FaceWorkerUrl, documentWorkerUrl: DocumentWorkerUrl }}
+      assets={{ baseUrl: '/kyc-assets', workerUrl: FaceWorkerUrl, documentWorkerUrl: DocumentWorkerUrl, matchWorkerUrl: MatchWorkerUrl }}
       apiBaseUrl={config.upload ? '/api/kyc' : undefined} simulation={config.simulation}
       onComplete={publishSummary}
     />
@@ -190,6 +199,8 @@ function SettingsPage() {
         <fieldset><legend>Screens</legend>
           <Switch label="Introduction" checked={config.intro} onChange={value => update('intro', value)} />
           <Switch label="Document capture" checked={config.document} onChange={value => update('document', value)} />
+          <Switch label="Automatic document photo" description="Capture when the document is clear and steady" checked={config.documentAutoCapture} onChange={value => update('documentAutoCapture', value)} />
+          <Switch label="Compare document and selfie" description="Compare the faces on this device" checked={config.faceMatch} onChange={value => update('faceMatch', value)} />
           <div className="demo-required-step"><span>Face capture</span><span className="demo-required-badge">Required</span></div>
           <Switch label="Face capture review" checked={config.review} onChange={value => update('review', value)} />
           <Switch label="Capture result" checked={config.result} onChange={value => update('result', value)} />
@@ -219,7 +230,7 @@ function SettingsPage() {
         {tab === 'integration' ? <div id="integration-panel" role="tabpanel" tabIndex={0} aria-labelledby="integration-tab"><div className="demo-code-caption"><span>React / TypeScript</span><button className="demo-copy" onClick={() => void copyCode()}>{copiedCode === code ? 'Copied' : 'Copy code'}</button></div><pre><code>{code}</code></pre><div className="demo-code-footer"><code>npx kyc-lens-copy-assets ./public/kyc-assets</code></div></div> : <div id="result-panel" role="tabpanel" tabIndex={0} aria-labelledby="result-tab">{result ? <><div className="demo-code-caption"><span>Latest capture · metadata only</span><button className="demo-copy" onClick={() => { setResult(null); try { sessionStorage.removeItem(summaryKey); } catch { /* Optional storage. */ } }}>Clear</button></div><pre><code>{JSON.stringify(result, null, 2)}</code></pre></> : <div className="demo-empty-result"><Icon name="code" size={24} /><p>Complete a preview to see its capture summary here.</p><span>Captured media and session tokens are never displayed.</span></div>}</div>}
         {error && <p className="demo-validation demo-clipboard-error" role="alert">{error}</p>}
       </section>
-      <p className="demo-settings-note">This demo captures documents, a silent face video, a selfie and movement evidence. Your backend owns identity verification.</p>
+      <p className="demo-settings-note">Document detection and face comparison run in your browser. Uploads are optional. Captures and photo similarity do not establish identity or liveness.</p>
     </main>
   </div>;
 }

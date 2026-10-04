@@ -17,7 +17,7 @@ export const english: Record<string, string> = {
   complete: 'Face forward for your selfie', capturing: 'Capturing your selfie…', hold: 'Hold briefly', step: 'Step', of: 'of',
   challengeList: 'Capture movements', faceProgress: 'Position hold progress', returnCenter: 'Come back to the center',
   automaticCapture: 'Your photo is taken automatically.',
-  recordingVideo: 'Recording automatically. Follow the guide.', finishingVideo: 'Preparing your video…',
+  finishingVideo: 'Preparing your video…',
   videoReviewTitle: 'Check your video', videoReviewBody: 'Make sure your face is clearly visible throughout.',
   videoAlt: 'Your recorded face video', videoRetake: 'Record again',
   videoUnsupported: 'This browser cannot record face video. Use a supported browser and try again.',
@@ -28,6 +28,10 @@ export const english: Record<string, string> = {
   reviewEyebrow: 'REVIEW YOUR SELFIE', selfieAlt: 'Your captured selfie', photoReady: 'Photo ready',
   photoReadyBody: 'Confirm your selfie to continue, or retake the photo.',
   submittingTitle: 'Sending your capture', submittingBody: 'Please keep this page open for a moment.',
+  processingTitle: 'Preparing your capture', matchingTitle: 'Comparing your photos', matchingBody: 'The comparison runs on your device. This may take a moment.',
+  faceMatch: 'The faces look similar', faceNoMatch: 'The faces do not match', faceInconclusive: 'The photos could not be compared reliably',
+  faceMatchBody: 'Photo similarity is one part of an identity check.', faceMatchSimulation: 'Face comparison is skipped in simulation mode.',
+  matchingErrorBody: 'The comparison could not finish. Your photos are kept for another attempt.', faceComparisonUnavailable: 'Photo comparison is unavailable. Try again or ask for assistance.',
   resultTitle: 'Your capture is complete.', resultBody: 'Your capture is ready for the next step.', resultStatus: 'Capture complete',
   resultEyebrow: 'CAPTURE COMPLETE', errorTitle: 'Let’s try that again.', cameraErrorBody: 'We could not complete the face capture. Check the message below and try again.',
   submissionErrorBody: 'We could not send your capture. It is kept for another attempt.',
@@ -52,6 +56,7 @@ export const english: Record<string, string> = {
   documentSearching: 'Keep all four corners inside the frame.', documentOutside: 'Move the whole document inside the frame.', documentTooSmall: 'Move a little closer.',
   documentDark: 'Use brighter, even lighting.', documentGlare: 'Tilt slightly to avoid reflections.', documentBlur: 'Hold steady and let the camera focus.',
   documentHoldStill: 'Hold steady…', documentReady: 'Looks clear. Take your photo.', documentGuidanceUnavailable: 'Keep all four corners visible. Check the photo after capture.',
+  documentAutoHoldStill: 'Hold steady… taking your photo automatically.', documentAutoReady: 'Taking your photo automatically…', documentAutoProgress: 'Automatic photo capture',
 };
 
 const german: Record<string, string> = {
@@ -73,7 +78,7 @@ const german: Record<string, string> = {
   complete: 'Für das Selfie geradeaus schauen', capturing: 'Selfie wird aufgenommen…', hold: 'Kurz halten', step: 'Schritt', of: 'von',
   challengeList: 'Bewegungen für die Aufnahme', faceProgress: 'Fortschritt beim Halten der Position', returnCenter: 'Zurück zur Mitte',
   automaticCapture: 'Ihr Foto wird automatisch aufgenommen.',
-  recordingVideo: 'Automatische Aufnahme. Folgen Sie der Anleitung.', finishingVideo: 'Video wird vorbereitet…',
+  finishingVideo: 'Video wird vorbereitet…',
   videoReviewTitle: 'Prüfen Sie Ihr Video', videoReviewBody: 'Ihr Gesicht sollte durchgehend klar erkennbar sein.',
   videoAlt: 'Ihr aufgenommenes Gesichtsvideo', videoRetake: 'Erneut aufnehmen',
   videoUnsupported: 'Dieser Browser kann kein Gesichtsvideo aufnehmen. Verwenden Sie einen unterstützten Browser und versuchen Sie es erneut.',
@@ -84,6 +89,10 @@ const german: Record<string, string> = {
   reviewEyebrow: 'SELFIE PRÜFEN', selfieAlt: 'Ihr aufgenommenes Selfie', photoReady: 'Foto bereit',
   photoReadyBody: 'Bestätigen Sie Ihr Selfie oder wiederholen Sie die Aufnahme.',
   submittingTitle: 'Aufnahme wird gesendet', submittingBody: 'Lassen Sie diese Seite bitte kurz geöffnet.',
+  processingTitle: 'Aufnahme wird vorbereitet', matchingTitle: 'Ihre Fotos werden verglichen', matchingBody: 'Der Vergleich läuft auf Ihrem Gerät. Dies kann einen Moment dauern.',
+  faceMatch: 'Die Gesichter sehen ähnlich aus', faceNoMatch: 'Die Gesichter stimmen nicht überein', faceInconclusive: 'Die Fotos konnten nicht zuverlässig verglichen werden',
+  faceMatchBody: 'Fotoähnlichkeit ist ein Teil einer Identitätsprüfung.', faceMatchSimulation: 'Im Simulationsmodus wird der Gesichtsvergleich übersprungen.',
+  matchingErrorBody: 'Der Vergleich konnte nicht abgeschlossen werden. Ihre Fotos bleiben für einen erneuten Versuch erhalten.', faceComparisonUnavailable: 'Der Fotovergleich ist nicht verfügbar. Versuchen Sie es erneut oder bitten Sie um Hilfe.',
   resultTitle: 'Ihre Aufnahme ist abgeschlossen.', resultBody: 'Ihre Aufnahme ist für den nächsten Schritt bereit.', resultStatus: 'Aufnahme abgeschlossen',
   resultEyebrow: 'AUFNAHME ABGESCHLOSSEN', errorTitle: 'Versuchen wir es erneut.', cameraErrorBody: 'Die Aufnahme konnte nicht abgeschlossen werden. Beachten Sie den Hinweis unten und versuchen Sie es erneut.',
   submissionErrorBody: 'Die Aufnahme konnte nicht gesendet werden. Sie bleibt für einen erneuten Versuch erhalten.',
@@ -108,6 +117,7 @@ const german: Record<string, string> = {
   documentSearching: 'Halten Sie alle vier Ecken im Rahmen.', documentOutside: 'Bewegen Sie das ganze Dokument in den Rahmen.', documentTooSmall: 'Kommen Sie etwas näher.',
   documentDark: 'Sorgen Sie für helles, gleichmäßiges Licht.', documentGlare: 'Neigen Sie das Dokument leicht gegen Reflexionen.', documentBlur: 'Halten Sie ruhig und lassen Sie die Kamera scharfstellen.',
   documentHoldStill: 'Kurz ruhig halten…', documentReady: 'Gut erkennbar. Nehmen Sie das Foto auf.', documentGuidanceUnavailable: 'Alle vier Ecken müssen sichtbar sein. Prüfen Sie das Foto nach der Aufnahme.',
+  documentAutoHoldStill: 'Ruhig halten… das Foto wird automatisch aufgenommen.', documentAutoReady: 'Das Foto wird automatisch aufgenommen…', documentAutoProgress: 'Automatische Fotoaufnahme',
 };
 
 export function getStrings(locale: 'en' | 'de' = 'en', overrides?: Partial<Record<string, string>>): Record<string, string> {

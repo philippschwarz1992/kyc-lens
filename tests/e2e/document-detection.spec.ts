@@ -95,7 +95,7 @@ async function installDocumentCamera(page: Page): Promise<void> {
 
 async function openDocumentCamera(page: Page, type: 'id-card' | 'passport' = 'id-card'): Promise<void> {
   const config = { intro: false, document: true, review: true, result: true, challenges: ['center'],
-    color: '#2563eb', locale: 'en', simulation: false, upload: false };
+    color: '#2563eb', locale: 'en', simulation: false, upload: false, documentAutoCapture: false };
   await page.goto(`/?config=${encodeURIComponent(JSON.stringify(config))}`);
   if (type === 'passport') await page.getByRole('radio', { name: /Passport/ }).press('Space');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();

@@ -16,9 +16,9 @@ npm run dev
 
 Open [the local playground](http://localhost:5173/). On Windows, [start-demo.cmd](../start-demo.cmd) also installs dependencies on first use, prepares assets and opens the playground.
 
-`setup` downloads the pinned MediaPipe face model, checks its SHA-256 checksum and copies matching WASM files. Initial installation/setup need internet access. Runtime tracking loads your hosted files and processes frames locally.
+Developer `setup` downloads the pinned MediaPipe, YuNet and SFace models, checks their SHA-256 checksums and copies matching WASM files and licenses. Initial developer setup needs internet access. Consumer tarballs include these files, and runtime processing loads them from your application without an inference service.
 
-The main page runs the document and face flow. [The settings page](http://localhost:5173/settings) lets you change optional screens, movements, language, theme, simulation and the development upload API. **Open preview** opens those settings in a separate tab. The local upload API is on by default: after you finish and confirm the capture, the development server saves the results under their session ID.
+The main page runs automatic document capture and the guided face flow, then compares the document portrait and selfie locally. [The settings page](http://localhost:5173/settings) lets you change auto-capture, face comparison, optional screens, movements, language, theme, simulation and the development upload API. **Open preview** opens those settings in a separate tab. Uploads are off by default; enabling the local API saves completed captures under their session ID.
 
 For a camera-free preview, open [simulation mode](http://localhost:5173/?simulate=1). Add `&document=0` for a face-only preview. Simulation creates visibly marked demo media and synthetic observations; use real devices to evaluate tracking, recording and camera behavior.
 
@@ -77,7 +77,7 @@ export function IdentityCapture() {
 
 This example captures locally. Without `api` or `apiBaseUrl`, the SDK sends no captured media to a backend. The `onComplete` payload contains the selfie, face clip when recording is enabled, optional document photographs and challenge metadata. Keep media out of analytics and application logs.
 
-Document photos have a manual shutter and a review for each required side. The face camera starts automatically on entering its screen, records silently during tracker initialization and the selected movements, then stops and takes a final centered selfie. The optional final review lets the user play, confirm or retake the clip. Camera permission is still controlled by the browser. Face clips are limited to 12 MiB and 90 seconds; the browser must support recording WebM or MP4.
+Document photos are taken automatically after a steady, clear hold and final-photo quality check, with a manual fallback and review for each required side. The face camera starts automatically on entering its screen, records silently during tracker initialization and the selected movements, then stops and takes a final centered selfie. After optional final review, the package compares the document portrait and selfie; the result is advisory. Camera permission is still controlled by the browser. Face clips are limited to 12 MiB and 90 seconds; the browser must support recording WebM or MP4.
 
 For a face-only flow, omit the `steps` prop; its default is `['intro', 'face', 'review', 'result']`. To delay the face camera until the user presses a button, set `face={{ autoStart: false }}`. For an explicitly still-only flow, set `face={{ recordVideo: false }}`.
 

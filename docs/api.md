@@ -24,6 +24,12 @@ All flow props are optional. The default steps are `['intro', 'face', 'review', 
 | `document.types` | All three supported types | One to three unique choices. |
 | `document.camera` | Rear camera, ideal 1920×1080 | `MediaTrackConstraints` merged over the defaults. |
 | `document.detection` | `true` | Local guidance; `false` uses a neutral guide. |
+| `document.autoCapture` | `true` | Capture after a stable good-quality hold and encoded-photo recheck; manual shutter remains available. |
+| `document.holdDurationMs` | `800` | 200–10,000 ms of consecutive suitable document frames. |
+| `faceMatch` | Enabled with documents | `false` disables it; otherwise an options object configures local comparison. |
+| `faceMatch.threshold` | `0.363` | Cosine threshold in [-1, 1], requiring calibration on the target population. |
+| `faceMatch.inconclusiveMargin` | `0.03` | 0–0.25; threshold ± margin must stay within [-1, 1]. |
+| `faceMatch.timeoutMs` | `45_000` | 1,000–120,000 ms, including model loading and inference. |
 | `assets.baseUrl` | `/kyc-assets` | Public URL for the self-hosted assets. |
 | `locale` | `en` | Built-in `en` or `de`, with individual `strings` overrides. |
 
@@ -59,6 +65,8 @@ interface DocumentOptions {
   types?: readonly DocumentType[];
   camera?: MediaTrackConstraints;
   detection?: boolean; // Defaults to true: local framing/quality guidance.
+  autoCapture?: boolean; // Defaults to true, requires successful live analysis.
+  holdDurationMs?: number; // Defaults to 800.
 }
 
 interface FaceOptions {
@@ -76,6 +84,7 @@ interface CaptureResult {
   status: 'capture_complete';
   payload: CapturePayload;
   serverResult?: unknown;
+  faceMatch?: FaceMatchResult; // Local comparison only, outside the upload payload.
 }
 ```
 
@@ -224,7 +233,7 @@ interface SavedCaptureFiles {
 
 `metadata.json` contains the session ID, `capture_complete` status and receipt fields, including timestamps, evidence, type/size information and the filename map. No bearer token or authorization header is written. Saving occurs only at successful submission; the built-in final review triggers submission after confirmation when enabled. Retaking and camera recording do not write folders. Saved folders survive session expiry and server restarts, and require manual deletion. In-memory sessions still expire after 15 minutes, so a restart or expiry also ends access through the development GET endpoint.
 
-The playground enables its local upload API by default. Turning it off returns a browser-only result without saving files. The installed SDK has no filesystem access and requires your own backend to implement storage; `apiBaseUrl` alone does not install the development receiver in your host.
+The playground disables its local upload API by default. Enable it explicitly to save captures. The installed SDK has no filesystem access and requires your own backend to implement storage; `apiBaseUrl` alone does not install the development receiver in your host.
 
 ## Assets
 
@@ -234,6 +243,7 @@ The playground enables its local upload API by default. Turning it off returns a
     baseUrl: '/kyc-assets',
     workerUrl: '/kyc-assets/face-worker.js',
     documentWorkerUrl: '/kyc-assets/document-worker.js',
+    matchWorkerUrl: '/kyc-assets/match-worker.js',
     // Optional individual overrides:
     // modelUrl: '/custom-model/face_landmarker.task',
     // wasmBaseUrl: '/custom-wasm',
@@ -241,7 +251,35 @@ The playground enables its local upload API by default. Turning it off returns a
 />
 ```
 
-Copy package assets with `npx kyc-lens-copy-assets ./public/kyc-assets` and serve that directory. The workers default to `face-worker.js` and `document-worker.js` under `assets.baseUrl`, so `assets={{ baseUrl: '/kyc-assets' }}` is sufficient. Keep copied workers with their relative JavaScript chunks, and recopy the directory after upgrades. Use `workerUrl` or `documentWorkerUrl` when hosting either worker at another location. The document worker has no model/WASM or third-party service dependency. It starts only during a live document camera screen with detection enabled. The demo uses Vite-bundled source workers; packaged consumers use the workers copied from the distributable. Do not point a deployed app at a filesystem path or a worker from another version.
+Copy package assets with `npx kyc-lens-copy-assets ./public/kyc-assets` and serve that directory. All three workers default beneath `assets.baseUrl`, so `assets={{ baseUrl: '/kyc-assets' }}` is sufficient. Keep workers with their relative JavaScript chunks and recopy after upgrades. Individual overrides are `workerUrl`, `documentWorkerUrl`, `matchWorkerUrl`, `matchWasmBaseUrl`, `faceDetectorModelUrl` and `faceRecognizerModelUrl`. All matching URLs must be on the application's origin; model/runtime redirects are rejected. The document worker has no model/WASM dependency. Packaged consumers use copied workers; the demo uses Vite-bundled source workers.
+
+## Local face comparison
+
+With a document present, `KycFlow` compares its front/photo-page portrait with the accepted selfie after review and before optional upload. Use `faceMatch={false}` to disable it. Simulation skips inference and returns `inconclusive` with reason `simulation`. Operational failures show a recoverable error and retain the photos for retry. Quality or ambiguous-face outcomes complete with an inconclusive result.
+
+```ts
+import { compareFaces } from 'kyc-lens-react';
+
+const comparison = await compareFaces({
+  document: documentPhotoBlob,
+  selfie: selfieBlob,
+  assets: { baseUrl: '/kyc-assets' },
+  threshold: 0.363,
+  inconclusiveMargin: 0.03,
+  timeoutMs: 45_000,
+  signal: abortController.signal,
+});
+```
+
+`compareFaces` accepts JPEG, PNG or WebP Blobs up to 24 MiB each. It decodes images, rejects decoded images above 32 million pixels or below 112 pixels on either side, and downsamples to at most 1600 pixels on the longest side. It requires Worker, OffscreenCanvas, `createImageBitmap`, WebAssembly SIMD and a secure context for model integrity checks.
+
+`FaceMatchResult` contains `status: 'match' | 'no_match' | 'inconclusive' | 'unavailable'`, `reason`, optional `score`, `threshold`, `inconclusiveMargin`, model identifiers and optional `durationMs`. Scores are cosine similarity, not probability. Match requires score ≥ threshold + margin; no match requires score < threshold − margin; the remaining band is inconclusive. Reasons distinguish missing/multiple/ambiguous faces, pose, size, quality, invalid images, asset/model/worker failures and timeout. Cancellation rejects with `AbortError`; ordinary processing failures return a nondecision.
+
+YuNet detects portraits and five landmarks. The document chooses a dominant portrait only when its area is at least 2.5× the next candidate; a selfie requires exactly one face. The package applies provisional pose/quality/size gates, aligns to 112×112 pixels and feeds RGB raw 0–255 NCHW into SFace. Embeddings never leave the worker and are cleared after comparison. `faceMatch` is separate from `CapturePayload`, so the built-in upload adapter does not transmit scores or embeddings.
+
+The default threshold and quality gates require calibration on consented document-to-selfie data. They do not establish liveness, document authenticity or identity approval. Preserve the bundled notices and review the [SFace provenance limitation](../THIRD_PARTY_NOTICES.md).
+
+For restrictive CSP, allow your origin for workers/fetches and module scripts, `blob:` module imports and WebAssembly compilation (`'wasm-unsafe-eval'` where supported). The runtime is fetched with redirects rejected, checked against pinned hashes and imported from a temporary blob URL. Blocked CSP produces an unavailable comparison. No cross-origin isolation or GPU service is needed; the worker uses single-thread WASM.
 
 ## Callbacks and cleanup
 

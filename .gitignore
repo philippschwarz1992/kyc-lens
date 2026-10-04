@@ -9,6 +9,8 @@ playwright-report/
 *.tgz
 assets/wasm/
 assets/face_landmarker.task
+assets/matching/*.onnx
+assets/matching/ort/
 demo/public/kyc-assets/
 .env
 .env.*

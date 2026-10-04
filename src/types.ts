@@ -1,4 +1,6 @@
 import type { ComponentType } from 'react';
+import type { FaceMatchResult } from './matching/protocol.js';
+export type { FaceMatchResult } from './matching/protocol.js';
 
 export type KycStep = 'intro' | 'document' | 'face' | 'review' | 'result';
 export type DocumentType = 'id-card' | 'drivers-license' | 'passport';
@@ -6,8 +8,12 @@ export interface DocumentOptions {
   /** Available document types. Defaults to ID card, driving licence, and passport. */
   types?: readonly DocumentType[];
   camera?: MediaTrackConstraints;
-  /** Local framing/clarity guidance. Defaults to true; photographs remain manual. */
+  /** Local framing/clarity guidance. Defaults to true. */
   detection?: boolean;
+  /** Automatically capture a steady, clear document. Default: true. Manual fallback remains available. */
+  autoCapture?: boolean;
+  /** Required stable document hold in milliseconds. Default: 800; range: 200–10000. */
+  holdDurationMs?: number;
 }
 export interface DocumentCapture {
   type: DocumentType;
@@ -64,6 +70,19 @@ export interface AssetOptions {
   workerUrl?: string;
   /** Document guidance worker. Defaults to baseUrl/document-worker.js. */
   documentWorkerUrl?: string;
+  /** All matching URLs must use the application's own origin. */
+  matchWorkerUrl?: string;
+  matchWasmBaseUrl?: string;
+  faceDetectorModelUrl?: string;
+  faceRecognizerModelUrl?: string;
+}
+export interface FaceMatchOptions {
+  /** Cosine similarity boundary; default 0.363 is an example, not a calibrated KYC threshold. */
+  threshold?: number;
+  /** Scores within this distance of the threshold are inconclusive. Default: 0.03. */
+  inconclusiveMargin?: number;
+  /** Whole local comparison timeout, including model loading. Default: 45000 milliseconds. */
+  timeoutMs?: number;
 }
 export interface KycTheme {
   primaryColor?: string;
@@ -87,6 +106,8 @@ export interface CaptureResult {
   status: 'capture_complete';
   payload: CapturePayload;
   serverResult?: unknown;
+  /** Local face comparison only; does not establish authenticity, liveness or identity approval. */
+  faceMatch?: FaceMatchResult;
 }
 export interface KycApi {
   createSession: (signal: AbortSignal) => Promise<KycSession>;
@@ -105,6 +126,8 @@ export interface KycFlowProps {
   steps?: readonly KycStep[];
   document?: DocumentOptions;
   face?: FaceOptions;
+  /** Local document/selfie comparison. Enabled when document capture is present; false disables it. */
+  faceMatch?: FaceMatchOptions | false;
   assets?: AssetOptions;
   theme?: KycTheme;
   /** Built-in English and German; other locales use custom strings. */

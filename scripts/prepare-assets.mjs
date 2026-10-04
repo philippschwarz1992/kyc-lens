@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { prepareMatchingAssets } from './matching-assets.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assets = resolve(root, 'assets');
@@ -45,3 +46,4 @@ await copyFile(resolve(assets, 'manifest.json'), resolve(localPublic, 'manifest.
 await copyFile(licensePath, resolve(localPublic, 'MEDIAPIPE-LICENSE.txt'));
 for (const name of wasmFiles) await copyFile(resolve(assets, 'wasm', name), resolve(localPublic, 'wasm', name));
 process.stdout.write(`Ready: ${modelBytes.length.toLocaleString()} model bytes + matching WASM ${version}. Runtime assets are served locally.\n`);
+await prepareMatchingAssets(root);

@@ -9,7 +9,7 @@ npm install /path/to/kyc-lens-react-0.1.0.tgz
 npx kyc-lens-copy-assets ./public/kyc-assets
 ```
 
-This copies both `face-worker.js` and `document-worker.js`, their relative JavaScript chunks, and the face model/WASM files. Keep the copied directory together, serve it from your app and repeat the command after upgrading the package. `assets={{ baseUrl: '/kyc-assets' }}` resolves both workers automatically.
+This copies all three workers, their relative JavaScript chunks, the face models, matching WASM and license files. Keep the directory together, serve it from your app and repeat the command after upgrading. `assets={{ baseUrl: '/kyc-assets' }}` resolves the workers automatically. No inference server is required.
 
 Import the stylesheet once in your app's root layout:
 
@@ -39,14 +39,12 @@ export default function CaptureClient() {
   return (
     <KycFlow
       assets={{ baseUrl: '/kyc-assets', workerUrl: '/kyc-assets/face-worker.js' }}
-      apiBaseUrl="/api/kyc"
       steps={['intro', 'document', 'face', 'review', 'result']}
       document={{ types: ['id-card', 'drivers-license', 'passport'] }}
       face={{ challenges: ['center', 'turn-left', 'turn-right', 'closer', 'further'] }}
-      onComplete={({ sessionId }) => {
-        // Update capture UI or fetch your backend's verification status.
-        // Do not unlock a verified-user feature from this callback.
-        console.log('Capture received for session', sessionId);
+      onComplete={(result) => {
+        // result.payload contains local media; result.faceMatch contains local comparison.
+        // Handle retention and approval in your application; avoid logging biometric data.
       }}
     />
   );
@@ -59,13 +57,13 @@ Automatic start and video recording are enabled by default. If your host needs a
 
 Omit `'document'` from `steps` for a face-only capture. When enabled, document selection and individual photo reviews happen before the face screen. Pass `document.types` to restrict available choices and `document.camera` to override rear-camera constraints. Your upload service receives document photos along with the selfie and optional `faceVideo`; validate required sides and required media using your server's policy.
 
-Document framing guidance is on by default. A red outline and hint ask the user to improve framing or image quality; a green outline means a complete document-shaped rectangle has been stable inside the guide and passed local quality heuristics. Capture remains manual and does not require green. To disable analysis, pass `document={{ types: ['id-card', 'passport'], detection: false }}`; the guide then stays neutral. No detector score is included in the upload or completion payload. Check the captured images on your backend according to your own policy; the outline does not authenticate an ID or recognize its type.
+Document guidance and auto-capture are on by default. A steady clear document triggers a full-resolution photo and encoded-image quality recheck before review. `document={{ autoCapture: false }}` keeps the shutter manual. `detection: false` disables analysis and automatic capture. The manual fallback remains available when analysis is unavailable. No document detector score is included in the upload or completion payload; the outline does not authenticate an ID or recognize its type.
 
 Missing or blocked worker/image APIs leave the guide red with a request to check the photo after capture; they do not block the shutter. Simulation uses a neutral outline because it does not analyze a live document.
 
 ## Your route handlers
 
-The SDK requires a session-create route and a multipart-capture route. The following illustrates the boundaries with a **host-owned service**, not a supplied backend implementation. `kycService` must implement persistent sessions, user authorization, bounded media parsing/validation, retention and any actual verification processing.
+Upload integration is optional. Set `apiBaseUrl="/api/kyc"` only if your application implements a session-create route and a multipart-capture route. The following illustrates a **host-owned service**. `kycService` must implement persistent sessions, user authorization, bounded media parsing/validation, retention and any authoritative verification processing.
 
 ```ts
 // app/api/kyc/sessions/route.ts
@@ -107,7 +105,7 @@ Apply your platform's upload limits before `request.formData()` allocates a larg
 
 For a working development-only example of this contract, see [demo/server.ts](../demo/server.ts). It checks local requests and session tokens, caps multipart requests at 24 MiB, and validates allowed metadata and basic media signatures before saving the complete result under `results/<sessionId>/` in the checkout. Individual images are limited to 6 MiB and an optional WebM/MP4 clip to 12 MiB. Files have fixed MIME-appropriate names: `selfie.jpg`/`.png`, optional `face-video.webm`/`.mp4`, optional `document-front.jpg`/`.png` and `document-back.jpg`/`.png`, plus `metadata.json`. Receipts expose type/size, capture metadata and a `files` filename map rather than media bytes; the JSON omits session tokens and authorization headers.
 
-The playground's local upload API is enabled by default. Saving starts only when capture is submitted, after final review confirmation when that screen is enabled; recording and retakes do not create saved folders. The receiver commits each validated result as a complete folder and returns the same receipt for an identical retry; a changed capture is rejected. Sessions remain in memory and expire, but saved folders survive session expiry and server restarts until manually deleted. Turning off **Local upload API** keeps capture in the browser and creates no result folder.
+The playground's local upload API is disabled by default. When enabled, saving starts only at submission after final review; recording and retakes do not create saved folders. The receiver commits each validated result as a complete folder and returns the same receipt for an identical retry; a changed capture is rejected. Sessions remain in memory and expire, but saved folders survive until manually deleted. Disabled upload keeps captures in the browser and creates no result folder.
 
 The installed SDK does not write to a server's filesystem itself. Copy or adapt the receiver's storage behavior into your own backend if you want results saved by session ID. The development sample does not authenticate application users, implement independent PAD or approve anyone.
 
@@ -117,7 +115,7 @@ Ordinary React applications can import `KycFlow` and its stylesheet directly. Ho
 
 For a non-Node backend, implement the same HTTP contract in your language/framework. If your routes use different names, your upload protocol is different, or you already have storage sessions, provide the [custom `api` interface](./api.md) instead of `apiBaseUrl`.
 
-The built-in screens have no cancel or close button. For a modal integration, mount the SDK when the modal opens and unmount it when the user closes it through your host controls, including your own backdrop/escape handlers. Hiding the modal with CSS leaves the SDK mounted. Custom screens can call `context.cancel`, which delivers `onCancel`; unmounting alone does not deliver that callback. Cleanup on unmount releases the camera, recorder, unfinished recording buffers, workers and preview URLs.
+The face-comparison screen has a Cancel button. For a modal integration, also unmount the SDK when the user closes it through your host controls, including backdrop/escape handlers. Hiding the modal with CSS leaves it mounted. Custom screens can call `context.cancel`, which delivers `onCancel`; unmounting alone does not deliver that callback. Cleanup releases the camera, recorder, buffers, comparison worker, requests and preview URLs.
 
 The built-in frame has a fixed height across steps, centered on desktop and fullscreen on mobile. Its contents do not scroll, and action buttons stay at the bottom. Screen changes use a short fade and upward slide for copy and media; bottom controls fade in place. The animation keeps existing camera elements mounted and respects `prefers-reduced-motion`. For a dedicated route, give its parent viewport height and center the frame; avoid adding page headers or padding above the fullscreen mobile flow. Custom screen slots need to keep media and copy within the available height as well.
 

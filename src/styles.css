@@ -102,11 +102,15 @@
 .kyc-document-guide[data-document-type="passport"] { aspect-ratio: 1.42; }
 .kyc-document-guide[data-state="adjust"] { border-color: #f87171; }
 .kyc-document-guide[data-state="ready"] { border-color: #34d399; }
+.kyc-document-auto-progress { position: absolute; bottom: 14px; left: 10%; right: 10%; height: 4px; overflow: hidden; border-radius: 4px; background: rgb(255 255 255 / 35%); }
+.kyc-document-auto-progress > span { display: block; height: 100%; background: #34d399; transition: width 100ms linear; }
 .kyc-document-demo { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #f1f6ff; }
 .kyc-document-demo > span { position: absolute; bottom: 18px; font-size: 9px; letter-spacing: 1px; color: #7a8ba7; }
 .kyc-document-demo .kyc-illustration { width: 85%; height: 85%; }
 .kyc-document-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; background: rgb(240 245 253 / 95%); color: var(--kyc-muted); font-size: 12px; }
 .kyc-result-icon, .kyc-error-icon { display: flex; align-items: center; justify-content: center; width: 96px; height: 96px; border-radius: 50%; color: var(--kyc-primary); background: color-mix(in srgb, var(--kyc-primary) 8%, white); }
+.kyc-result-media { flex-direction: column; gap: 22px; }
+.kyc-comparison-result { margin: 0; max-width: 100%; text-align: center; font-size: 15px; line-height: 1.5; }
 .kyc-error-screen > .kyc-media { flex-direction: column; gap: 24px; }
 .kyc-error-icon { flex-shrink: 0; width: 74px; height: 74px; }
 .kyc-error-detail { max-width: 100%; margin: 0; padding: 14px 16px; border-radius: 12px; color: #855d3e; background: #fff7ef; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }

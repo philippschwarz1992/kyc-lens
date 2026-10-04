@@ -2,13 +2,13 @@
 
 This plan covers a React package that detects documents, automatically photographs them when quality is adequate, captures a guided selfie, and compares that selfie with the document portrait entirely in the browser. The package must ship its required models, workers and processing files. It must work without an inference service, external CDN or automatic media upload.
 
-**Status:** planned validation, dated 4 October 2026. No tests or performance measurements were run while preparing this plan. Numerical goals below are proposed engineering targets, not measured results or KYC certification criteria.
+**Status:** implemented with automated validation, dated 4 October 2026. The original plan was prepared without running tests; implementation now covers automatic document photos and browser-only face comparison. Numerical release goals below remain proposed targets, not KYC certification criteria. Automated evidence and outstanding release work are recorded at the end.
 
 ## Scope and current baseline
 
-The current package has document framing and quality guidance with a manual shutter, automatic MediaPipe face capture, local asset copying, and an optional upload adapter. It does not yet implement document auto-capture or selfie-to-document matching. Those are the features this plan is intended to validate.
+The implementation now includes stable-hold document auto-capture, encoded-photo quality rechecks, manual fallback, automatic MediaPipe face capture and YuNet/SFace comparison in a separate local worker. The optional upload adapter remains off in the demo by default.
 
-Use the existing document worker, optionally extended with OpenCV.js, and keep MediaPipe for live face guidance. The initial matching candidate is ONNX Runtime Web with YuNet and SFace. Test the exact chosen model versions before declaring browser support. SFace needs a JavaScript adapter for landmark alignment, input preparation, embedding normalization and comparison; the Python OpenCV example is not a drop-in browser implementation.
+The existing document worker was extended without adding OpenCV.js. MediaPipe remains the live face guide. Matching uses ONNX Runtime Web 1.30.0 single-thread WASM, YuNet March 2023 and SFace December 2021, with pinned hashes for models/runtime. The JavaScript adapter follows OpenCV 4.12.0 detection, five-point alignment and raw RGB NCHW SFace input. Independent development reference generation uses Python only for test evidence; production processing runs in the package.
 
 The required local acceptance configuration has no `api` or `apiBaseUrl`, has simulation disabled, and includes the document and face steps. Existing upload examples can remain separate, but must not be required by this configuration.
 
@@ -144,6 +144,17 @@ The following must pass before declaring the planned features supported:
 
 Keep pilot use advisory when accuracy evidence does not support the intended decision. Recalibrate and rerun held-out evaluation after changing models, preprocessing, quality gates or thresholds; rerun backend parity when enabling a new execution backend.
 
+## Implementation validation record — 4 October 2026
+
+- TypeScript and library/demo builds passed; package checks verify all three workers, relative chunks, exact model/runtime hashes, full notices, public types and asset-copy output. The tarball contains about 51.4 MiB compressed / 89.5 MiB unpacked.
+- 127 unit tests passed, including document hold timing/drift/stale-frame handling, matching input preparation, OpenCV crop parity, score boundaries, quality/ambiguity gates and timeout/abort cleanup.
+- All 50 Chrome browser checks passed across the regression run and affected-case reruns. New cases use actual document pixels and the packaged face models/runtime, plus controlled worker responses for flow state/races. Coverage includes full-resolution front/back auto-capture, final-JPEG rejection, manual/automatic races, Back during encoding, unavailable analysis, local-only requests, model corruption, redirect rejection, comparison retry and cancellation. The recording diagnostic proxies were removed from the real-worker test; that test then passed three consecutive runs while retaining camera-count and cleanup assertions.
+- Independent actual ONNX Runtime Web WASM versus OpenCV 4.12.0 reference passed: maximum detector-coordinate difference 0.00002471 px, embedding cosine 0.9999944, maximum normalized embedding-component difference 0.0008278. Accepted tolerances are 0.001 px, cosine ≥0.9999 and component difference ≤0.003. The browser's independently detected/processed adjusted portrait pair agrees with the reference within 0.002 cosine.
+- Fixtures are a documented public-domain NASA portrait and deterministic derivative, used for processing mechanics only. They do not measure biometric accuracy on real documents. Run `npm run check:matching-reference` to reproduce the local reference check.
+- `npm run check:consumer` installs the actual tarball in a fresh React application directory and verifies public imports, SSR-safe failure handling, installed asset copying and pinned model integrity. Evidence is saved in the ignored `.cache/consumer-check.json` file. This check does not replace a full consumer-browser capture test.
+
+Release work still pending: complete capture in a clean consumer app, React 18/19 and Next.js integration matrix, physical phones/Safari/WebViews, restrictive deployment CSP, repeated-use memory/performance measurements, consented held-out genuine/impostor accuracy and subgroup evaluation, threshold/quality calibration and SFace training-data provenance clearance. The release checkboxes above remain unmarked until that evidence is collected.
+
 The signoff record must contain: release and model versions, test dates, actual device/browser matrix, passed/failed case counts, unresolved limitations, biometric evaluation denominators and intervals, performance results, protected evidence locations, and the person responsible for each test run. A QA plan or build passing is not itself release evidence.
 
 ## Technical references
@@ -152,4 +163,4 @@ The signoff record must contain: release and model versions, test dates, actual 
 - [ONNX Runtime flags and session options](https://onnxruntime.ai/docs/tutorials/web/env-flags-and-session-options.html) covers paths, threading and execution configuration to validate.
 - [OpenCV face recognition source](https://github.com/opencv/opencv/blob/4.x/modules/objdetect/src/face_recognize.cpp) is the reference for SFace alignment, input preparation and comparison. Pin an exact revision when generating fixtures.
 - [SFace model documentation](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) states its published license; [the provenance question](https://github.com/opencv/opencv_zoo/issues/313) remains a documented release consideration.
-- Current project behavior is documented in [Architecture and limitations](./architecture.md) and [API reference](./api.md); those describe the existing capture package, not completed matching functionality.
+- Current implementation behavior is documented in [Architecture and limitations](./architecture.md) and [API reference](./api.md).

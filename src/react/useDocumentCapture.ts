@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AssetOptions, DocumentOptions, DocumentType } from '../types.js';
-import type { DocumentDetectionReason } from '../core/document.js';
+import { analyzeDocument, type DocumentDetectionReason } from '../core/document.js';
+import { createDocumentHold } from '../core/document-auto.js';
 import { createDocumentTracker } from '../camera/document-tracker.js';
+import { documentPreviewGeometry } from '../camera/document-preview.js';
 
 export type DocumentCameraStatus = 'idle' | 'requesting' | 'ready' | 'capturing';
 export type DocumentSide = 'front' | 'back';
@@ -15,11 +17,18 @@ function captureError(message: string): Error {
 
 function encodePhoto(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    canvas.toBlob(blob => blob ? resolve(blob) : reject(captureError('documentCaptureFailed')), 'image/jpeg', 0.95);
+    const timer = setTimeout(() => reject(captureError('documentCaptureFailed')), 5000);
+    try {
+      canvas.toBlob(blob => {
+        clearTimeout(timer);
+        if (blob) resolve(blob);
+        else reject(captureError('documentCaptureFailed'));
+      }, 'image/jpeg', 0.95);
+    } catch (error) { clearTimeout(timer); reject(error); }
   });
 }
 
-function snapshot(video: HTMLVideoElement): Promise<Blob> {
+async function snapshot(video: HTMLVideoElement): Promise<Blob> {
   if (!video.videoWidth || !video.videoHeight || video.readyState < 2) return Promise.reject(captureError('documentCameraUnavailable'));
   const canvas = document.createElement('canvas');
   // Preserve the entire camera image at its native resolution; the guide is only visual.
@@ -29,6 +38,34 @@ function snapshot(video: HTMLVideoElement): Promise<Blob> {
   if (!context) return Promise.reject(captureError('documentCaptureFailed'));
   context.drawImage(video, 0, 0);
   return encodePhoto(canvas);
+}
+
+type PreviewGeometry = NonNullable<ReturnType<typeof documentPreviewGeometry>>;
+
+/** Decode and assess the delivered JPEG, using the same visible crop and document interior as the guide. */
+async function checkPhoto(photo: Blob, geometry: PreviewGeometry, type: DocumentType) {
+  const bitmap = await new Promise<ImageBitmap>((resolve, reject) => {
+    let expired = false;
+    const timer = setTimeout(() => { expired = true; reject(captureError('documentCaptureFailed')); }, 5000);
+    try {
+      void createImageBitmap(photo).then(decoded => {
+        clearTimeout(timer);
+        if (expired) decoded.close();
+        else resolve(decoded);
+      }, error => { clearTimeout(timer); reject(error); });
+    } catch (error) { clearTimeout(timer); reject(error); }
+  });
+  try {
+    const canvas = document.createElement('canvas');
+    const { crop } = geometry;
+    canvas.width = crop.sampleWidth;
+    canvas.height = crop.sampleHeight;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) throw captureError('documentCaptureFailed');
+    context.drawImage(bitmap, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
+    return analyzeDocument({ data: context.getImageData(0, 0, canvas.width, canvas.height).data,
+      width: canvas.width, height: canvas.height, guide: geometry.guide, type });
+  } finally { bitmap.close(); }
 }
 
 function simulatedDocument(type: DocumentType, side: DocumentSide): Promise<Blob> {
@@ -108,11 +145,12 @@ function waitForFrame(video: HTMLVideoElement, signal: AbortSignal): Promise<voi
   });
 }
 
-/** Rear-camera photographs with local preview guidance and a manual shutter. */
-export function useDocumentCapture({ options, assets, type, simulation, onCapture, onFailure }: {
+/** Rear-camera photographs with a quality-gated automatic shutter and manual fallback. */
+export function useDocumentCapture({ options, assets, type, side = 'front', simulation, onCapture, onFailure }: {
   options: DocumentOptions;
   assets: AssetOptions;
   type: DocumentType;
+  side?: DocumentSide;
   simulation: boolean;
   onCapture: (photo: Blob) => void;
   onFailure: (error: Error) => void;
@@ -120,18 +158,23 @@ export function useDocumentCapture({ options, assets, type, simulation, onCaptur
   const videoRef = useRef<HTMLVideoElement>(null);
   const guideRef = useRef<HTMLDivElement>(null);
   const trackerRef = useRef<{ stop(): void } | null>(null);
+  const guidanceAvailable = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const trackListeners = useRef<Array<() => void>>([]);
+  const holdRef = useRef(createDocumentHold(options.holdDurationMs));
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const automaticCapture = useRef<() => void>(() => {});
   const generation = useRef(0);
   const mounted = useRef(true);
   const statusRef = useRef<DocumentCameraStatus>('idle');
-  const configuration = useRef({ options, assets, type, simulation });
+  const configuration = useRef({ options, assets, type, side, simulation });
   const callbacks = useRef({ onCapture, onFailure });
-  configuration.current = { options, assets, type, simulation };
+  configuration.current = { options, assets, type, side, simulation };
   callbacks.current = { onCapture, onFailure };
   const [status, setStatus] = useState<DocumentCameraStatus>('idle');
   const [feedback, setFeedback] = useState<DocumentGuideFeedback>('searching');
+  const [progress, setProgress] = useState(0);
 
   const updateStatus = useCallback((next: DocumentCameraStatus) => {
     statusRef.current = next;
@@ -140,12 +183,15 @@ export function useDocumentCapture({ options, assets, type, simulation, onCaptur
 
   const stop = useCallback(() => {
     generation.current += 1;
+    clearTimeout(holdTimer.current); holdTimer.current = undefined;
+    holdRef.current.reset();
+    guidanceAvailable.current = false;
     controllerRef.current?.abort(); controllerRef.current = null;
     trackerRef.current?.stop(); trackerRef.current = null;
     trackListeners.current.forEach(remove => remove()); trackListeners.current = [];
     streamRef.current?.getTracks().forEach(track => track.stop()); streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
-    if (mounted.current) setFeedback('searching');
+    if (mounted.current) { setFeedback('searching'); setProgress(0); }
     updateStatus('idle');
   }, [updateStatus]);
 
@@ -165,6 +211,7 @@ export function useDocumentCapture({ options, assets, type, simulation, onCaptur
     stop();
     const attempt = generation.current;
     const settings = configuration.current;
+    holdRef.current = createDocumentHold(settings.options.holdDurationMs);
     if (settings.simulation) { setFeedback('off'); updateStatus('ready'); return; }
     const controller = new AbortController(); controllerRef.current = controller;
     updateStatus('requesting');
@@ -192,43 +239,83 @@ export function useDocumentCapture({ options, assets, type, simulation, onCaptur
       if (settings.options.detection === false) { setFeedback('off'); return; }
       const guide = guideRef.current;
       if (!guide) { setFeedback('unavailable'); return; }
-      let goodFrames = 0;
-      let previousGoodTimestamp = -Infinity;
       const currentAttempt = () => mounted.current && generation.current === attempt && statusRef.current === 'ready';
+      const resetHold = () => {
+        if (!currentAttempt() || !guidanceAvailable.current) return;
+        clearTimeout(holdTimer.current); holdTimer.current = undefined;
+        holdRef.current.reset(performance.now()); setProgress(0); setFeedback('searching');
+      };
+      window.addEventListener('resize', resetHold);
+      window.addEventListener('orientationchange', resetHold);
+      document.addEventListener('visibilitychange', resetHold);
+      trackListeners.current.push(() => {
+        window.removeEventListener('resize', resetHold);
+        window.removeEventListener('orientationchange', resetHold);
+        document.removeEventListener('visibilitychange', resetHold);
+      });
       try {
         const tracker = await createDocumentTracker({ video, guide, type: settings.type, assets: settings.assets, signal: controller.signal,
           onDetection: (detection, timestamp) => {
             if (!currentAttempt()) return;
-            if (detection.reason === 'ready') {
-              goodFrames = timestamp - previousGoodTimestamp <= 500 ? goodFrames + 1 : 1;
-              previousGoodTimestamp = timestamp;
-              setFeedback(goodFrames >= 3 ? 'ready' : 'hold-still');
-            } else { goodFrames = 0; previousGoodTimestamp = -Infinity; setFeedback(detection.reason); }
+            guidanceAvailable.current = true;
+            clearTimeout(holdTimer.current);
+            const now = performance.now();
+            const geometry = documentPreviewGeometry(video, guide);
+            const result = holdRef.current.observe(document.hidden ? { reason: 'searching' } : detection,
+              timestamp, now, geometry?.key ?? '');
+            setFeedback(result.feedback); setProgress(result.progress);
+            holdTimer.current = setTimeout(resetHold, Math.max(0, 500 - (now - timestamp)));
+            if (result.capture && configuration.current.options.autoCapture !== false) automaticCapture.current();
           },
-          onError: () => { if (currentAttempt()) setFeedback('unavailable'); },
+          onError: () => {
+            if (!mounted.current || generation.current !== attempt) return;
+            guidanceAvailable.current = false;
+            clearTimeout(holdTimer.current); holdRef.current.reset(); setProgress(0);
+            if (statusRef.current === 'ready') setFeedback('unavailable');
+          },
         });
-        if (!currentAttempt()) tracker.stop();
+        if (!mounted.current || generation.current !== attempt || statusRef.current === 'idle') tracker.stop();
         else trackerRef.current = tracker;
       } catch {
         // Guidance is optional: unsupported/blocked workers must not prevent photographs.
-        if (currentAttempt()) setFeedback('unavailable');
+        if (currentAttempt()) { guidanceAvailable.current = false; setFeedback('unavailable'); }
       }
     } catch (failure) { fail(failure, attempt); }
   }, [fail, stop, updateStatus]);
 
-  const capture = useCallback(async (type: DocumentType, side: DocumentSide) => {
+  const capture = useCallback(async (type: DocumentType, side: DocumentSide, automatic = false) => {
     if (!mounted.current || statusRef.current !== 'ready') return;
     const attempt = generation.current;
     updateStatus('capturing');
-    trackerRef.current?.stop(); trackerRef.current = null;
+    clearTimeout(holdTimer.current); holdRef.current.reset(performance.now()); setProgress(0);
     try {
       const video = videoRef.current;
       if (!configuration.current.simulation && !video) throw captureError('documentCameraUnavailable');
+      const geometry = video && guideRef.current ? documentPreviewGeometry(video, guideRef.current) : null;
+      if (automatic && (!geometry || document.hidden)) {
+        setFeedback('searching'); updateStatus('ready'); return;
+      }
       const photo = configuration.current.simulation ? await simulatedDocument(type, side) : await snapshot(video!);
       if (!mounted.current || generation.current !== attempt) return;
+      if (automatic) {
+        const detection = await checkPhoto(photo, geometry!, type);
+        if (!mounted.current || generation.current !== attempt) return;
+        const currentGeometry = video && guideRef.current ? documentPreviewGeometry(video, guideRef.current) : null;
+        if (detection.reason !== 'ready' || geometry!.key !== currentGeometry?.key || document.hidden) {
+          setFeedback(guidanceAvailable.current ? detection.reason === 'ready' ? 'searching' : detection.reason : 'unavailable');
+          updateStatus('ready'); return;
+        }
+      }
       stop(); callbacks.current.onCapture(photo);
     } catch (failure) { fail(failure, attempt); }
   }, [fail, stop, updateStatus]);
 
-  return { videoRef, guideRef, feedback, status, start, capture, stop };
+  automaticCapture.current = () => {
+    const settings = configuration.current;
+    if (!settings.simulation && settings.options.detection !== false && settings.options.autoCapture !== false) {
+      void capture(settings.type, settings.side, true);
+    }
+  };
+
+  return { videoRef, guideRef, feedback, progress, status, start, capture, stop };
 }

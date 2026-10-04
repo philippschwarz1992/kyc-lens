@@ -1,6 +1,6 @@
 # KYC Lens
 
-**Document photos and guided face capture for React. Your UI, your assets, your backend.**
+**Automatic document photos, guided face capture, and local face comparison for React.**
 
 [![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![CI](https://github.com/philippschwarz1992/kyc-lens/actions/workflows/ci.yml/badge.svg)](https://github.com/philippschwarz1992/kyc-lens/actions/workflows/ci.yml)
@@ -9,7 +9,7 @@
 
 KYC Lens gives your application a configurable camera flow for collecting identity document photographs, a selfie, and a silent face video. Guide a person through centering, head turns, and closer/further movements using local MediaPipe tracking. Choose the screens, customize the copy and theme, and connect your own upload API.
 
-**Capture completion is not identity approval.** This package does not authenticate documents, match faces, or prove liveness. `onComplete` returns `status: 'capture_complete'`; your backend owns verification decisions. See [architecture and limitations](./docs/architecture.md).
+Document detection, face tracking and document-to-selfie comparison run inside the browser package, with bundled model and runtime files served by your application. No inference service is required. **Capture completion is not identity approval.** Photo comparison does not authenticate documents or prove liveness. `onComplete` returns `status: 'capture_complete'` and an optional `faceMatch` result; your application owns approval decisions. See [architecture and limitations](./docs/architecture.md).
 
 **Release status:** version 0.1.0 is prepared for its first npm release. The proposed npm name is `kyc-lens-react`; its availability must be checked before publishing. Registry installation becomes available after that release.
 
@@ -18,13 +18,14 @@ KYC Lens gives your application a configurable camera flow for collecting identi
 | Capability | Included |
 | --- | --- |
 | Document capture | ID cards, driving licenses, and passport photo pages, with per-photo review |
-| Framing guidance | Local edge, brightness, glare, sharpness, and detail heuristics; manual shutter |
+| Automatic document photo | Stable framing, brightness, glare, sharpness and detail checks; captured-photo recheck and manual fallback |
 | Guided face capture | Centering, left/right turns, looking up/down, and relative closer/further movements |
 | Face media | Automatic silent video plus a final selfie; configurable still-only mode |
+| Local face comparison | YuNet portrait detection and SFace embeddings in a separate browser worker; explicit match, no match, inconclusive or unavailable result |
 | Configurable flow | Optional intro, document, review, and result screens; required face screen |
 | Customization | Theme, English/German strings, custom copy, and intro/review/result components |
 | Backend integration | Local Blob payloads, a multipart HTTP adapter, or your own API functions |
-| Self-hosted assets | Matching face/document workers, WASM, and the pinned face model |
+| Bundled assets | Face/document/comparison workers, WASM, pinned models, checksums and license notices |
 | Developer playground | Settings, camera-free simulation, generated integration code, and metadata summaries |
 
 Face tracking and document guidance run in Web Workers. With the default self-hosted assets, capture does not send frames to a third-party provider. Uploads happen only when you configure an API or submit the returned payload yourself. Initial developer setup downloads the model; packaged applications serve it locally.
@@ -45,7 +46,7 @@ Open [localhost:5173](http://localhost:5173/) for the capture flow or [localhost
 
 Live camera is the default. Enable simulation in settings, or open [the simulated preview](http://localhost:5173/?simulate=1), to try the flow without a camera. Simulation uses synthetic observations and watermarked media; it is a demonstration mode. Add `&document=0` for a face-only simulated flow.
 
-The local upload API is enabled by default in the playground. After a completed capture is submitted, it saves the media and `metadata.json` in **`results/<sessionId>/`** beneath this checkout; confirming the final review triggers submission when that screen is enabled. It does not write a result folder during recording or before review. Turn off **Local upload API** in settings for browser-only capture with no saved folder. The receiver runs only in the development server; building the static playground does not deploy it.
+The playground runs entirely in the browser by default. **Local upload API** is an optional setting: enabling it saves completed captures and `metadata.json` in **`results/<sessionId>/`** beneath this checkout after final review. It does not write a result folder during recording or before review. The receiver runs only in the development server; building the static playground does not deploy it.
 
 Saved folders contain `selfie.jpg` (or `.png`), optional `face-video.webm` (or `.mp4`), optional `document-front.jpg`/`document-back.jpg` (or `.png`), and `metadata.json`. The JSON includes capture metadata and file names, with no session token or authorization headers. Folders remain after session expiry and server restarts until you delete them yourself. The capture summary shows the saved relative directory without exposing media contents or tokens.
 
@@ -71,7 +72,7 @@ npm install kyc-lens-react
 npx kyc-lens-copy-assets ./public/kyc-assets
 ```
 
-Repeat the asset-copy command after every upgrade. It copies the matching workers, model, WASM, and license files. Serve that directory from your application; `assets={{ baseUrl: '/kyc-assets' }}` resolves both workers automatically.
+Repeat the asset-copy command after every upgrade. It copies all three workers, models, WASM and license files. Serve that directory from your application; `assets={{ baseUrl: '/kyc-assets' }}` resolves them automatically. Consumer installation and runtime do not download models from a third party. The package currently packs to about 51 MiB with these assets.
 
 ```tsx
 import { useState } from 'react';
@@ -86,7 +87,7 @@ export function IdentityCapture() {
   return (
     <KycFlow
       steps={['intro', 'document', 'face', 'review', 'result']}
-      document={{ types: ['id-card', 'drivers-license', 'passport'] }}
+      document={{ types: ['id-card', 'drivers-license', 'passport'], autoCapture: true }}
       face={{ challenges: ['center', 'turn-left', 'turn-right', 'closer', 'further'] }}
       assets={{ baseUrl: '/kyc-assets' }}
       locale="en"
@@ -97,7 +98,7 @@ export function IdentityCapture() {
 }
 ```
 
-This example captures locally. The completion callback also receives `result.payload`: a selfie `Blob`, an optional face video `Blob`, optional document `Blob`s, challenge evidence, a capture timestamp, and capture mode. Connect your own submission flow or supply `apiBaseUrl` as described below. Keep media and session tokens out of logs and analytics.
+This example captures and compares locally. The completion callback receives `result.payload`: a selfie `Blob`, an optional face video `Blob`, optional document `Blob`s, challenge evidence, a capture timestamp and capture mode. `result.faceMatch` contains the comparison status, reason and optional cosine score. It is not a probability or approval. Connect your own submission flow or supply `apiBaseUrl` as described below. Keep media, scores and session tokens out of logs and analytics.
 
 The default SDK flow is `['intro', 'face', 'review', 'result']`. Include `'document'` explicitly to collect document photos. ID cards and driving licenses require front and back; passports use the photo page only.
 
@@ -130,13 +131,18 @@ For Next.js, render `KycFlow` in a Client Component and import the stylesheet in
 | `face.timeoutMs` | Overall face timeout, 1,000–600,000 ms; default 90,000 ms |
 | `face.trackingFps` | Target tracking frequency, 3–30 fps; default 12 |
 | `document.detection` | Defaults to `true`; use `false` for a neutral manual-capture guide |
+| `document.autoCapture` | Defaults to `true`; use `false` to keep the shutter manual |
+| `document.holdDurationMs` | Stable document hold, 200–10,000 ms; default 800 ms |
+| `faceMatch` | Enabled when a document is present; `false` disables comparison; options set threshold, inconclusive margin and timeout |
 | `face.camera`, `document.camera` | Override browser camera constraints |
 | `strings`, `theme`, `components` | Customize text, appearance, and selected screen components |
 | `apiBaseUrl`, `headers`, `api` | Connect a backend or provide a custom adapter |
 | `onComplete`, `onCancel`, `onError` | Receive completion, cancellation, and errors |
 | `simulation` | Explicit opt-in to the camera-free demo driver |
 
-Document feedback assists framing; a green guide does not establish document authenticity or acceptance. The shutter remains available when the camera is ready, including when the heuristic is uncertain.
+Document feedback assists framing; a green guide does not establish document authenticity or acceptance. Auto-capture rechecks the encoded full-resolution photo against quality heuristics before review. The manual shutter remains available when the camera is ready, including when the heuristic is uncertain. Disabled or unavailable analysis never triggers auto-capture. Simulation skips face comparison and returns an inconclusive result with reason `simulation`.
+
+The default face threshold (0.363) is an upstream example, with a ±0.03 inconclusive band. Calibrate it on consented passport/ID-to-selfie data before making production decisions. Published model licenses and the unresolved SFace training-data provenance issue are described in [third-party notices](./THIRD_PARTY_NOTICES.md).
 
 See the [API reference](./docs/api.md) for all props, types, custom screen context, exported utilities, and payloads.
 
@@ -183,11 +189,13 @@ npm run setup
 npm run check
 npm run build:demo
 npm run check:package
+npm run check:matching-reference
+npm run check:consumer
 npx playwright install chrome
 npm run test:e2e
 ```
 
-GitHub Actions is configured to check the library and package on Node 22 and 24 and run the browser suite with Chrome. It does not publish packages automatically.
+GitHub Actions checks the library, packaged assets, local WASM reference parity and fresh tarball installation on Node 22 and 24, and runs the Chrome browser suite. Physical-device and held-out biometric evaluation remain release gates in the [QA plan](./docs/qa-plan.md). It does not publish packages automatically.
 
 See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 

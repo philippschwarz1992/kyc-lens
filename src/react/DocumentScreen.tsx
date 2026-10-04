@@ -33,8 +33,8 @@ export function DocumentScreen({ options, assets, simulation, strings: s, onCapt
   const isBack = stage.endsWith('back');
   const side = isBack ? 'back' : 'front';
   const preview = isReview ? isBack ? back : front : null;
-  const { videoRef, guideRef, feedback, status, start, capture, stop } = useDocumentCapture({
-    options, assets, type: selected, simulation, onFailure,
+  const { videoRef, guideRef, feedback, progress, status, start, capture, stop } = useDocumentCapture({
+    options, assets, type: selected, side, simulation, onFailure,
     onCapture: photo => {
       if (stage === 'camera-back') { setBack(photo); setStage('review-back'); }
       else if (stage === 'camera-front') { setFront(photo); setBack(null); setStage('review-front'); }
@@ -75,6 +75,7 @@ export function DocumentScreen({ options, assets, simulation, strings: s, onCapt
         : isBack ? s.documentBackBody ?? 'Turn your document over. Make sure all four corners are visible.'
           : s.documentFrontBody ?? 'Place your document on a flat surface. Make sure all four corners are visible.';
   const guideState = feedback === 'off' ? 'off' : feedback === 'ready' ? 'ready' : 'adjust';
+  const automatic = !simulation && options.detection !== false && options.autoCapture !== false;
   const liveGuidance = isCamera && status === 'ready';
   const guideHints = {
     searching: s.documentSearching ?? 'Keep all four corners inside the frame.',
@@ -83,8 +84,8 @@ export function DocumentScreen({ options, assets, simulation, strings: s, onCapt
     dark: s.documentDark ?? 'Use brighter, even lighting.',
     glare: s.documentGlare ?? 'Tilt slightly to avoid reflections.',
     blur: s.documentBlur ?? 'Hold steady and let the camera focus.',
-    'hold-still': s.documentHoldStill ?? 'Hold steady…',
-    ready: s.documentReady ?? 'Looks clear. Take your photo.',
+    'hold-still': automatic ? s.documentAutoHoldStill ?? 'Hold steady… taking your photo automatically.' : s.documentHoldStill ?? 'Hold steady…',
+    ready: automatic ? s.documentAutoReady ?? 'Taking your photo automatically…' : s.documentReady ?? 'Looks clear. Take your photo.',
     unavailable: s.documentGuidanceUnavailable ?? 'Keep all four corners visible. Check the photo after capture.',
     off: body,
   };
@@ -135,6 +136,7 @@ export function DocumentScreen({ options, assets, simulation, strings: s, onCapt
       <video ref={videoRef} className="kyc-document-video" autoPlay muted playsInline aria-label={title} />
       {simulation ? <div className="kyc-document-demo" aria-hidden="true"><Illustration kind={isBack ? 'document-back' : 'document-front'} /><span>DEMO</span></div> : null}
       <div ref={guideRef} className="kyc-document-guide" data-state={guideState} data-reason={feedback} data-document-type={selected} aria-hidden="true" />
+      {automatic && feedback === 'hold-still' && progress > 0 ? <div className="kyc-document-auto-progress" role="progressbar" aria-label={s.documentAutoProgress ?? 'Automatic photo capture'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><span style={{ width: `${progress * 100}%` }} /></div> : null}
       {status === 'requesting' || status === 'capturing' ? <div className="kyc-document-status" role="status"><span className="kyc-spinner" /><span>{status === 'requesting' ? s.requesting ?? 'Opening your camera…' : s.capturing ?? 'Taking your photo…'}</span></div> : null}
     </div> : <div className="kyc-media kyc-document-preparation"><Illustration kind={isBack ? 'document-back' : 'document-front'} /></div>}
     <div className="kyc-actions">

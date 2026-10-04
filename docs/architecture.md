@@ -4,10 +4,11 @@
 Host React application
   └─ KycFlow: screens, state, translations, theme, capture
        ├─ optional document camera → document worker → framing/quality hints
-       │                       └─ manual full-image photo → per-side review
+       │                       └─ automatic/manual full-image photo → per-side review
        ├─ Browser camera → tracking worker → MediaPipe landmarks
        │       │                      └─ local pose/size guidance
        │       └─ silent MediaRecorder clip → automatic stop + JPEG → review
+       ├─ document portrait + selfie → YuNet/SFace WASM worker → comparison result
        └─ optional API adapter → host backend
                                   ├─ capture session and media handling
                                   └─ independent verification/review policy
@@ -25,7 +26,7 @@ Entering the face screen starts the camera automatically after permission. Once 
 
 The recorder negotiates a supported WebM or MP4 encoder, requests a 1 Mbps video bitrate, collects bounded chunks and limits the clip to 12 MiB and 90 seconds. Failure to emit a first nonempty chunk within 10 seconds produces a recoverable recording error. The separate configurable face timeout can expire sooner; setting it above 90 seconds does not extend recording. It never requests microphone access. Recording failure or missing recorder support produces a recoverable error when video is enabled; it does not silently submit a still in place of the requested clip. Retake and unmount stop recording, discard unfinished buffers and remove handlers. Explicit simulation paints neutral watermarked canvas frames during encoder startup without advancing the challenge runner, then feeds timed synthetic observations after readiness; it never substitutes those observations for a real camera check.
 
-Document guidance uses a separate worker with no external model or service. At about six frames per second, small preview frames are checked for a complete quadrilateral within the guide and for brightness, glare, sharpness and visible detail. The analysis accounts for the camera preview's crop, so framing refers to what the user sees. Green feedback requires a stable suitable result; red feedback explains what needs adjusting. Full-resolution photographs are taken only when the user presses the shutter, independently of the guidance. `document.detection: false` removes this analysis and leaves a neutral guide.
+Document guidance uses a separate worker with no external model or service. At about six frames per second, small preview frames are checked for a complete quadrilateral within the guide and for brightness, glare, sharpness and visible detail. The analysis accounts for the camera preview's crop, so framing refers to what the user sees. A steady suitable document automatically triggers a full-resolution JPEG after an 800 ms hold by default. The encoded photo is decoded and rechecked before review. Rejected quality resumes guidance. Duplicate/stale observations, drift, viewport changes and hidden pages reset or invalidate the hold. Manual capture remains available. `document.autoCapture: false` restores manual-only capture; `document.detection: false` removes analysis and uses a neutral manual guide.
 
 These checks are image heuristics, not document recognition. A different rectangle can resemble a document, and real documents can fail the heuristics under low contrast, glare, motion, patterned backgrounds or unusual layouts. They do not read text or validate that a passport/ID is genuine. The feedback and intermediate preview frames remain local and are not added to the capture payload or upload metadata. They assist the user but cannot enforce a server's image-quality or verification policy.
 
@@ -33,13 +34,21 @@ The document analyzer requires Web Workers, `createImageBitmap` and OffscreenCan
 
 The `closer` and `further` steps compare relative face size against a baseline. They do not measure distance in centimeters. Angles and face-size observations are approximate and affected by camera position, lighting, occlusion and device performance. User guidance should allow comfortable movement and retries.
 
-Face model and WASM initialization, camera permission and worker startup add first-use latency. Host matching assets from your own origin, including both workers, cache immutable versioned assets, lazy-load the capture screen, and test actual low-end devices. Document guidance downsamples preview frames and throttles analysis separately from full-resolution photo capture. Browser Web Workers still share a device's compute/memory resources; KYC Lens makes no blanket frame-rate or hardware guarantee.
+Face model and WASM initialization, camera permission and worker startup add first-use latency. Host the assets from your own origin, including all three workers, cache immutable versioned assets, lazy-load the capture screen and test actual low-end devices. Document guidance downsamples preview frames separately from full-resolution photos. Browser workers still share device resources; KYC Lens makes no blanket performance guarantee.
+
+## Local photo comparison
+
+After the accepted document and selfie are captured and reviewed, a separate worker loads the pinned YuNet detector and ONNX Runtime WASM. It selects an unambiguous document portrait and exactly one selfie face, checks size/pose/detail, then lazily loads SFace. Five landmarks align each portrait to 112×112 pixels. YuNet inputs are raw BGR NCHW; SFace inputs are raw RGB NCHW, following OpenCV 4.12.0. Normalized embeddings yield a cosine score with a configurable inconclusive band. The default threshold and acquisition gates are provisional and require domain-specific evaluation.
+
+Model/runtime requests stay on the application's origin, reject redirects and verify pinned sizes and SHA-256 hashes. The WASM module is imported through a temporary blob URL, requiring CSP permission for blob module scripts and WebAssembly compilation. One WASM thread avoids cross-origin-isolation requirements. No GPU or inference service is involved. Embeddings remain inside the worker, are cleared after use and are never included in the public result or upload payload.
+
+The client terminates the worker after result, timeout, cancellation or unmount. Model failures offer retry with the accepted media retained; poor or ambiguous inputs produce an inconclusive advisory result. Simulation performs no face inference. A local comparison cannot enforce access control against a modified client.
 
 ## Capture completion is not verification
 
-The SDK emits `capture_complete`, a selfie Blob, an optional silent video Blob, gesture evidence and optional document photo Blobs. These fields record what the client captured; they are not independently validated anti-spoofing evidence. Browser media streams may originate from virtual cameras or injected media. Recording a clip and completing head/distance movements do not, by themselves, rule out a recording or deepfake. Document capture collects the required photos and presents them for user review; it does not implement OCR, authenticity checks or a selfie-to-document match.
+The SDK emits `capture_complete`, a selfie Blob, an optional silent video Blob, gesture evidence, optional document photo Blobs and an optional local face comparison. These fields are client-controlled and are not independently validated anti-spoofing evidence. Browser media streams may originate from virtual cameras or injected media. Recording a clip, completing head/distance movements and matching faces do not rule out a recording or deepfake. Document capture does not implement OCR or authenticity checks.
 
-Liveness/presentation attack detection, biometric matching against a trusted identity reference, document authenticity verification and sanctions/AML checks are different capabilities. KYC Lens does not implement those verification services. If your application requires them, implement or integrate an appropriate backend engine and evaluate it against the attacks and errors relevant to your use case.
+Liveness/presentation attack detection, comparison against an independently trusted identity reference, document authenticity verification and sanctions/AML checks are separate capabilities. The built-in face comparison uses the captured document portrait; it does not establish that the document or reference is genuine. Evaluate an authoritative verification workflow independently before using these captures for approval.
 
 For a self-hosted ML extension, a recognition library's source license does not automatically cover pretrained weights or training data. Check model rights and evaluate PAD/recognition accuracy before using them commercially. There is deliberately no Python service or paid provider dependency in KYC Lens.
 
@@ -57,7 +66,7 @@ The Vite development API demonstrates a transport boundary:
 
 Basic media signature checks do not replace actual image/video decoders, malware/format handling, independent anti-spoofing, authenticated user binding or a production upload service. Video bytes are included in the retry digest; receipts contain only metadata and filenames. Restarting the server discards in-memory sessions but leaves saved folders intact. Expiring a session likewise does not delete its files. Remove saved folders manually when no longer needed. HTTP development tokens do not establish a production identity.
 
-The playground enables local upload by default. It saves only at successful submission, after the final review is confirmed when enabled; recording and retaking remain local until then. Disabling local upload creates no results folder. This filesystem behavior belongs to the development receiver, not the browser SDK: installed applications need their own backend storage implementation.
+The playground disables upload by default. Optional local upload saves only at successful submission, after the final review is confirmed when enabled; recording and retaking remain local until then. Disabled upload creates no results folder. This filesystem behavior belongs to the development receiver, not the browser SDK: installed applications need their own backend storage implementation.
 
 ## Cleanup and ownership
 

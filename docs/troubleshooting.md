@@ -63,6 +63,14 @@ If analysis APIs or the document worker are unavailable, the guide stays red wit
 
 The final photograph preserves the whole camera image. The visible guide is not an output crop, and detection results are not part of the submitted payload.
 
+## Face comparison is unavailable or inconclusive
+
+Run the asset-copy command after building/installing the package and after each upgrade. Confirm `match-worker.js`, `matching/ort/`, YuNet and SFace model files load from your own origin. A missing, changed or redirected model/runtime is rejected. The comparison screen has a Cancel action; operational failures retain the photos for retry.
+
+For CSP, permit same-origin workers, fetches and scripts, temporary `blob:` module imports and WebAssembly compilation. Unsupported Worker/OffscreenCanvas/image APIs or WASM SIMD yield an unavailable comparison. Try a supported browser or use your application's assistance path.
+
+Inconclusive results indicate poor pose/lighting/detail, a small portrait, multiple faces or a score inside the uncertainty band. Retake clearer photos through a fresh flow. Do not interpret this as a no-match decision. The default threshold and quality gates require validation on your target documents and devices.
+
 ## Upload fails or retries are rejected
 
 Check the backend URL, authentication and response in the network panel. Both built-in endpoints must return JSON on success. The adapter sends multipart files and a `metadata` JSON field; let the browser set multipart `Content-Type` so it includes the boundary.
@@ -77,7 +85,7 @@ SDK submission retry preserves the captured media. Built-in HTTP errors 401, 404
 
 ## No results folder was saved
 
-Use the running development server and enable **Local upload API** in settings; it is enabled by default. Finish capture and confirm the final review. When review is omitted, the completed capture submits automatically. Recording and retaking alone do not save files. A successful capture summary shows `savedDirectory: "results/<sessionId>"`.
+Use the running development server and explicitly enable **Local upload API** in settings. It is disabled by default. Finish capture and confirm final review. When review is omitted, the completed capture submits automatically. Recording and retaking alone do not save files. A successful capture summary shows `savedDirectory: "results/<sessionId>"`.
 
 Look under the checkout's `results/` directory for the session ID in that summary. Each folder contains `metadata.json`, a selfie and whichever document photos/face clip were captured. If submission failed, check the displayed error and the network response, then retry. The server must be able to create files in the checkout's results directory. It validates the upload before committing the final folder, so an invalid upload does not produce a completed result folder.
 

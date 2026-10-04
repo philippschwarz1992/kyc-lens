@@ -45,7 +45,7 @@ export function FaceScreen({ face, assets, challenges, simulation, strings: s, o
     <p className={`kyc-current-instruction ${active ? 'is-active' : ''}`} role={active ? 'status' : undefined}>{active ? instruction : '\u00a0'}</p>
     {active ? <div className="kyc-visually-hidden" role="progressbar" aria-label={s.faceProgress} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)} /> : null}</div>
     <div className="kyc-actions">
-      {status === 'idle' && face.autoStart === false ? <button type="button" className="kyc-button kyc-button-primary" onClick={() => void start()}>{simulation ? s.simulationStart : s.startCamera}</button> : active ? <span className="kyc-auto-capture-note">{face.recordVideo === false ? s.automaticCapture : status === 'capturing' ? s.finishingVideo : s.recordingVideo}</span> : null}
+      {status === 'idle' && face.autoStart === false ? <button type="button" className="kyc-button kyc-button-primary" onClick={() => void start()}>{simulation ? s.simulationStart : s.startCamera}</button> : active && (face.recordVideo === false || status === 'capturing') ? <span className="kyc-auto-capture-note">{face.recordVideo === false ? s.automaticCapture : s.finishingVideo}</span> : null}
     </div>
   </div>;
 }
