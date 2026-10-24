@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { FaceMatchResult } from './matching/protocol.js';
+import type { KycThemeDefinition } from './themes.js';
 export type { FaceMatchResult } from './matching/protocol.js';
 
 export type KycStep = 'intro' | 'document' | 'face' | 'review' | 'result';
@@ -84,6 +85,7 @@ export interface FaceMatchOptions {
   /** Whole local comparison timeout, including model loading. Default: 45000 milliseconds. */
   timeoutMs?: number;
 }
+/** Quick overrides on top of the classic theme. For full control pass a theme id or a `defineTheme()` result. */
 export interface KycTheme {
   primaryColor?: string;
   backgroundColor?: string;
@@ -129,7 +131,8 @@ export interface KycFlowProps {
   /** Local document/selfie comparison. Enabled when document capture is present; false disables it. */
   faceMatch?: FaceMatchOptions | false;
   assets?: AssetOptions;
-  theme?: KycTheme;
+  /** A registered theme id (`classic`, `aurora`, `ledger`, `pebble` or your own), a `defineTheme()` result, or quick overrides. */
+  theme?: string | KycTheme | KycThemeDefinition;
   /** Built-in English and German; other locales use custom strings. */
   locale?: 'en' | 'de';
   strings?: Partial<Record<string, string>>;

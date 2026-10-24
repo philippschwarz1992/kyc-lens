@@ -6,6 +6,7 @@ KYC Lens is a React SDK for document photographs and guided face capture with lo
 | --- | --- |
 | [Getting started](./getting-started.md) | Run the playground, install the local package and add capture to a React application. |
 | [Integration](./integration.md) | Next.js, host-owned backend routes, modal lifecycle and deployment. |
+| [Theming](./theming.md) | Built-in themes, custom themes, design tokens and the playground theme studio. |
 | [API reference](./api.md) | Props, captured media, custom screens, API adapters and core exports. |
 | [Architecture and limitations](./architecture.md) | Local workers, trust boundaries, browser constraints and resource ownership. |
 | [Troubleshooting](./troubleshooting.md) | Camera permissions, missing assets, recording, guidance and upload failures. |

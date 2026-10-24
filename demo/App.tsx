@@ -5,6 +5,8 @@ import type { CaptureResult, FaceChallenge, KycStep } from '../src/index';
 import FaceWorkerUrl from '../src/camera/face.worker.ts?worker&url';
 import DocumentWorkerUrl from '../src/camera/document.worker.ts?worker&url';
 import MatchWorkerUrl from '../src/matching/match.worker.ts?worker&url';
+import { ThemeStudio } from './ThemeStudio';
+import { allThemes, findTheme, isBuiltIn, useThemeFonts } from './themeStore';
 
 const challengeOptions: { id: FaceChallenge; label: string }[] = [
   { id: 'center', label: 'Center face' }, { id: 'turn-left', label: 'Turn left' },
@@ -13,16 +15,12 @@ const challengeOptions: { id: FaceChallenge; label: string }[] = [
   { id: 'further', label: 'Move further' },
 ];
 const defaultChallenges: FaceChallenge[] = ['center', 'turn-left', 'turn-right', 'closer', 'further'];
-const colors = [
-  { value: '#2563eb', label: 'Blue' }, { value: '#0f766e', label: 'Teal' },
-  { value: '#7c3aed', label: 'Violet' }, { value: '#c2410c', label: 'Orange' },
-];
 const summaryKey = 'kyc-kit-demo-summary';
 const summaryChannel = 'kyc-kit-demo-completion';
 
 interface Config {
   intro: boolean; document: boolean; review: boolean; result: boolean; challenges: FaceChallenge[];
-  color: string; locale: 'en' | 'de'; simulation: boolean; upload: boolean;
+  theme: string; locale: 'en' | 'de'; simulation: boolean; upload: boolean;
   documentAutoCapture: boolean; documentHoldDurationMs: number; faceMatch: boolean;
 }
 
@@ -30,7 +28,7 @@ function initialConfig(): Config {
   const params = new URLSearchParams(window.location.search);
   const defaults: Config = {
     intro: true, document: params.get('document') !== '0', review: true, result: true, challenges: [...defaultChallenges],
-    color: '#2563eb', locale: 'en', simulation: params.get('simulate') === '1', upload: false,
+    theme: 'classic', locale: 'en', simulation: params.get('simulate') === '1', upload: false,
     documentAutoCapture: true, documentHoldDurationMs: 800, faceMatch: true,
   };
   try {
@@ -52,7 +50,7 @@ function initialConfig(): Config {
       documentAutoCapture: typeof value.documentAutoCapture === 'boolean' ? value.documentAutoCapture : defaults.documentAutoCapture,
       documentHoldDurationMs: typeof value.documentHoldDurationMs === 'number' && Number.isFinite(value.documentHoldDurationMs) && value.documentHoldDurationMs >= 200 && value.documentHoldDurationMs <= 10_000 ? value.documentHoldDurationMs : defaults.documentHoldDurationMs,
       faceMatch: typeof value.faceMatch === 'boolean' ? value.faceMatch : defaults.faceMatch,
-      color: colors.some(color => color.value === value.color) ? value.color as string : defaults.color,
+      theme: typeof value.theme === 'string' && /^[a-z][a-z0-9-]{0,47}$/.test(value.theme) ? value.theme : defaults.theme,
       locale: value.locale === 'de' ? 'de' : 'en', challenges,
     };
   } catch { return defaults; }
@@ -72,7 +70,7 @@ import 'kyc-lens-react/styles.css';
   face={{ challenges: ${JSON.stringify(config.challenges)} }}
   document={{ autoCapture: ${config.documentAutoCapture}, holdDurationMs: ${config.documentHoldDurationMs} }}${config.faceMatch ? '' : '\n  faceMatch={false}'}
   locale="${config.locale}"
-  theme={{ primaryColor: '${config.color}' }}
+  theme=${isBuiltIn(config.theme) ? `"${config.theme}"` : `"${config.theme}" // registerTheme() it first, see the Theme studio export`}
   assets={{ baseUrl: '/kyc-assets' }}${config.upload ? '\n  apiBaseUrl="/api/kyc"' : ''}${config.simulation ? '\n  simulation={true} // Demo only' : ''}
   onComplete={(result) => {
     // status is "capture_complete".
@@ -141,12 +139,15 @@ function Switch({ label, checked, onChange, description }: { label: string; chec
 
 function PreviewPage() {
   const [config] = useState(initialConfig);
+  // Custom themes live in this browser's storage, shared with the settings and studio pages.
+  const [theme] = useState(() => findTheme(config.theme) ?? findTheme('classic')!);
+  useThemeFonts([theme]);
   useEffect(() => { document.title = 'KYC Lens — Identity capture'; }, []);
   return <main className="demo-preview-page" aria-label="Identity capture preview"><div className="demo-phone" data-testid="sdk-preview">
     <KycFlow
       steps={getSteps(config)} face={{ challenges: config.challenges, trackingFps: 15 }}
       document={{ autoCapture: config.documentAutoCapture, holdDurationMs: config.documentHoldDurationMs }} faceMatch={config.faceMatch ? {} : false}
-      theme={{ primaryColor: config.color }} locale={config.locale}
+      theme={theme} locale={config.locale}
       assets={{ baseUrl: '/kyc-assets', workerUrl: FaceWorkerUrl, documentWorkerUrl: DocumentWorkerUrl, matchWorkerUrl: MatchWorkerUrl }}
       apiBaseUrl={config.upload ? '/api/kyc' : undefined} simulation={config.simulation}
       onComplete={publishSummary}
@@ -164,6 +165,8 @@ function SettingsPage() {
   const resultTab = useRef<HTMLButtonElement>(null);
   const code = codeFor(config);
   const previewUrl = `/?config=${encodeURIComponent(JSON.stringify(config))}`;
+  const [themes] = useState(() => allThemes());
+  useThemeFonts(themes);
   const update = <K extends keyof Config>(key: K, value: Config[K]) => setConfig(previous => ({ ...previous, [key]: value }));
 
   useEffect(() => {
@@ -192,7 +195,7 @@ function SettingsPage() {
   }
 
   return <div className="demo-settings-page">
-    <header className="demo-settings-header"><a className="demo-brand" href="/" aria-label="KYC Lens capture preview"><Icon name="face" size={22} /><span>KYC Lens</span></a><span>Playground</span></header>
+    <header className="demo-settings-header"><a className="demo-brand" href="/" aria-label="KYC Lens capture preview"><Icon name="face" size={22} /><span>KYC Lens</span></a><nav className="demo-nav" aria-label="Playground"><a href="/settings" aria-current="page">Settings</a><a href="/themes">Theme studio</a></nav></header>
     <main className="demo-settings-main">
       <div className="demo-settings-title"><h1>Demo settings</h1><p>Choose your flow, then try it on a separate page.</p></div>
       <section className="demo-config-panel" aria-label="Capture configuration">
@@ -214,7 +217,10 @@ function SettingsPage() {
         </fieldset>
         <fieldset><legend>Appearance</legend>
           <div className="demo-locale-row"><label htmlFor="demo-locale">Language</label><select id="demo-locale" value={config.locale} onChange={event => update('locale', event.target.value as 'en' | 'de')}><option value="en">English</option><option value="de">Deutsch</option></select></div>
-          <div className="demo-accent-row"><span>Accent color</span><div className="demo-color-options">{colors.map(color => <button key={color.value} className={config.color === color.value ? 'selected' : ''} type="button" title={color.label} aria-label={`${color.label} accent`} aria-pressed={config.color === color.value} style={{ '--swatch': color.value } as CSSProperties} onClick={() => update('color', color.value)}><span>{config.color === color.value && <Icon name="check" size={16} />}</span></button>)}</div></div>
+          <div className="demo-theme-row"><span>Theme</span><div className="demo-theme-options" role="radiogroup" aria-label="Theme">{themes.map(theme => <button key={theme.id} type="button" role="radio" aria-checked={config.theme === theme.id} className={config.theme === theme.id ? 'selected' : ''} onClick={() => update('theme', theme.id)}>
+            <span className="demo-theme-swatch" style={{ '--swatch-bg': theme.tokens.color.background, '--swatch-primary': theme.tokens.color.primary, '--swatch-accent': theme.tokens.color.accent } as CSSProperties} aria-hidden="true" />{theme.name}
+          </button>)}</div></div>
+          <a className="demo-studio-link" href={`/themes?theme=${encodeURIComponent(config.theme)}`}>Create and edit themes in the Theme studio<Icon name="external" size={14} /></a>
         </fieldset>
         <fieldset><legend>Testing</legend>
           <Switch label="Simulation mode" description="Try the flow without a camera" checked={config.simulation} onChange={value => update('simulation', value)} />
@@ -236,5 +242,6 @@ function SettingsPage() {
 }
 
 export default function App() {
-  return window.location.pathname.replace(/\/$/, '') === '/settings' ? <SettingsPage /> : <PreviewPage />;
+  const path = window.location.pathname.replace(/\/$/, '');
+  return path === '/settings' ? <SettingsPage /> : path === '/themes' ? <ThemeStudio /> : <PreviewPage />;
 }

@@ -9,7 +9,8 @@ This file records changes prepared for release. No version has been published ye
 - Local document framing and brightness, glare, sharpness, and detail guidance, with a manual shutter.
 - Guided face movements using MediaPipe in a Web Worker, a final selfie, and automatic silent video recording by default.
 - Self-hosted model, WASM, and worker assets, a pinned model checksum, and the `kyc-lens-copy-assets` command.
-- Configurable challenges, camera constraints, themes, English/German strings, and custom screen components.
+- Configurable challenges, camera constraints, English/German strings, and custom screen components.
+- Token-based theming with four built-in themes (Classic, Aurora, Ledger, Pebble), a theme registry for custom themes, and a playground theme studio with live preview and export.
 - Local capture results, an optional HTTP adapter, and custom backend adapters.
 - Development playground with separate settings, explicit synthetic simulation, and a temporary sample upload receiver.
 - TypeScript interfaces, unit and browser test suites, integration and architecture documentation, and MIT licensing for project code.

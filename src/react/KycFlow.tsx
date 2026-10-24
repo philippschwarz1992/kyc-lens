@@ -8,6 +8,8 @@ import { createHttpApi, KycHttpError } from '../api.js';
 import { DEFAULT_CHALLENGES, validateFaceOptions } from '../core/challenges.js';
 import { compareFaces } from '../matching/client.js';
 import { comparisonResult, DEFAULT_INCONCLUSIVE_MARGIN, DEFAULT_MATCH_THRESHOLD, validDecisionOptions } from '../matching/protocol.js';
+import { resolveTheme, themeVariables } from '../themes.js';
+import type { KycThemeDefinition } from '../themes.js';
 import type { AssetOptions, CapturePayload, CaptureResult, DocumentCapture, DocumentOptions, FaceChallenge, FaceMatchOptions, FaceMatchResult, FaceOptions, KycFlowProps, KycScreenContext, KycSession, KycStep } from '../types.js';
 import { DocumentScreen } from './DocumentScreen.js';
 import { FaceScreen } from './FaceScreen.js';
@@ -33,7 +35,9 @@ export function KycFlow(props: KycFlowProps) {
   const steps = props.steps ?? DEFAULT_STEPS;
   const challenges = props.face?.challenges ?? DEFAULT_CHALLENGES;
   let invalid: Error | null = null;
+  let theme: KycThemeDefinition | undefined;
   try {
+    theme = resolveTheme(props.theme);
     validateFlowConfiguration(steps, challenges); validateFaceOptions(props.face);
     if (steps.includes('document') && props.document?.types) {
       const types = props.document.types;
@@ -53,10 +57,11 @@ export function KycFlow(props: KycFlowProps) {
   if (invalid) return <section className={`kyc-kit ${props.className ?? ''}`} lang={props.locale ?? 'en'}><div className="kyc-screen" role="alert"><div className="kyc-screen-heading"><h2>{s.configError}</h2><p className="kyc-description">{invalid.message}</p></div><div className="kyc-media" /><div className="kyc-actions" /></div></section>;
   const configuration: Configuration = { steps: [...steps], challenges: [...challenges], document: { ...props.document }, face: { ...props.face }, faceMatch: props.faceMatch === false ? false : { ...props.faceMatch }, assets: { ...props.assets }, simulation: props.simulation === true };
   const sessionKey = JSON.stringify(configuration);
-  return <FlowSession key={sessionKey} {...props} configuration={configuration} />;
+  // Theme changes restyle the running flow; they are not part of the session key.
+  return <FlowSession key={sessionKey} {...props} configuration={configuration} resolvedTheme={theme!} />;
 }
 
-function FlowSession(props: KycFlowProps & { configuration: Configuration }) {
+function FlowSession(props: KycFlowProps & { configuration: Configuration; resolvedTheme: KycThemeDefinition }) {
   // The outer key resets changed settings; hold their references stable within this attempt.
   const [configuration] = useState(props.configuration);
   const { steps, document: documentOptions, face, faceMatch, assets, challenges, simulation } = configuration;
@@ -153,13 +158,11 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration }) {
   };
   const context: KycScreenContext = { next: () => send({ type: 'NEXT' }), cancel, retry, result: result ?? (capture ? { status: 'capture_complete', payload: capture } : undefined), selfieUrl, videoUrl };
   const { Intro, Review, Result } = props.components ?? {};
-  const theme: CSSProperties & Record<string, string | undefined> = {
-    '--kyc-primary': props.theme?.primaryColor, '--kyc-background': props.theme?.backgroundColor,
-    '--kyc-text': props.theme?.textColor, '--kyc-radius': props.theme?.borderRadius, '--kyc-font': props.theme?.fontFamily,
-  };
+  const { resolvedTheme } = props;
+  const themeStyle = themeVariables(resolvedTheme) as CSSProperties;
   if (phase === 'complete' && !steps.includes('result')) return null;
 
-  return <section className={`kyc-kit ${props.className ?? ''}`} style={theme} lang={props.locale ?? 'en'} aria-label={s.secureCapture}>
+  return <section className={`kyc-kit ${props.className ?? ''}`} style={themeStyle} data-kyc-theme={resolvedTheme.id} data-kyc-scheme={resolvedTheme.tokens.colorScheme} data-kyc-ambient={resolvedTheme.tokens.motion.ambient ? '' : undefined} lang={props.locale ?? 'en'} aria-label={s.secureCapture}>
     {simulation ? <aside className="kyc-simulation-banner" aria-label={s.simulationBody}>{s.simulation}</aside> : null}
     <div ref={contentRef} id={screenId} className="kyc-content" tabIndex={-1}>
       {phase === 'intro' ? Intro ? <Intro {...context} /> : <IntroScreen {...context} strings={s} hasDocument={steps.includes('document')} /> : null}

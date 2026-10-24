@@ -33,7 +33,7 @@ All flow props are optional. The default steps are `['intro', 'face', 'review', 
 | `assets.baseUrl` | `/kyc-assets` | Public URL for the self-hosted assets. |
 | `locale` | `en` | Built-in `en` or `de`, with individual `strings` overrides. |
 
-Other props configure `theme`, `components`, `apiBaseUrl`, `headers`, a custom `api`, callbacks, `simulation` and `className`. See the [README configuration table](../README.md#configure-the-flow). Configuration errors are displayed before camera access. Changing steps, document/face options, assets or simulation resets the flow; keep those settings stable during capture. Change the component's React `key` to explicitly start a fresh flow.
+`theme` takes a registered theme id, a `defineTheme()` result or quick overrides; see [theming](./theming.md) for `builtInThemes`, `defineTheme`, `registerTheme`, `getTheme`, `listThemes`, `unregisterTheme`, `resolveTheme`, `themeVariables` and `themeCss`. Other props configure `components`, `apiBaseUrl`, `headers`, a custom `api`, callbacks, `simulation` and `className`. See the [README configuration table](../README.md#configure-the-flow). Configuration errors are displayed before camera access. Changing steps, document/face options, assets or simulation resets the flow; keep those settings stable during capture. Change the component's React `key` to explicitly start a fresh flow.
 
 ## Captured data
 
