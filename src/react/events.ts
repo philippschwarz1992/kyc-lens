@@ -2,7 +2,7 @@ import { KycHttpError } from '../api.js';
 import type { CaptureResult, KycErrorStage, KycEvent, KycPhase } from '../types.js';
 import { english } from './strings.js';
 
-const PHASES: readonly string[] = ['intro', 'document', 'face', 'review', 'submitting', 'complete', 'error', 'cancelled'];
+const PHASES: readonly string[] = ['intro', 'document', 'face', 'review', 'submitting', 'rejected', 'complete', 'error', 'cancelled'];
 const IDENTIFIER = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 
 /** A stable, message-free error code: a known string key, HTTP status or error name. */
@@ -25,6 +25,8 @@ export function createEventReporter(emit: () => ((event: KycEvent) => void) | un
     },
     retry(from: KycErrorStage) { send({ type: 'retry', from }); },
     retake() { send({ type: 'retake' }); },
+    rejected(faceMatchStatus: 'no_match' | 'inconclusive') { send({ type: 'rejected', faceMatchStatus }); },
+    restart() { send({ type: 'restart' }); },
     error(stage: KycErrorStage, error: Error) { send({ type: 'error', stage, code: errorCode(error) }); },
     complete(result: CaptureResult) { send({ type: 'complete', durationMs: Math.round(now() - startedAt), ...(result.faceMatch ? { faceMatchStatus: result.faceMatch.status } : {}) }); },
     cancel(step: string) { send({ type: 'cancel', step: (PHASES.includes(step) ? step : 'intro') as KycPhase }); },

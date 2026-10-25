@@ -21,7 +21,8 @@ import { FaceScreen } from './FaceScreen.js';
 import { createFlowMachine, DEFAULT_STEPS, validateFlowConfiguration } from './flow.js';
 import { Icon, IconPackContext } from './Icons.js';
 import { prefersHandoff, validateHandoffOptions } from './Handoff.js';
-import { IntroScreen, ResultScreen, ReviewScreen } from './Screens.js';
+import { AnalysisScreen, IntroScreen, RejectedScreen, ResultScreen, ReviewScreen } from './Screens.js';
+import type { AnalysisStage } from './Screens.js';
 import { getStrings } from './strings.js';
 import { useScreenTransition } from './useScreenTransition.js';
 
@@ -62,6 +63,7 @@ export function KycFlow(props: KycFlowProps) {
       if (!validDecisionOptions(props.faceMatch.threshold ?? DEFAULT_MATCH_THRESHOLD, props.faceMatch.inconclusiveMargin ?? DEFAULT_INCONCLUSIVE_MARGIN)) throw new Error('Invalid face matching threshold or inconclusive margin.');
       const timeout = props.faceMatch.timeoutMs ?? 45_000;
       if (!Number.isFinite(timeout) || timeout < 1_000 || timeout > 120_000) throw new Error('faceMatch.timeoutMs must be between 1000 and 120000.');
+      if (props.faceMatch.requireMatch !== undefined && typeof props.faceMatch.requireMatch !== 'boolean') throw new Error('faceMatch.requireMatch must be true or false.');
     }
     validateOutputOptions(props.output); validateHttpApiOptions(props.upload); validateHandoffOptions(props.handoff);
     if (props.onEvent !== undefined && typeof props.onEvent !== 'function') throw new Error('onEvent must be a function.');
@@ -89,7 +91,8 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
   const [error, setError] = useState<Error | null>(null);
   const [selfieUrl, setSelfieUrl] = useState<string | undefined>();
   const [videoUrl, setVideoUrl] = useState<string | undefined>();
-  const [comparing, setComparing] = useState(false);
+  const [analysisStage, setAnalysisStage] = useState<AnalysisStage | null>(null);
+  const [rejection, setRejection] = useState<'no_match' | 'inconclusive' | null>(null);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const sessionRef = useRef<KycSession | null>(null);
   const requestRef = useRef<AbortController | null>(null);
@@ -147,19 +150,26 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
         let serverResult: unknown;
         let comparison: FaceMatchResult | undefined;
         if (capture.document && faceMatch !== false) {
-          setComparing(true);
+          setAnalysisStage('compare');
           comparison = simulation
             ? comparisonResult('inconclusive', 'simulation', faceMatch.threshold, faceMatch.inconclusiveMargin)
             : await compareFaces({ document: capture.document.front, selfie: capture.selfie, assets, ...faceMatch, signal: controller.signal });
           if (!current || controller.signal.aborted) return;
-          setComparing(false);
+          setAnalysisStage(null);
           if (comparison.status === 'unavailable') {
             const failure = new Error('faceComparisonUnavailable');
             failure.name = 'FaceMatchError';
             throw failure;
           }
+          // A capture whose faces do not clearly match is neither uploaded nor completed; the user starts over.
+          // Simulation cannot compare, so it always continues.
+          if (faceMatch.requireMatch !== false && !simulation && comparison.status !== 'match') {
+            setRejection(comparison.status); events.rejected(comparison.status); send({ type: 'REJECT' });
+            return;
+          }
         }
         if (api) {
+          setAnalysisStage('upload');
           const session = sessionRef.current ?? await api.createSession(controller.signal);
           if (!current || controller.signal.aborted) return;
           sessionRef.current = session;
@@ -170,7 +180,7 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
         send({ type: 'SUCCESS' });
       } catch (failure) {
         if (!current || controller.signal.aborted) return;
-        setComparing(false);
+        setAnalysisStage(null);
         const actual = failure instanceof Error ? failure : new Error(String(failure));
         if (actual instanceof KycHttpError && [401, 404, 410].includes(actual.status)) sessionRef.current = null;
         fail('submission', actual);
@@ -194,6 +204,10 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
     if (phase === 'review') { events.retake(); setCapture(null); setResult(undefined); send({ type: 'RETAKE' }); }
     else if (phase === 'error') { events.retry(state.context.errorStage); setError(null); send({ type: 'RETRY' }); }
   };
+  const restart = () => {
+    if (phase !== 'rejected') return;
+    events.restart(); setCapture(null); setDocumentCapture(undefined); setResult(undefined); setRejection(null); send({ type: 'RESTART' });
+  };
   // Read the pointer type after mount, so server-rendered markup matches the first client render. A layout
   // effect decides before the first paint, so desktops never flash the intro before the QR screen.
   const [offerHandoff, setOfferHandoff] = useState(false);
@@ -212,7 +226,9 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
       {phase === 'document' ? <DocumentScreen options={documentOptions} assets={assets} simulation={simulation} output={output} strings={s} onCapture={document => { setDocumentCapture(document); send({ type: 'DOCUMENT_CAPTURE' }); }} onFailure={failure => fail('document', failure)} /> : null}
       {phase === 'face' ? <FaceScreen face={face} assets={assets} challenges={challenges} simulation={simulation} output={output} strings={s} onCapture={payload => { setCapture({ ...payload, ...(documentCapture ? { document: documentCapture } : {}) }); send({ type: 'CAPTURE' }); }} onFailure={failure => fail('camera', failure)} /> : null}
       {phase === 'review' ? Review ? <Review {...context} /> : <ReviewScreen {...context} strings={s} /> : null}
-      {phase === 'submitting' ? <div className="kyc-screen kyc-status-screen"><div className="kyc-screen-heading"><h2>{comparing ? s.matchingTitle : api ? s.submittingTitle : s.processingTitle}</h2><p className="kyc-description" role="status">{comparing ? s.matchingBody : uploadPercent !== null ? (s.uploadProgress ?? '{percent}%').replace('{percent}', String(uploadPercent)) : s.submittingBody}</p></div><div className="kyc-media"><span className="kyc-spinner" /></div><div className="kyc-actions">{comparing ? <button type="button" className="kyc-button kyc-button-secondary" onClick={cancel}>{s.cancel}</button> : null}</div></div> : null}
+      {phase === 'submitting' ? <AnalysisScreen strings={s} hasDocument={Boolean(capture?.document)} compare={Boolean(capture?.document) && faceMatch !== false} upload={Boolean(api)}
+        stage={analysisStage ?? (capture?.document && faceMatch !== false ? 'compare' : api ? 'upload' : null)} uploadPercent={uploadPercent} onCancel={cancel} /> : null}
+      {phase === 'rejected' && rejection ? <RejectedScreen strings={s} status={rejection} onRestart={restart} /> : null}
       {phase === 'complete' ? Result ? <Result {...context} /> : <ResultScreen {...context} strings={s} /> : null}
       {phase === 'error' ? <div className="kyc-screen kyc-error-screen"><div className="kyc-screen-heading"><h2>{s.errorTitle}</h2><p className="kyc-description">{error?.name === 'FaceMatchError' ? s.matchingErrorBody : state.context.errorStage === 'submission' ? s.submissionErrorBody : s.cameraErrorBody}</p></div><div className="kyc-media kyc-error-media"><div className="kyc-error-icon"><Icon name="refresh" size={28} /></div><p className="kyc-error-detail" role="alert">{error ? readableError(error, s) : s.cameraErrorBody}</p></div><div className="kyc-actions"><button type="button" className="kyc-button kyc-button-primary" onClick={retry}>{s.retry}<Icon name="arrow" size={18} /></button></div></div> : null}
       {phase === 'cancelled' ? <div className="kyc-screen kyc-status-screen"><div className="kyc-screen-heading"><h2>{s.cancelledTitle}</h2><p className="kyc-description">{s.cancelledBody}</p></div><div className="kyc-media" /><div className="kyc-actions" /></div> : null}

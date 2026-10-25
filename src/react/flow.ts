@@ -2,7 +2,7 @@ import { assign, setup } from 'xstate';
 import type { FaceChallenge, KycStep } from '../types.js';
 import { validateChallenges } from '../core/challenges.js';
 
-export const DEFAULT_STEPS: readonly KycStep[] = ['intro', 'face', 'review', 'result'];
+export const DEFAULT_STEPS: readonly KycStep[] = ['intro', 'face', 'result'];
 const STEP_ORDER: readonly KycStep[] = ['intro', 'document', 'face', 'review', 'result'];
 
 /** Validate configuration before asking for camera access. */
@@ -24,6 +24,8 @@ type FlowEvent =
   | { type: 'DOCUMENT_CAPTURE' }
   | { type: 'RETAKE' }
   | { type: 'SUCCESS' }
+  | { type: 'REJECT' }
+  | { type: 'RESTART' }
   | { type: 'FAILURE'; stage: 'camera' | 'document' | 'submission' }
   | { type: 'RETRY' }
   | { type: 'CANCEL' };
@@ -61,7 +63,9 @@ export function createFlowMachine(steps: readonly KycStep[]) {
         },
       },
       review: { on: { NEXT: 'submitting', RETAKE: 'face' } },
-      submitting: { on: { SUCCESS: 'complete', FAILURE: { target: 'error', actions: 'recordErrorStage' } } },
+      submitting: { on: { SUCCESS: 'complete', REJECT: 'rejected', FAILURE: { target: 'error', actions: 'recordErrorStage' } } },
+      // The faces did not match: start the whole capture again from the first screen.
+      rejected: { on: { RESTART: 'initializing' } },
       error: { on: { RETRY: [{ guard: 'retrySubmission', target: 'submitting' }, { guard: 'retryDocument', target: 'document' }, { target: 'face' }] } },
       complete: { type: 'final' },
       cancelled: { type: 'final' },

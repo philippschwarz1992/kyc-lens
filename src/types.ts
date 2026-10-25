@@ -91,6 +91,11 @@ export interface FaceMatchOptions {
   inconclusiveMargin?: number;
   /** Whole local comparison timeout, including model loading. Default: 45000 milliseconds. */
   timeoutMs?: number;
+  /**
+   * When true (default), a `no_match` or `inconclusive` comparison shows a "try again" screen that restarts
+   * the flow; the capture is neither uploaded nor completed. False completes with the comparison result instead.
+   */
+  requireMatch?: boolean;
 }
 /** Quick overrides on top of the classic theme. For full control pass a theme id or a `defineTheme()` result. */
 export interface KycTheme {
@@ -122,7 +127,7 @@ export interface HttpApiOptions {
   onProgress?: (loaded: number, total: number) => void;
 }
 export type UploadOptions = HttpApiOptions;
-export type KycPhase = 'intro' | 'document' | 'face' | 'review' | 'submitting' | 'complete' | 'error' | 'cancelled';
+export type KycPhase = 'intro' | 'document' | 'face' | 'review' | 'submitting' | 'rejected' | 'complete' | 'error' | 'cancelled';
 export type KycErrorStage = 'camera' | 'document' | 'submission';
 /** Privacy-safe analytics events. They never include media, URLs, tokens, scores or embeddings. */
 export type KycEvent =
@@ -130,6 +135,8 @@ export type KycEvent =
   | { type: 'retry'; from: KycErrorStage }
   | { type: 'retake' }
   | { type: 'error'; stage: KycErrorStage; code: string }
+  | { type: 'rejected'; faceMatchStatus: 'no_match' | 'inconclusive' }
+  | { type: 'restart' }
   | { type: 'complete'; durationMs: number; faceMatchStatus?: FaceMatchResult['status'] }
   | { type: 'cancel'; step: KycPhase };
 export interface CapturePayload {

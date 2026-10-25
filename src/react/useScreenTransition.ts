@@ -1,9 +1,20 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 
-const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+export const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 const animationId = 'kyc-screen-transition';
 const easing = 'cubic-bezier(0.22, 1, 0.36, 1)';
+
+/** The theme's motion tokens for `element`, or null when motion is reduced or unsupported. */
+export function motionTokens(element: HTMLElement) {
+  if (typeof element.animate !== 'function') return null;
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
+  const tokens = getComputedStyle(element);
+  return {
+    easing: tokens.getPropertyValue('--kyc-motion-easing').trim() || easing,
+    scale: Number.parseFloat(tokens.getPropertyValue('--kyc-motion-duration-scale')) || 1,
+  };
+}
 
 /** Animate existing screen regions without remounting the camera or delaying navigation. */
 export function useScreenTransition(container: RefObject<HTMLElement | null>, screen: string) {
@@ -26,6 +37,8 @@ export function useScreenTransition(container: RefObject<HTMLElement | null>, sc
     const animations: Animation[] = [];
     const animate = (selector: string, distance: number, duration: number) => {
       for (const target of root.querySelectorAll<HTMLElement>(selector)) {
+        // A region that runs its own entrance, such as the captured photo, is left alone.
+        if (target.dataset.kycMotion === 'own') continue;
         // A child stage can change while the parent entry animation is still finishing.
         for (const current of target.getAnimations()) if (current.id === animationId) current.cancel();
         const frames: Keyframe[] = distance <= 0 ? [{ opacity: 0.35 }, { opacity: 1 }]

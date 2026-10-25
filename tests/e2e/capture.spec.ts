@@ -98,22 +98,21 @@ async function fixedFrameChecks(page: Page): Promise<(phase: string) => Promise<
   };
 }
 
-test('simulation completes selected challenges, review and authenticated local upload', async ({ page }) => {
+test('simulation completes the default challenges and submits automatically to the authenticated local upload', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/settings?simulate=1&document=0');
   await page.getByRole('switch', { name: 'Local upload API' }).check();
   await openConfiguredPreview(page);
+  const upload = page.waitForResponse(response => response.url().endsWith('/capture') && response.request().method() === 'POST', { timeout: 25_000 });
   await page.getByRole('button', { name: 'Start face capture', exact: true }).click();
-  await expectAutomaticFaceReview(page);
-  const upload = page.waitForResponse(response => response.url().endsWith('/capture') && response.request().method() === 'POST');
-  await page.getByRole('button', { name: 'Confirm & continue', exact: true }).click();
   const response = await upload;
+  await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
   expect(response.ok()).toBe(true);
   const body = await response.json();
   expect(body.status).toBe('capture_complete');
   expect(body.mode).toBe('simulation');
-  expect(body.challenges.map((c: {challenge: string}) => c.challenge)).toEqual(['center', 'turn-left', 'turn-right', 'closer', 'further']);
+  expect(body.challenges.map((c: {challenge: string}) => c.challenge)).toEqual(['center', 'turn-left', 'turn-right', 'closer']);
   await expect(page.getByRole('heading', { name: 'Your capture is complete.' })).toBeVisible();
   await page.goto('/settings?document=0');
   await page.getByRole('tab', { name: 'Capture summary', exact: true }).click();
@@ -174,6 +173,7 @@ test('optional screens, German locale, retake and upload retry preserve the capt
   await installRecordingDiagnostics(page);
   await page.goto('/settings?simulate=1&document=0');
   await page.getByRole('switch', { name: 'Introduction' }).uncheck();
+  await page.getByRole('switch', { name: 'Face capture review' }).check();
   await page.locator('#demo-locale').selectOption('de');
   for (const name of ['Turn left', 'Turn right', 'Move closer', 'Move further']) await page.getByRole('checkbox', { name, exact: false }).uncheck();
   await page.getByRole('switch', { name: 'Local upload API' }).check();
@@ -325,6 +325,7 @@ test('a configured preview opens separately and sends only capture metadata back
   await page.goto('/settings?simulate=1&document=0');
   await page.getByRole('switch', { name: 'Simulation mode' }).check();
   await page.getByRole('switch', { name: 'Introduction' }).uncheck();
+  await page.getByRole('switch', { name: 'Face capture review' }).check();
   for (const name of ['Turn left', 'Turn right', 'Move closer', 'Move further']) await page.getByRole('checkbox', { name, exact: false }).uncheck();
   const popupPromise = page.waitForEvent('popup');
   await page.getByRole('link', { name: 'Open preview', exact: true }).click();
@@ -383,8 +384,7 @@ test('capture stays centered on desktop and its mobile controls fit without over
   await expectInsideViewport(page, start);
   await start.click();
   await expect(page.locator('.kyc-face-screen')).toBeVisible();
-  await expectAutomaticFaceReview(page);
-  await expectInsideViewport(page, page.getByRole('button', { name: 'Confirm & continue', exact: true }));
+  await expect(page.getByRole('heading', { name: 'Your capture is complete.', exact: true })).toBeVisible({ timeout: 25_000 });
   await expectNoCancelControls(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 

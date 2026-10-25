@@ -1,7 +1,9 @@
 import type { ChallengeEvidence, ChallengeFeedback, FaceChallenge, FaceObservation, FaceOptions } from '../types.js';
 
-export const DEFAULT_CHALLENGES: readonly FaceChallenge[] = Object.freeze(['center', 'turn-left', 'turn-right', 'closer', 'further']);
+export const DEFAULT_CHALLENGES: readonly FaceChallenge[] = Object.freeze(['center', 'turn-left', 'turn-right', 'closer']);
 export const MAX_OBSERVATION_GAP_MS = 500;
+/** Movements besides the optional centered start. More steps add friction without a better capture. */
+export const MAX_MOVEMENTS = 3;
 const SUPPORTED = new Set<FaceChallenge>(['center', 'turn-left', 'turn-right', 'look-up', 'look-down', 'closer', 'further']);
 const HINTS: Record<FaceChallenge, string> = {
   center: 'center-face', 'turn-left': 'turn-left', 'turn-right': 'turn-right',
@@ -9,11 +11,12 @@ const HINTS: Record<FaceChallenge, string> = {
 };
 
 export function validateChallenges(challenges: readonly FaceChallenge[]): FaceChallenge[] {
-  if (!Array.isArray(challenges) || challenges.length === 0 || challenges.length > 20) {
-    throw new Error('Configure between 1 and 20 face challenges.');
-  }
+  if (!Array.isArray(challenges) || challenges.length === 0) throw new Error('Configure at least one face challenge.');
   for (const challenge of challenges) {
     if (!SUPPORTED.has(challenge)) throw new Error(`Unsupported face challenge: ${String(challenge)}`);
+  }
+  if (challenges.filter(challenge => challenge !== 'center').length > MAX_MOVEMENTS || challenges.filter(challenge => challenge === 'center').length > 1) {
+    throw new Error(`Configure at most ${MAX_MOVEMENTS} face movements and one center step.`);
   }
   return [...challenges];
 }
@@ -59,6 +62,7 @@ export class ChallengeRunner {
   private dwellStart: number | null = null;
   private dwellSize: number | null = null;
   private lastTimestamp: number | null = null;
+  private recenterRatio: number | null = null;
   private evidence: ChallengeEvidence[] = [];
 
   constructor(challenges: readonly FaceChallenge[], holdDurationMs: number) {
@@ -72,6 +76,7 @@ export class ChallengeRunner {
     this.phase = 'baseline';
     this.baselineSize = null;
     this.lastTimestamp = null;
+    this.recenterRatio = null;
     this.evidence = [];
     this.clearDwell();
   }
@@ -105,12 +110,25 @@ export class ChallengeRunner {
     }
 
     if (this.phase === 'baseline' || this.phase === 'recenter') {
-      const atBaselineDistance = this.baselineSize === null || Math.abs(observation.relativeSize / this.baselineSize - 1) <= 0.12;
-      if (!isNeutralFace(observation) || !atBaselineDistance) {
+      const final = this.phase === 'recenter' && this.index === this.challenges.length;
+      // A later distance change is judged from the baseline, so the user first returns to that
+      // distance. Otherwise, including for the final selfie, a frontal, centered face is enough.
+      const distanceAhead = this.challenges.slice(this.index).some(challenge => challenge === 'closer' || challenge === 'further');
+      const ratio = this.baselineSize === null || !distanceAhead ? 1 : observation.relativeSize / this.baselineSize;
+      if (!isNeutralFace(observation)) {
         this.clearDwell();
         return this.feedback('neutral-pose', false, 0);
       }
-      const progress = this.advanceDwell(observation);
+      // A quick move can skip the baseline band between two samples; crossing it counts as passing it.
+      const crossed = this.recenterRatio !== null && (this.recenterRatio - 1) * (ratio - 1) < 0;
+      this.recenterRatio = ratio;
+      if (Math.abs(ratio - 1) > 0.12 && !crossed) {
+        this.clearDwell();
+        return this.feedback(ratio > 1 ? 'move-further' : 'move-closer', false, 0);
+      }
+      // Only the baseline and the final selfie pose are held. Passing through neutral between
+      // movements is enough, which keeps the sequence quick.
+      const progress = this.phase === 'recenter' && !final ? 1 : this.advanceDwell(observation);
       if (progress < 1) return this.feedback('hold-still', true, progress);
       if (this.phase === 'baseline') {
         this.baselineSize = observation.relativeSize;
@@ -165,6 +183,7 @@ export class ChallengeRunner {
   private completeChallenge(timestamp: number): void {
     this.evidence.push({ challenge: this.challenges[this.index]!, completedAt: timestamp, durationMs: timestamp - this.dwellStart! });
     this.index += 1;
+    this.recenterRatio = null;
     // A center-only flow already has a suitable final frontal capture pose.
     this.phase = this.index === this.challenges.length && this.challenges[this.index - 1] === 'center' ? 'done' : 'recenter';
   }

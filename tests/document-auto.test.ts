@@ -56,22 +56,30 @@ describe('Automatic document shutter', () => {
     const hold = createDocumentHold(800);
     hold.observe(clear, 1000, 1000, 'view');
     hold.observe(clear, 1400, 1400, 'view');
-    expect(hold.observe(clear, 2000, 2000, 'view').progress).toBe(0);
-    expect(hold.observe(clear, 2200, 2800, 'view')).toEqual({ feedback: 'searching', progress: 0, capture: false });
-    expect(hold.observe(clear, 2850, 2850, 'view').progress).toBe(0);
-    expect(hold.observe(clear, 3050, 3050, 'view').capture).toBe(false);
+    expect(hold.observe(clear, 2500, 2500, 'view').progress).toBe(0);
+    expect(hold.observe(clear, 2700, 3800, 'view')).toEqual({ feedback: 'searching', progress: 0, capture: false });
+    expect(hold.observe(clear, 3850, 3850, 'view').progress).toBe(0);
+    expect(hold.observe(clear, 4050, 4050, 'view').capture).toBe(false);
   });
 
   it('movement, gradual drift and viewport rotation each require a fresh hold', () => {
     const hold = createDocumentHold(800);
     hold.observe(clear, 1000, 1000, 'view');
-    hold.observe(move(0.01), 1200, 1200, 'view');
-    expect(hold.observe(move(0.02), 1400, 1400, 'view').progress).toBe(0);
-    expect(hold.observe(move(0.02), 1800, 1800, 'rotated').progress).toBe(0);
-    expect(hold.observe(move(0.02), 2000, 2000, 'rotated').capture).toBe(false);
+    hold.observe(move(0.03), 1200, 1200, 'view');
+    expect(hold.observe(move(0.05), 1400, 1400, 'view').progress).toBe(0);
+    expect(hold.observe(move(0.05), 1800, 1800, 'rotated').progress).toBe(0);
+    expect(hold.observe(move(0.05), 2000, 2000, 'rotated').capture).toBe(false);
     hold.reset(2050);
-    expect(hold.observe(move(0.02), 2030, 2060, 'rotated').capture).toBe(false);
-    expect(hold.observe(move(0.02), 2200, 2200, 'rotated').progress).toBe(0);
+    expect(hold.observe(move(0.05), 2030, 2060, 'rotated').capture).toBe(false);
+    expect(hold.observe(move(0.05), 2200, 2200, 'rotated').progress).toBe(0);
+  });
+
+  it('handheld jitter does not restart the hold', () => {
+    const hold = createDocumentHold(800);
+    hold.observe(clear, 1000, 1000, 'view');
+    hold.observe(move(0.015), 1300, 1300, 'view');
+    hold.observe(move(-0.01), 1600, 1600, 'view');
+    expect(hold.observe(move(0.02), 1800, 1800, 'view').capture).toBe(true);
   });
 
   it('a ready flag without valid complete corner geometry never enables the shutter', () => {

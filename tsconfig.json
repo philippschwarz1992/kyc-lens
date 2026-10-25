@@ -6,5 +6,5 @@
     "esModuleInterop": true, "resolveJsonModule": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["src", "demo", "tests", "*.ts"]
+  "include": ["src", "demo", "tests", "examples", "*.ts"]
 }

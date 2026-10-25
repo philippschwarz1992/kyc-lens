@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { KycFlow } from '../src/index';
+import { KycFlow, MAX_MOVEMENTS } from '../src/index';
 import type { CaptureResult, FaceChallenge, KycLocale, KycStep, KycThemeDefinition } from '../src/index';
 
 const LOCALES: readonly [KycLocale, string][] = [['en', 'English'], ['de', 'Deutsch'], ['fr', 'Français'], ['es', 'Español'], ['it', 'Italiano'], ['pl', 'Polski'], ['tr', 'Türkçe']];
@@ -16,7 +16,8 @@ const challengeOptions: { id: FaceChallenge; label: string }[] = [
   { id: 'look-down', label: 'Look down' }, { id: 'closer', label: 'Move closer' },
   { id: 'further', label: 'Move further' },
 ];
-const defaultChallenges: FaceChallenge[] = ['center', 'turn-left', 'turn-right', 'closer', 'further'];
+const defaultChallenges: FaceChallenge[] = ['center', 'turn-left', 'turn-right', 'closer'];
+const movementCount = (challenges: readonly FaceChallenge[]) => challenges.filter(challenge => challenge !== 'center').length;
 const summaryKey = 'kyc-kit-demo-summary';
 const summaryChannel = 'kyc-kit-demo-completion';
 
@@ -29,7 +30,7 @@ interface Config {
 function initialConfig(): Config {
   const params = new URLSearchParams(window.location.search);
   const defaults: Config = {
-    intro: true, document: params.get('document') !== '0', review: true, result: true, challenges: [...defaultChallenges],
+    intro: true, document: params.get('document') !== '0', review: false, result: true, challenges: [...defaultChallenges],
     theme: 'classic', locale: 'en', simulation: params.get('simulate') === '1', upload: false,
     documentAutoCapture: true, documentHoldDurationMs: 0, faceMatch: true,
   };
@@ -39,7 +40,7 @@ function initialConfig(): Config {
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return defaults;
     const value = parsed as Record<string, unknown>;
-    const challenges = Array.isArray(value.challenges) && value.challenges.length > 0 && value.challenges.length <= 20
+    const challenges = Array.isArray(value.challenges) && value.challenges.length > 0 && movementCount(value.challenges as FaceChallenge[]) <= MAX_MOVEMENTS && value.challenges.filter(item => item === 'center').length <= 1
       && value.challenges.every(item => challengeOptions.some(option => option.id === item))
       ? value.challenges as FaceChallenge[] : defaults.challenges;
     return {
@@ -273,7 +274,8 @@ function SettingsPage() {
   }, []);
   function toggleChallenge(id: FaceChallenge) {
     setConfig(previous => ({ ...previous, challenges: previous.challenges.includes(id)
-      ? previous.challenges.filter(challenge => challenge !== id) : [...previous.challenges, id] }));
+      ? previous.challenges.filter(challenge => challenge !== id)
+      : id !== 'center' && movementCount(previous.challenges) >= MAX_MOVEMENTS ? previous.challenges : [...previous.challenges, id] }));
   }
   async function copyCode() {
     try { await navigator.clipboard.writeText(code); setCopiedCode(code); setError(null); }
@@ -299,9 +301,9 @@ function SettingsPage() {
           <Switch label="Face capture review" checked={config.review} onChange={value => update('review', value)} />
           <Switch label="Capture result" checked={config.result} onChange={value => update('result', value)} />
         </fieldset>
-        <fieldset><legend>Face movements</legend><p className="demo-field-help">Selected movements run in numbered order.</p>
+        <fieldset><legend>Face movements</legend><p className="demo-field-help">Choose up to {MAX_MOVEMENTS} movements. They run in numbered order.</p>
           <div className="demo-challenges">{challengeOptions.map(option => <label key={option.id} className={`demo-challenge-option ${config.challenges.includes(option.id) ? 'selected' : ''}`}>
-            <input type="checkbox" checked={config.challenges.includes(option.id)} onChange={() => toggleChallenge(option.id)} />
+            <input type="checkbox" checked={config.challenges.includes(option.id)} disabled={!config.challenges.includes(option.id) && option.id !== 'center' && movementCount(config.challenges) >= MAX_MOVEMENTS} onChange={() => toggleChallenge(option.id)} />
             <span>{option.label}</span>{config.challenges.includes(option.id) && <span className="demo-challenge-order">{config.challenges.indexOf(option.id) + 1}</span>}
           </label>)}</div>
           {config.challenges.length === 0 && <p className="demo-validation" role="alert">Select at least one movement.</p>}

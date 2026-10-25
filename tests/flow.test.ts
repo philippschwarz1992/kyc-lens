@@ -20,8 +20,32 @@ describe('capture workflow', () => {
     expect(() => validateFlowConfiguration(['face'], ['closer', 'further'])).not.toThrow();
   });
 
-  it('cannot complete or submit before a capture and explicit review confirmation', () => {
+  it('submits the capture automatically by default, without a review screen', () => {
+    expect(DEFAULT_STEPS).toEqual(['intro', 'face', 'result']);
     const actor = createActor(createFlowMachine(DEFAULT_STEPS)).start();
+    actor.send({ type: 'NEXT' }); actor.send({ type: 'CAPTURE' });
+    expect(actor.getSnapshot().value).toBe('submitting');
+    actor.send({ type: 'SUCCESS' });
+    expect(actor.getSnapshot().value).toBe('complete');
+    actor.stop();
+  });
+
+  it('restarts from the first screen after the faces do not match', () => {
+    for (const [steps, first] of [[['intro', 'document', 'face', 'result'], 'intro'], [['document', 'face'], 'document']] as const) {
+      const actor = createActor(createFlowMachine(steps)).start();
+      if (first === 'intro') actor.send({ type: 'NEXT' });
+      actor.send({ type: 'DOCUMENT_CAPTURE' }); actor.send({ type: 'CAPTURE' }); actor.send({ type: 'REJECT' });
+      expect(actor.getSnapshot().value).toBe('rejected');
+      for (const type of ['SUCCESS', 'RETRY', 'CAPTURE'] as const) actor.send({ type });
+      expect(actor.getSnapshot().value).toBe('rejected');
+      actor.send({ type: 'RESTART' });
+      expect(actor.getSnapshot().value).toBe(first);
+      actor.stop();
+    }
+  });
+
+  it('cannot complete or submit before a capture and explicit review confirmation', () => {
+    const actor = createActor(createFlowMachine(['intro', 'face', 'review', 'result'])).start();
     expect(actor.getSnapshot().value).toBe('intro');
     actor.send({ type: 'SUCCESS' }); actor.send({ type: 'CAPTURE' });
     expect(actor.getSnapshot().value).toBe('intro');
@@ -47,7 +71,6 @@ describe('capture workflow', () => {
   });
 
   it('keeps document capture optional and requires its completion before the face stage', () => {
-    expect(DEFAULT_STEPS).toEqual(['intro', 'face', 'review', 'result']);
     const actor = createActor(createFlowMachine(['intro', 'document', 'face', 'review'])).start();
     actor.send({ type: 'NEXT' });
     expect(actor.getSnapshot().value).toBe('document');
@@ -110,7 +133,9 @@ describe('analytics events', () => {
     reporter.retake(); go({ type: 'RETAKE' });
     go({ type: 'CAPTURE' }); go({ type: 'NEXT' });
     reporter.error('submission', new KycHttpError('Token abc expired for https://example.test/secret', 503)); go({ type: 'FAILURE', stage: 'submission' });
-    reporter.retry(snapshot.context.errorStage); go({ type: 'RETRY' }); go({ type: 'SUCCESS' });
+    reporter.retry(snapshot.context.errorStage); go({ type: 'RETRY' });
+    reporter.rejected('no_match'); go({ type: 'REJECT' }); reporter.restart(); go({ type: 'RESTART' });
+    go({ type: 'NEXT' }); go({ type: 'CAPTURE' }); go({ type: 'NEXT' }); go({ type: 'SUCCESS' });
     reporter.complete({ status: 'capture_complete', payload: { selfie: new Blob(['x']), challenges: [], capturedAt: '', mode: 'camera' }, faceMatch: { status: 'match', reason: 'above-threshold', score: 0.9, threshold: 0.4 } as never });
     expect(events).toEqual([
       { type: 'step', step: 'intro', elapsedMs: 0 },
@@ -124,8 +149,15 @@ describe('analytics events', () => {
       { type: 'step', step: 'error', elapsedMs: 600 },
       { type: 'retry', from: 'submission' },
       { type: 'step', step: 'submitting', elapsedMs: 700 },
-      { type: 'step', step: 'complete', elapsedMs: 800 },
-      { type: 'complete', durationMs: 800, faceMatchStatus: 'match' },
+      { type: 'rejected', faceMatchStatus: 'no_match' },
+      { type: 'step', step: 'rejected', elapsedMs: 800 },
+      { type: 'restart' },
+      { type: 'step', step: 'intro', elapsedMs: 900 },
+      { type: 'step', step: 'face', elapsedMs: 1000 },
+      { type: 'step', step: 'review', elapsedMs: 1100 },
+      { type: 'step', step: 'submitting', elapsedMs: 1200 },
+      { type: 'step', step: 'complete', elapsedMs: 1300 },
+      { type: 'complete', durationMs: 1300, faceMatchStatus: 'match' },
     ]);
     expect(JSON.stringify(events)).not.toMatch(/abc|https|secret|blob|score|threshold/i);
   });

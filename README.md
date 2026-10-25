@@ -112,7 +112,7 @@ export function IdentityCapture() {
 
 This example captures and compares locally. The completion callback receives `result.payload`: a selfie `Blob`, an optional face video `Blob`, optional document `Blob`s, challenge evidence, a capture timestamp and capture mode. `result.faceMatch` contains the comparison status, reason and optional cosine score. It is not a probability or approval. Connect your own submission flow or supply `apiBaseUrl` as described below. Keep media, scores and session tokens out of logs and analytics.
 
-The default SDK flow is `['intro', 'face', 'review', 'result']`. Include `'document'` explicitly to collect document photos. ID cards and driving licenses require front and back; passports use the photo page only.
+The default SDK flow is `['intro', 'face', 'result']`; add `'review'` for a final review screen before submission. Include `'document'` explicitly to collect document photos. ID cards and driving licenses require front and back; passports use the photo page only.
 
 For Next.js, render `KycFlow` in a Client Component and import the stylesheet in your root layout. See the [integration guide](./docs/integration.md).
 
@@ -136,7 +136,7 @@ For Next.js, render `KycFlow` in a Client Component and import the stylesheet in
 | Option | Behavior |
 | --- | --- |
 | `steps` | Choose unique screens in the order `intro`, `document`, `face`, `review`, `result`; always include `face` |
-| `face.challenges` | 1–20 ordered movements; repeated movements are allowed |
+| `face.challenges` | Ordered movements: at most one `center` step and `MAX_MOVEMENTS` (3) others; repeated movements are allowed |
 | `face.autoStart` | Defaults to `true`; use `false` to show a camera-start button |
 | `face.recordVideo` | Defaults to `true`; use `false` for still-only capture |
 | `face.holdDurationMs` | Pose hold duration, 100–10,000 ms; default 650 ms |

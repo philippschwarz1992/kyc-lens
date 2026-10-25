@@ -2,7 +2,7 @@
 
 export { KycFlow } from './react/KycFlow.js';
 export { createHttpApi, KycHttpError } from './api.js';
-export { DEFAULT_CHALLENGES } from './core/challenges.js';
+export { DEFAULT_CHALLENGES, MAX_MOVEMENTS } from './core/challenges.js';
 export { compareFaces, prefetchMatchingAssets } from './matching/client.js';
 export { builtInThemes, defineTheme, getTheme, listThemes, registerTheme, resolveTheme, themeCss, themeVariables, unregisterTheme } from './themes.js';
 export { builtInIconPacks, defineIconPack, getIconPack, iconNames, listIconPacks, registerIconPack, resolveIconPack, unregisterIconPack } from './icons.js';
