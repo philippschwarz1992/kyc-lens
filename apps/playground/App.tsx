@@ -316,7 +316,7 @@ function SettingsPage() {
         </fieldset>
         <fieldset><legend>Testing</legend>
           <Switch label="Simulation mode" description="Try the flow without a camera" checked={config.simulation} onChange={value => update('simulation', value)} />
-          <Switch label="Local upload API" description="Save captures to results/<session ID>" checked={config.upload} onChange={value => update('upload', value)} />
+          <Switch label="Upload API" description="Send captures to /api/kyc: saved to results/<session ID> locally, verified server-side on the verify deployment" checked={config.upload} onChange={value => update('upload', value)} />
         </fieldset>
         <div className="demo-open-preview">{config.challenges.length > 0 ? <a className="demo-primary-button" href={previewUrl} target="_blank" rel="noopener">Open preview<Icon name="external" size={17} /></a> : <button className="demo-primary-button" disabled>Open preview</button>}<p>Opens a new tab with only the KYC flow.</p></div>
       </section>

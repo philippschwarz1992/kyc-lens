@@ -21,7 +21,9 @@
     // Secrets (wrangler secret put --env verify): API_KEY, WEBHOOK_SECRET, ANALYSIS_SECRET.
     "verify": {
       "name": "kyc-lens-verify",
-      "vars": { "SESSION_MODE": "server", "SESSION_TTL_MINUTES": "15", "ANALYSIS_INSTANCES": "2", "WEBHOOK_URL": "" },
+      // Test setup: the playground creates its own sessions (`open`) and cases go to the reference receiver.
+      // Before real customers: SESSION_MODE "server" (sessions only via your backend's API_KEY) and your own WEBHOOK_URL.
+      "vars": { "SESSION_MODE": "open", "SESSION_TTL_MINUTES": "15", "ANALYSIS_INSTANCES": "2", "WEBHOOK_URL": "https://kyc-lens-reference-receiver.ps0595516.workers.dev/webhooks/kyc" },
       "durable_objects": { "bindings": [
         { "name": "HANDOFF", "class_name": "HandoffRelay" },
         { "name": "SESSIONS", "class_name": "CaptureSession" },
@@ -32,6 +34,9 @@
         // EU jurisdiction; give it a lifecycle rule that deletes objects after 7 days.
         { "binding": "KYC_STAGING", "bucket_name": "kyc-lens-staging", "jurisdiction": "eu" }
       ],
+      // The reference receiver is a Worker on this account: deliver through a service binding (see Env.WEBHOOK_SERVICE).
+      // Remove it when WEBHOOK_URL points at your own backend.
+      "services": [{ "binding": "WEBHOOK_SERVICE", "service": "kyc-lens-reference-receiver" }],
       "queues": {
         "producers": [{ "binding": "DELIVERY", "queue": "kyc-lens-delivery" }],
         "consumers": [{ "queue": "kyc-lens-delivery", "max_batch_size": 1, "max_retries": 12, "dead_letter_queue": "kyc-lens-delivery-failed" }]

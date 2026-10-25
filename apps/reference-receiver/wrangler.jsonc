@@ -3,6 +3,6 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   // Secrets: WEBHOOK_SECRET, VIEWER_USERNAME, VIEWER_PASSWORD (wrangler secret put …).
-  "d1_databases": [{ "binding": "DB", "database_name": "kyc-lens-cases", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
+  "d1_databases": [{ "binding": "DB", "database_name": "kyc-lens-cases", "database_id": "6566997e-caf6-4578-8b68-c71f95fc448f", "migrations_dir": "migrations" }],
   "r2_buckets": [{ "binding": "CASE_FILES", "bucket_name": "kyc-lens-cases", "jurisdiction": "eu" }]
 }

@@ -32,6 +32,11 @@ export interface Env {
   API_KEY?: string;
   WEBHOOK_URL?: string;
   WEBHOOK_SECRET?: string;
+  /**
+   * A receiver Worker on the same account. workers.dev Workers cannot fetch each other by URL (Cloudflare answers 404),
+   * so deliveries to such a receiver go through this service binding; WEBHOOK_URL still names the path.
+   */
+  WEBHOOK_SERVICE?: Fetcher;
 }
 
 /** The Python analysis service (`services/analysis`) in a Cloudflare Container. */
@@ -88,7 +93,7 @@ export default {
       const outcome = await deliver(message.body.sessionId, message.attempts, {
         config: { webhookUrl: parts.webhookUrl, webhookSecret: parts.webhookSecret, analysisAttempts: 3, deliveryAttempts: 10 },
         sessions: parts.sessions, staging: parts.staging, now: Date.now,
-        analyze: form => analyze(env, form), fetch: request => fetch(request),
+        analyze: form => analyze(env, form), fetch: request => env.WEBHOOK_SERVICE ? env.WEBHOOK_SERVICE.fetch(request) : fetch(request),
       }).catch(() => 'retry' as const);
       if (outcome === 'retry') message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
       else message.ack();
