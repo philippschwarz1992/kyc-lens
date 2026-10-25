@@ -21,7 +21,7 @@ FAS_COMMIT = "b6d5f04ad78778917853b25c778acef6d5626d15"  # minivision-ai/Silent-
 FAS_ONNX_COMMIT = "01a38903f4f2680bb59d32a994a6c7b5ae56f49b"  # yakhyo/face-anti-spoofing
 FAS_ONNX = "https://github.com/yakhyo/face-anti-spoofing/releases/download/weights"
 
-# Same URLs, sizes and hashes as scripts/matching-assets.mjs in the SDK.
+# Same URLs, sizes and hashes as packages/sdk/scripts/matching-assets.mjs.
 MODELS = [
     {"name": "face_detection_yunet_2023mar.onnx", "url": f"{ZOO}/face_detection_yunet/face_detection_yunet_2023mar.onnx",
      "size": 232589, "sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4", "license": "MIT",

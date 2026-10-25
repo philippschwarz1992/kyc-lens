@@ -24,7 +24,7 @@ class DocumentMetadata(BaseModel):
 
 
 class Metadata(BaseModel):
-    """The `metadata` field the SDK's src/api.ts sends."""
+    """The `metadata` field packages/sdk/src/api.ts sends."""
     model_config = ConfigDict(extra="allow")
 
     challenges: list[dict] = Field(default_factory=list)

@@ -12,7 +12,7 @@ for commercial use. InsightFace models are licensed for non-commercial research 
 | `MiniFASNetV2.onnx`, `MiniFASNetV1SE.onnx` | Passive anti-spoofing | Apache-2.0 | Weights by [minivision-ai/Silent-Face-Anti-Spoofing](https://github.com/minivision-ai/Silent-Face-Anti-Spoofing/tree/b6d5f04ad78778917853b25c778acef6d5626d15/resources/anti_spoof_models); ONNX export from [yakhyo/face-anti-spoofing](https://github.com/yakhyo/face-anti-spoofing/releases/tag/weights) (Apache-2.0) |
 | PP-OCRv4 detection and recognition | Printed text and MRZ | Apache-2.0 | [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), bundled in [RapidOCR](https://github.com/RapidAI/RapidOCR) `rapidocr-onnxruntime` 1.4.4 (Apache-2.0) |
 
-YuNet and SFace use the same URLs, sizes and hashes as the SDK's `scripts/matching-assets.mjs`. The provenance of
+YuNet and SFace use the same URLs, sizes and hashes as `packages/sdk/scripts/matching-assets.mjs`. The provenance of
 SFace's training data is discussed in [opencv_zoo#313](https://github.com/opencv/opencv_zoo/issues/313).
 
 The anti-spoofing ONNX files are third-party exports. Before they were adopted they were checked against

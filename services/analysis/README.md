@@ -35,7 +35,7 @@ The response itself contains personal data (MRZ fields, OCR text). Treat it like
 Header `X-Analysis-Secret: <ANALYSIS_SECRET>` (compared in constant time). Without it the service answers 401; when
 `ANALYSIS_SECRET` is not set it answers 503.
 
-`multipart/form-data` fields, the same as the SDK's `src/api.ts` sends:
+`multipart/form-data` fields, the same as `packages/sdk/src/api.ts` sends:
 
 | Field | Required | Content |
 | --- | --- | --- |
@@ -75,7 +75,7 @@ The response is a `VerificationResult` (pydantic models in [`app/schema.py`](app
    width: variance of the Laplacian (blur), share of near-white pixels (glare) and mean grey level (brightness).
 2. **Text and MRZ.** RapidOCR (PP-OCRv4 ONNX models) reads the page. The zone is looked for in those lines, then
    in the sharpened bottom band, then in the band turned upside down. [`app/mrz.py`](app/mrz.py) ports the SDK's
-   `src/mrz/parse.ts`: the ICAO 9303 TD1, TD2 and TD3 layouts, check digits (weights 7, 3, 1), per-field character
+   `packages/sdk/src/mrz/parse.ts`: the ICAO 9303 TD1, TD2 and TD3 layouts, check digits (weights 7, 3, 1), per-field character
    classes, check-digit repair from look-alike alternatives (O/0, I/1, B/8, …) and date validity. It adds field
    parsing and dates with their century.
 3. **Type.** A valid zone decides: a `P` code in TD3 is a passport, `I`/`A`/`C` in TD1 or TD2 an identity card.

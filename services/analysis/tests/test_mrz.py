@@ -3,7 +3,7 @@ from datetime import date
 from app.mrz import (MRZ_ALPHABET, MrzSummary, check_digit, decode_mrz, mrz_date, mrz_fields, normalize_line,
                      read_mrz_lines, summarize_mrz)
 
-# Fictional ICAO 9303 specimens (Utopia, Anna Maria Eriksson), the same as the SDK's tests/mrz.test.ts.
+# Fictional ICAO 9303 specimens (Utopia, Anna Maria Eriksson), the same as packages/sdk/tests/mrz.test.ts.
 TD3 = ["P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<", "L898902C36UTO7408122F1204159ZE184226B<<<<<10"]
 TD1 = ["I<UTOD231458907<<<<<<<<<<<<<<<", "7408122F1204159UTO<<<<<<<<<<<6", "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"]
 TD2 = ["I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<", "D231458907UTO7408122F1204159<<<<<<<6"]

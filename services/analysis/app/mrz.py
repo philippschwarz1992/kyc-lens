@@ -1,6 +1,6 @@
 """ICAO 9303 machine-readable zones: layouts, check digits, field rules and repair.
 
-A port of the SDK's src/mrz/parse.ts, extended with field parsing and a reader for OCR text lines.
+A port of packages/sdk/src/mrz/parse.ts, extended with field parsing and a reader for OCR text lines.
 """
 
 from __future__ import annotations
