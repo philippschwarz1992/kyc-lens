@@ -129,6 +129,17 @@ async function checkCopyAssets(assetFiles, builtFiles) {
     }
     await checkJavaScriptImports(await filesBelow(destination), destination);
     process.stdout.write('Asset-copy CLI: model, WASM, licenses, workers and relative chunks verified.\n');
+
+    // --no-matching omits only the comparison worker and matching runtime/models.
+    const reduced = join(temporary, 'public', 'kyc-assets-no-matching');
+    const output = run(process.execPath, [resolve(root, 'scripts/copy-assets.mjs'), reduced, '--no-matching']);
+    assert(output.includes('faceMatch={false}'), 'Asset-copy CLI must tell hosts to disable comparison.');
+    const reducedFiles = (await filesBelow(reduced)).map(path => unixPath(relative(reduced, path)));
+    assert(!reducedFiles.some(name => name.startsWith('matching/') || /^match-worker\.js/.test(name)), 'Asset-copy --no-matching copied matching files.');
+    for (const name of ['face-worker.js', 'document-worker.js', 'face_landmarker.task']) assert(reducedFiles.includes(name), `Asset-copy --no-matching omitted ${name}`);
+    await checkJavaScriptImports(await filesBelow(reduced), reduced);
+    assert(run(process.execPath, [resolve(root, 'scripts/copy-assets.mjs'), '--help']).includes('--no-matching'));
+    process.stdout.write('Asset-copy CLI: --no-matching omits comparison worker, runtime and models only.\n');
   } finally {
     // Remove only the directory this run created, after checking its resolved parent and prefix.
     assert.equal(dirname(resolve(temporary)), temporaryParent);

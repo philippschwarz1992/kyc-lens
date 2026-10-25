@@ -45,7 +45,7 @@ test('packaged YuNet and SFace compare real image pixels using only same-origin 
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
-    if (url.protocol.startsWith('http') && url.origin !== 'http://127.0.0.1:5173') { external.push(url.href); await route.abort(); return; }
+    if (url.protocol.startsWith('http') && url.origin !== `http://127.0.0.1:${process.env.E2E_PORT || 5173}`) { external.push(url.href); await route.abort(); return; }
     if (request.method() === 'POST') posts.push(url.pathname);
     requested.push(url.pathname);
     await route.fallback();

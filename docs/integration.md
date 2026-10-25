@@ -11,6 +11,14 @@ npx kyc-lens-copy-assets ./public/kyc-assets
 
 This copies all three workers, their relative JavaScript chunks, the face models, matching WASM and license files. Keep the directory together, serve it from your app and repeat the command after upgrading. `assets={{ baseUrl: '/kyc-assets' }}` resolves the workers automatically. No inference server is required.
 
+To leave out local face comparison, add `--no-matching`. The command then skips `match-worker.js`, the ONNX Runtime WASM, the YuNet/SFace models and their licenses (about 53 MB) and prints what it skipped. Pass `faceMatch={false}` to `KycFlow` in that case, and do not call `compareFaces`, because their files are absent:
+
+```sh
+npx kyc-lens-copy-assets ./public/kyc-assets --no-matching
+```
+
+The command does not delete files from an earlier full copy. Remove `matching/` and `match-worker.js` from the destination if you switch. `npx kyc-lens-copy-assets --help` lists the options.
+
 Import the stylesheet once in your app's root layout:
 
 ```tsx

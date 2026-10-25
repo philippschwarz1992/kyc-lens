@@ -44,13 +44,19 @@ jobs:
         run: npm run build:demo
       - name: Check the packed distribution
         run: npm run check:package
+      - name: Check bundle and tarball size budgets
+        run: npm run check:size
       - name: Install and inspect a fresh tarball consumer
         run: npm run check:consumer
 
   browser:
-    name: Browser / Chrome
+    name: Browser / ${{ matrix.browser }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, firefox, webkit]
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -65,17 +71,17 @@ jobs:
         run: npm ci
       - name: Prepare local assets
         run: npm run setup
-      - name: Install Chrome and system dependencies
-        run: npx playwright install --with-deps chrome
+      - name: Install ${{ matrix.browser }} and system dependencies
+        run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Build packaged browser workers
         run: npm run build
       - name: Run browser tests
-        run: npm run test:e2e -- --workers=1 --reporter=html,line --trace=retain-on-failure
+        run: npm run test:e2e -- --project=${{ matrix.browser }} --workers=1 --reporter=html,line --trace=retain-on-failure
       - name: Save browser test reports
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: chrome-test-reports
+          name: ${{ matrix.browser }}-test-reports
           path: |
             playwright-report/
             test-results/

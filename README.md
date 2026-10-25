@@ -74,6 +74,18 @@ npx kyc-lens-copy-assets ./public/kyc-assets
 
 Repeat the asset-copy command after every upgrade. It copies all three workers, models, WASM and license files. Serve that directory from your application; `assets={{ baseUrl: '/kyc-assets' }}` resolves them automatically. Consumer installation and runtime do not download models from a third party. The package currently packs to about 51 MiB with these assets.
 
+If you do not use local face comparison, skip its files (the comparison worker, ONNX Runtime WASM and the YuNet/SFace models, about 53 MB) and disable comparison in the flow:
+
+```sh
+npx kyc-lens-copy-assets ./public/kyc-assets --no-matching
+```
+
+```tsx
+<KycFlow faceMatch={false} assets={{ baseUrl: '/kyc-assets' }} /* other props */ />
+```
+
+The command lists what it skipped. Without `faceMatch={false}` the flow still tries to load the missing files, and comparison fails without producing a match. Delete an existing `matching/` directory and `match-worker.js` yourself if you switch an earlier full copy to `--no-matching`. Run `npx kyc-lens-copy-assets --help` for all options.
+
 ```tsx
 import { useState } from 'react';
 import { KycFlow } from 'kyc-lens-react';
@@ -192,13 +204,16 @@ npm run setup
 npm run check
 npm run build:demo
 npm run check:package
+npm run check:size
 npm run check:matching-reference
 npm run check:consumer
-npx playwright install chrome
-npm run test:e2e
+npx playwright install chrome firefox webkit
+npm run test:e2e -- --project=chrome
 ```
 
-GitHub Actions checks the library, packaged assets, local WASM reference parity and fresh tarball installation on Node 22 and 24, and runs the Chrome browser suite. Physical-device and held-out biometric evaluation remain release gates in the [QA plan](./docs/qa-plan.md). It does not publish packages automatically.
+`npm run test:e2e` without `--project` runs the Chrome, Firefox and WebKit projects. WebKit has no fake camera, so the spec that needs native camera frames skips there; the others feed canvas streams. Playwright's Windows WebKit build lacks camera capture, `MediaRecorder` and `OffscreenCanvas`, so run the WebKit project on Linux or macOS, as CI does. Set `E2E_PORT` to run the suite's dev server on another port when 5173 is in use.
+
+GitHub Actions checks the library, packaged assets, size budgets, local WASM reference parity and fresh tarball installation on Node 22 and 24, and runs the browser suite in Chrome, Firefox and WebKit. Physical-device and held-out biometric evaluation remain release gates in the [QA plan](./docs/qa-plan.md). CI does not publish packages. A separate, manually reviewed release workflow is described in [releasing](./docs/releasing.md).
 
 See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 

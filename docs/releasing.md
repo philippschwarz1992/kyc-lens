@@ -1,6 +1,6 @@
 # Releasing KYC Lens
 
-The source repository is [philippschwarz1992/kyc-lens](https://github.com/philippschwarz1992/kyc-lens). The first npm release is pending. The proposed npm name is `kyc-lens-react`, with the `kyc-lens-copy-assets` command; that registry name is not reserved. CI runs verification and does not publish packages.
+The source repository is [philippschwarz1992/kyc-lens](https://github.com/philippschwarz1992/kyc-lens). The first npm release is pending. The proposed npm name is `kyc-lens-react`, with the `kyc-lens-copy-assets` command; that registry name is not reserved. CI runs verification and does not publish packages; publication is manual or through the separate [release workflow](#publish-from-github-actions).
 
 `OWNER` below is a placeholder used only when creating a fork or replacement repository. For this project, the owner is `philippschwarz1992` and package metadata already points to the source repository. The initial package version is `0.1.0`; use the actual release version in tarball and tag names for later releases.
 
@@ -13,14 +13,14 @@ The source repository is [philippschwarz1992/kyc-lens](https://github.com/philip
 5. Check the proposed names. For GitHub, inspect the selected owner's existing repositories. For npm, query the registry:
 
 ```sh
-npm view kyc-lens-react name version --registry https://registry.npmjs.org/
+npm run check:name
 ```
 
-An existing package means the name is already in use. An `E404` can indicate it is currently absent; a network or authentication error is not evidence of availability. Availability may change before publication. If you select another name, update `package.json`, the lockfile, CLI name where appropriate, tests, and documentation consistently.
+The script runs `npm view <name> name version` against `https://registry.npmjs.org/` for the name in `package.json` (or a name passed as `npm run check:name -- other-name`). It prints `Free` and exits 0 on an `E404`, prints `Taken` and exits 1 when a package exists, and prints `Unknown` and exits 2 on any other error. It is read-only and does not reserve the name. An existing package means the name is already in use. An `E404` can indicate it is currently absent; a network or authentication error is not evidence of availability. npm can also reject a free name that is too similar to an existing package. Availability may change before publication. If you select another name, update `package.json`, the lockfile, CLI name where appropriate, tests, and documentation consistently.
 
 ## Verify and inspect the package locally
 
-Use Node.js 22.12 or newer. CI checks Node.js 22 and 24 and runs the Chrome browser tests. A configured workflow is not evidence that a GitHub run has passed; inspect its results after creating the repository.
+Use Node.js 22.12 or newer. CI checks Node.js 22 and 24, enforces size budgets and runs the browser tests in Chrome, Firefox and WebKit. A configured workflow is not evidence that a GitHub run has passed; inspect its results after creating the repository.
 
 ```sh
 npm ci
@@ -28,13 +28,14 @@ npm run setup
 npm run check
 npm run build:demo
 npm run check:package
-npx playwright install chrome
+npm run check:size
+npx playwright install chrome firefox webkit
 npm run test:e2e
 npm pack --dry-run
 npm pack
 ```
 
-On Linux, use `npx playwright install --with-deps chrome`. Initial setup requires internet access for the pinned model and, if needed, its upstream license. `prepack` prepares assets and builds the distribution.
+On Linux, use `npx playwright install --with-deps chrome firefox webkit`. Use `--project=chrome`, `--project=firefox` or `--project=webkit` to run one browser. Playwright's Windows WebKit build lacks camera capture, `MediaRecorder` and `OffscreenCanvas`, so check WebKit on Linux or macOS. `check:size` compares the gzip size of `dist/index.js` and `dist/core/index.js` and the packed tarball size against budgets in `scripts/check-size.mjs`, about 10% above the 0.1.0 measurements. If a change legitimately exceeds a budget, raise it in that file and explain why in the commit. Initial setup requires internet access for the pinned model and, if needed, its upstream license. `prepack` prepares assets and builds the distribution.
 
 Review the dry-run file list and inspect `kyc-lens-react-0.1.0.tgz`. It should contain the JavaScript/TypeScript exports, scoped stylesheet, workers and their chunks, model, WASM assets, asset-copy script, documentation, project license, and third-party notices. It should exclude credentials, captures, test reports, and `node_modules`. Inspect `package.json` inside the tarball, including the name, version, exports, bin entry, engines, peer dependencies, and publish configuration. Test installation of the tarball in a separate React application and run its asset-copy command before release; `check:package` provides an automated distribution smoke check.
 
@@ -110,4 +111,13 @@ git push origin v0.1.0
 
 Create a GitHub release from that tag with the actual changes, relevant limitations, and checks performed. Do not claim device support or security properties that were not tested. For subsequent versions, update the package and lockfile together, add a changelog entry, repeat the checks, and publish a newly inspected tarball.
 
-The CI workflow performs verification and saves browser reports. It has no npm publication step, publishing credentials, or automatic release process.
+The CI workflow performs verification and saves browser reports. It has no npm publication step or publishing credentials.
+
+## Publish from GitHub Actions
+
+`.github/workflows/release.yml` is an alternative to the manual tarball upload above. It runs `npm ci`, `npm run setup`, `npm run check` and `npm run check:package`, then `npm publish --provenance --access public`. It has `id-token: write` so npm can record a [provenance statement](https://docs.npmjs.com/generating-provenance-statements) linking the package to the workflow run, and reads the token from the `NPM_TOKEN` repository secret as `NODE_AUTH_TOKEN`.
+
+- **Manual run** (`workflow_dispatch`): the `dry-run` input defaults to true, which runs every check and `npm publish --dry-run`. Uncheck it only to publish for real.
+- **Tag push** (`v*`): publishes for real after the checks pass. The job first fails unless the tag equals `v` plus the `package.json` version.
+
+Before the first workflow release, create an npm automation or granular access token with publish rights for the package, and store it as the `NPM_TOKEN` secret. Consider a protected GitHub environment with required reviewers for the job. Run a manual dry run first and review its output. The workflow publishes the tree at the tagged commit, not a tarball you inspected locally, so complete the review steps above for that commit before pushing the tag.

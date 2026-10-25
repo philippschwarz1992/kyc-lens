@@ -21,5 +21,8 @@ This file records changes prepared for release. No version has been published ye
 - TypeScript interfaces, unit and browser test suites, integration and architecture documentation, and MIT licensing for project code.
 - Open-source contribution and security guidance, GitHub issue and pull request templates, and a verification workflow.
 - Built-in French, Spanish, Italian, Polish, and Turkish copy alongside English and German, typed `KycStrings`/`KycStringKey` exports, `Partial<KycStrings>` overrides, and the `KYC Lens` brand string.
+- `kyc-lens-copy-assets --no-matching` skips the comparison worker, ONNX Runtime WASM, and YuNet/SFace models (about 53 MB) for hosts that pass `faceMatch={false}`; `--help` lists the options.
+- Browser tests run in Chrome, Firefox, and WebKit projects; WebKit skips specs that need a fake camera.
+- Bundle and tarball size budgets (`npm run check:size`), an npm name availability check (`npm run check:name`), and a release workflow that publishes with provenance (dry run by default for manual runs).
 
 Completion means `capture_complete`. This release does not implement identity verification, document authentication, or proof of liveness.
