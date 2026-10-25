@@ -25,6 +25,9 @@ export function Icon({ name, size = 20, className, style }: { name: KycIconName;
     upload: <><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4" /></>,
     switchCamera: <><path d="M4 7h3l2-2h6l2 2h3v12H4z" /><path d="M8.5 12a3.5 3.5 0 0 1 6-2.4M15.5 12a3.5 3.5 0 0 1-6 2.4" /><path d="M14.8 7.6v2h-2M9.2 16.4v-2h2" /></>,
     flash: <path d="M13 3 5 14h6l-1 7 8-11h-6z" />,
+    idCard: <><rect x="3" y="5.5" width="18" height="13" rx="2.5" /><circle cx="8.5" cy="10.5" r="2" /><path d="M5.8 15.5c.5-1.6 1.5-2.3 2.7-2.3s2.2.7 2.7 2.3M14 10h4M14 13.5h3" /></>,
+    license: <><rect x="3" y="5.5" width="18" height="13" rx="2.5" /><circle cx="8.5" cy="10.5" r="2" /><path d="M5.8 15.5c.5-1.6 1.5-2.3 2.7-2.3s2.2.7 2.7 2.3M14 9.5h4" /><path d="M13.5 15.5v-1.8l1-1.7h3l1 1.7v1.8z" /></>,
+    passport: <><rect x="5" y="3" width="14" height="18" rx="2" /><circle cx="12" cy="10.5" r="3.2" /><path d="M8.8 10.5h6.4M12 7.3c-1 .9-1.5 2-1.5 3.2s.5 2.3 1.5 3.2c1-.9 1.5-2 1.5-3.2s-.5-2.3-1.5-3.2M9 17h6" /></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className} style={style}>{paths[name]}</svg>;
 }

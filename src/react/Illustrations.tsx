@@ -1,32 +1,53 @@
-import { useId } from 'react';
+export type IllustrationKind = 'identity' | 'document-front' | 'document-back' | 'license-front' | 'license-back' | 'passport' | 'selfie';
 
-export function Illustration({ kind, className }: { kind: 'identity' | 'document-front' | 'document-back' | 'selfie'; className?: string }) {
-  const id = useId().replace(/:/g, '');
-  const fill = `url(#${id}-fill)`;
-  const glow = `url(#${id}-glow)`;
-  const shadow = `url(#${id}-shadow)`;
-  const portrait = <><circle cx="99" cy="145" r="17" fill={fill} /><path d="M70 193c0-22 13-33 29-33s29 11 29 33" fill={fill} opacity=".55" /></>;
-  const card = <g filter={shadow}><rect x="48" y="108" width="224" height="140" rx="18" className="kyc-illustration-paper" fill="white" stroke="currentColor" strokeOpacity=".12" strokeWidth="2" />{portrait}<path d="M155 147h73m-73 20h59m-59 20h38" stroke="currentColor" strokeWidth="5" strokeLinecap="round" opacity=".65" /><path d="M71 226h178" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity=".12" /></g>;
-  return <svg className={`kyc-illustration ${className ?? ''}`} viewBox="0 0 320 320" fill="none" aria-hidden="true">
-    <defs>
-      <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1"><stop stopColor="currentColor" /><stop offset="1" stopColor="currentColor" stopOpacity=".32" /></linearGradient>
-      <radialGradient id={`${id}-glow`}><stop stopColor="currentColor" stopOpacity=".14" /><stop offset="1" stopColor="currentColor" stopOpacity="0" /></radialGradient>
-      <filter id={`${id}-shadow`} x="-40%" y="-40%" width="180%" height="200%"><feDropShadow dx="0" dy="12" stdDeviation="12" floodColor="currentColor" floodOpacity=".16" /></filter>
-    </defs>
-    <circle cx="160" cy="165" r="148" fill={glow} />
-    {kind === 'identity' ? <>
-      <g transform="rotate(-10 127 149)" filter={shadow}><rect x="67" y="53" width="134" height="208" rx="16" className="kyc-illustration-paper" fill="white" stroke="currentColor" strokeOpacity=".15" strokeWidth="2" /><rect x="75" y="61" width="118" height="192" rx="10" fill={fill} /><circle cx="134" cy="139" r="34" className="kyc-illustration-on-tint" stroke="white" strokeWidth="2.5" /><ellipse cx="134" cy="139" rx="15" ry="34" className="kyc-illustration-on-tint" stroke="white" strokeWidth="2.5" /><path d="M103 126h62m-62 26h62m-31-47v68" className="kyc-illustration-on-tint" stroke="white" strokeWidth="2.5" /><path d="M106 206h56" className="kyc-illustration-on-tint" stroke="white" strokeWidth="3" strokeLinecap="round" opacity=".8" /></g>
-      <g transform="translate(63 3) rotate(9 160 185) scale(.75)">{card}</g>
-      <circle cx="223" cy="78" r="25" fill="currentColor" /><path d="m212 78 7 7 15-16" className="kyc-illustration-on-tint" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-    </> : kind === 'selfie' ? <g transform="rotate(-5 160 160)" filter={shadow}>
-      <rect x="91" y="34" width="138" height="252" rx="25" className="kyc-illustration-paper" fill="white" stroke="currentColor" strokeWidth="7" />
-      <path d="M139 49h42" stroke="currentColor" strokeWidth="5" strokeLinecap="round" opacity=".3" />
-      <circle cx="160" cy="132" r="36" fill={fill} /><path d="M110 234c0-40 23-63 50-63s50 23 50 63v22H110z" fill={fill} opacity=".4" />
-      <path d="M150 122v4m20-4v4m-29 11c4 20 34 20 38 0" className="kyc-illustration-on-tint" stroke="white" strokeWidth="3.5" strokeLinecap="round" />
-      <path d="M124 266h72" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity=".15" />
-    </g> : <>
-      <g transform={kind === 'document-back' ? 'rotate(7 160 180)' : 'rotate(-5 160 180)'}>{kind === 'document-back' ? <g filter={shadow}><rect x="48" y="108" width="224" height="140" rx="18" className="kyc-illustration-paper" fill="white" stroke="currentColor" strokeOpacity=".12" strokeWidth="2" /><path d="M71 139h95m-95 17h161m-161 17h142" stroke="currentColor" strokeOpacity=".35" strokeWidth="4" strokeLinecap="round" /><path d="M73 204v22m7-22v22m5-22v22m8-22v22m5-22v22m7-22v22m9-22v22m4-22v22m8-22v22m8-22v22m5-22v22m8-22v22m8-22v22m4-22v22m8-22v22m9-22v22m4-22v22m8-22v22m8-22v22m4-22v22m9-22v22m7-22v22m5-22v22" stroke="currentColor" strokeWidth="2" strokeOpacity=".55" /></g> : card}</g>
-      {kind === 'document-back' ? <g stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"><path d="M57 187c-25 10-30 25-10 39 31 21 191 26 230 2 20-12 15-27-14-38" /><path d="m276 173-20 17 20 13" /></g> : <g stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" opacity=".8"><path d="M39 101V85h20m202 0h20v16m0 142v18h-20M59 261H39v-18" /></g>}
-    </>}
-  </svg>;
+export function Illustration({ kind, className }: { kind: IllustrationKind; className?: string }) {
+  const brackets = <path d="M40 104V86a16 16 0 0 1 16-16h18M246 70h18a16 16 0 0 1 16 16v18M280 216v18a16 16 0 0 1-16 16h-18M74 250H56a16 16 0 0 1-16-16v-18" stroke="currentColor" strokeWidth="6" />;
+  const card = <rect x="72" y="100" width="176" height="120" rx="14" className="kyc-illustration-paper" fill="white" stroke="currentColor" strokeWidth="5" />;
+  const portrait = <><circle cx="112" cy="146" r="14" stroke="currentColor" strokeWidth="4" /><path d="M90 190c3-14 12-21 22-21s19 7 22 21" stroke="currentColor" strokeWidth="4" /></>;
+  const mrz = (y: number) => <path d={`M94 ${y}h132M94 ${y + 16}h132`} stroke="currentColor" strokeWidth="4" strokeDasharray="5 7" opacity=".85" />;
+  // Two-step pager under the card: the filled pill marks the side being photographed.
+  const pager = (step: 1 | 2) => <><rect x="132" y="270" width="26" height="8" rx="4" fill="currentColor" opacity={step === 1 ? 1 : 0.25} /><rect x="164" y="270" width="26" height="8" rx="4" fill="currentColor" opacity={step === 2 ? 1 : 0.25} /></>;
+  const idFront = <>{card}{portrait}<path d="M152 140h66M152 160h48M152 180h34" stroke="currentColor" strokeWidth="4" opacity=".55" /></>;
+  const art = {
+    identity: <>
+      {brackets}{idFront}
+      <rect x="52" y="150" width="216" height="22" fill="currentColor" opacity=".12" /><path d="M52 161h216" stroke="currentColor" strokeWidth="3" />
+      <circle cx="160" cy="262" r="24" fill="currentColor" /><rect x="149" y="260" width="22" height="16" rx="4" className="kyc-illustration-on-tint" stroke="white" strokeWidth="4" /><path d="M153 260v-5a7 7 0 0 1 14 0v5" className="kyc-illustration-on-tint" stroke="white" strokeWidth="4" />
+    </>,
+    'document-front': <>{brackets}{idFront}{pager(1)}</>,
+    'document-back': <>
+      {brackets}{card}
+      <path d="M94 126h74M94 144h50" stroke="currentColor" strokeWidth="4" opacity=".55" /><rect x="192" y="118" width="34" height="28" rx="6" stroke="currentColor" strokeWidth="4" />
+      {mrz(172)}<path d="M94 204h132" stroke="currentColor" strokeWidth="4" strokeDasharray="5 7" opacity=".85" />
+      {pager(2)}
+    </>,
+    'license-front': <>
+      {brackets}{card}{portrait}
+      <path d="M152 136h66M152 154h48" stroke="currentColor" strokeWidth="4" opacity=".55" />
+      <path d="M180 202v-9l7-11h30l7 11v9z" stroke="currentColor" strokeWidth="4" /><path d="M180 193h44" stroke="currentColor" strokeWidth="3" opacity=".55" />
+      {pager(1)}
+    </>,
+    'license-back': <>
+      {brackets}{card}
+      <rect x="94" y="116" width="132" height="66" rx="5" stroke="currentColor" strokeWidth="4" /><path d="M94 138h132M94 160h132M130 116v66" stroke="currentColor" strokeWidth="3" opacity=".55" />
+      <path d="M94 200h88" stroke="currentColor" strokeWidth="4" opacity=".55" />
+      {pager(2)}
+    </>,
+    passport: <>
+      {brackets}
+      <rect x="80" y="84" width="160" height="30" rx="10" className="kyc-illustration-paper" fill="white" stroke="currentColor" strokeWidth="4" opacity=".55" />
+      {card}
+      <rect x="90" y="118" width="42" height="54" rx="6" stroke="currentColor" strokeWidth="4" /><circle cx="111" cy="137" r="8" stroke="currentColor" strokeWidth="3.5" /><path d="M99 166c2-9 7-13 12-13s10 4 12 13" stroke="currentColor" strokeWidth="3.5" />
+      <path d="M148 128h70M148 146h52M148 164h62" stroke="currentColor" strokeWidth="4" opacity=".55" />
+      {mrz(188)}
+    </>,
+    selfie: <>
+      <circle cx="160" cy="160" r="112" stroke="currentColor" strokeWidth="10" strokeDasharray="2 12" opacity=".3" />
+      <circle cx="160" cy="160" r="112" stroke="currentColor" strokeWidth="6" strokeDasharray="250 704" transform="rotate(-90 160 160)" />
+      <path d="M98 250c10-28 34-42 62-42s52 14 62 42" stroke="currentColor" strokeWidth="5" />
+      <ellipse cx="160" cy="146" rx="46" ry="56" className="kyc-illustration-paper" fill="white" stroke="currentColor" strokeWidth="5" />
+      <path d="M142 138v8M178 138v8M145 168c8 8 22 8 30 0" stroke="currentColor" strokeWidth="5" />
+    </>,
+  };
+  return <svg className={`kyc-illustration ${className ?? ''}`} viewBox="0 0 320 320" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{art[kind]}</svg>;
 }

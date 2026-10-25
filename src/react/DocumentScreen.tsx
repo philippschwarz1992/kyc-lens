@@ -1,12 +1,19 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { AssetOptions, DocumentCapture, DocumentOptions, DocumentType, OutputOptions } from '../types.js';
 import { Icon } from './Icons.js';
-import { Illustration } from './Illustrations.js';
+import { Illustration, type IllustrationKind } from './Illustrations.js';
 import { useDocumentCapture } from './useDocumentCapture.js';
 import { useScreenTransition } from './useScreenTransition.js';
 
 type DocumentStage = 'select' | 'prepare-front' | 'camera-front' | 'review-front' | 'prepare-back' | 'camera-back' | 'review-back';
 const DEFAULT_DOCUMENT_TYPES: readonly DocumentType[] = ['id-card', 'drivers-license', 'passport'];
+const typeIcons = { 'id-card': 'idCard', 'drivers-license': 'license', passport: 'passport' } as const;
+
+function sideIllustration(type: DocumentType, back: boolean): IllustrationKind {
+  if (type === 'passport') return 'passport';
+  if (type === 'drivers-license') return back ? 'license-back' : 'license-front';
+  return back ? 'document-back' : 'document-front';
+}
 
 export function DocumentScreen({ options, assets, simulation, output, strings: s, onCapture, onFailure }: {
   options: DocumentOptions;
@@ -34,6 +41,7 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
   const isBack = stage.endsWith('back');
   const side = isBack ? 'back' : 'front';
   const preview = isReview ? isBack ? back : front : null;
+  const sideArt = sideIllustration(selected, isBack);
   const { videoRef, guideRef, feedback, progress, status, start, capture, stop, cameras, torch, notice, switchCamera, toggleTorch } = useDocumentCapture({
     options, assets, type: selected, side, simulation, output, onFailure,
     onCapture: photo => {
@@ -132,6 +140,7 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
       <div className="kyc-document-type-list" role="radiogroup" aria-labelledby={titleId}>
         {types.map(type => <label key={type} className={`kyc-document-type-button ${selected === type ? 'is-selected' : ''}`}>
           <input className="kyc-visually-hidden" type="radio" name={radioName} value={type} checked={selected === type} onChange={() => setSelected(type)} />
+          <span className="kyc-document-type-icon" aria-hidden="true"><Icon name={typeIcons[type]} size={22} /></span>
           <span className="kyc-document-type-text"><strong className="kyc-document-type-name">{names[type]}</strong><span className="kyc-document-type-detail">{type === 'passport' ? s.documentPhotoPage ?? 'Photo page' : s.documentFrontAndBack ?? 'Front and back'}</span></span>
           <span className="kyc-document-type-radio" aria-hidden="true">{selected === type ? <Icon name="check" size={14} /> : null}</span>
         </label>)}
@@ -140,7 +149,7 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
       {previewUrl ? <img src={previewUrl} alt={isBack ? s.documentBackAlt ?? 'Photograph of the back of your document' : s.documentFrontAlt ?? 'Photograph of the front of your document'} /> : null}
     </div> : isCamera ? <div className={`kyc-media kyc-document-camera ${simulation ? 'is-simulation' : ''}`}>
       <video ref={videoRef} className="kyc-document-video" autoPlay muted playsInline aria-label={title} />
-      {simulation ? <div className="kyc-document-demo" aria-hidden="true"><Illustration kind={isBack ? 'document-back' : 'document-front'} /><span>DEMO</span></div> : null}
+      {simulation ? <div className="kyc-document-demo" aria-hidden="true"><Illustration kind={sideArt} /><span>DEMO</span></div> : null}
       <div ref={guideRef} className="kyc-document-guide" data-state={guideState} data-reason={feedback} data-document-type={selected} aria-hidden="true" />
       {automatic && feedback === 'hold-still' && progress > 0 ? <div className="kyc-document-auto-progress" role="progressbar" aria-label={s.documentAutoProgress ?? 'Automatic photo capture'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><span style={{ width: `${progress * 100}%` }} /></div> : null}
       {showSwitch || showTorch ? <div className="kyc-document-camera-controls">
@@ -149,7 +158,7 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
         {showSwitch ? <button type="button" className="kyc-document-camera-control" aria-disabled={controlsBusy} aria-label={s.documentSwitchCamera ?? 'Switch camera'} onClick={() => { if (!controlsBusy) switchCamera(); }}><Icon name="switchCamera" size={20} /></button> : null}
       </div> : null}
       {status === 'requesting' || status === 'capturing' ? <div className="kyc-document-status" role="status"><span className="kyc-spinner" /><span>{status === 'requesting' ? notice === 'tapToStart' ? s.tapToStartCamera : s.requesting ?? 'Opening your camera…' : s.capturing ?? 'Taking your photo…'}</span></div> : null}
-    </div> : <div className="kyc-media kyc-document-preparation"><Illustration kind={isBack ? 'document-back' : 'document-front'} /></div>}
+    </div> : <div className="kyc-media kyc-document-preparation"><Illustration kind={sideArt} /></div>}
     <div className="kyc-actions">
       {stage === 'select' ?
         <button type="button" className="kyc-button kyc-button-primary" disabled={!types.includes(selected)} onClick={() => { setFront(null); setBack(null); setStage('prepare-front'); }}>{s.documentContinue ?? 'Continue'}<Icon name="arrow" size={18} /></button>
