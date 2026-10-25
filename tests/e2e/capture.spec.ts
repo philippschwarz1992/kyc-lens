@@ -198,6 +198,7 @@ test('optional screens, German locale, retake and upload retry preserve the capt
 
 test('real worker initializes with local assets, runs on fake camera frames and cleans up after a camera frame error', async ({ page, browserName }) => {
   test.skip(browserName === 'webkit', 'WebKit has no fake camera device; this test needs native getUserMedia frames.');
+  test.skip(browserName === 'firefox' && !!process.env.CI, 'Headless Firefox on CI has no WebGL context, which MediaPipe needs (GLctx is undefined).');
   // Real model, WASM and encoder startup on shared CI runners can take most of the default 30 s.
   test.setTimeout(90_000);
   await installRecordingDiagnostics(page, true);
