@@ -45,6 +45,10 @@
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js"
     },
+    "./element": {
+      "types": "./dist/element.d.ts",
+      "import": "./dist/element.js"
+    },
     "./styles.css": "./dist/styles.css",
     "./assets/*": "./assets/*",
     "./package.json": "./package.json"
