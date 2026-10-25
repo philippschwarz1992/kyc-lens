@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { KycFlow } from '../src/index';
-import type { CaptureResult, FaceChallenge, KycStep } from '../src/index';
+import type { CaptureResult, FaceChallenge, KycLocale, KycStep } from '../src/index';
+
+const LOCALES: readonly [KycLocale, string][] = [['en', 'English'], ['de', 'Deutsch'], ['fr', 'Français'], ['es', 'Español'], ['it', 'Italiano'], ['pl', 'Polski'], ['tr', 'Türkçe']];
 import FaceWorkerUrl from '../src/camera/face.worker.ts?worker&url';
 import DocumentWorkerUrl from '../src/camera/document.worker.ts?worker&url';
 import MatchWorkerUrl from '../src/matching/match.worker.ts?worker&url';
@@ -20,7 +22,7 @@ const summaryChannel = 'kyc-kit-demo-completion';
 
 interface Config {
   intro: boolean; document: boolean; review: boolean; result: boolean; challenges: FaceChallenge[];
-  theme: string; locale: 'en' | 'de'; simulation: boolean; upload: boolean;
+  theme: string; locale: KycLocale; simulation: boolean; upload: boolean;
   documentAutoCapture: boolean; documentHoldDurationMs: number; faceMatch: boolean;
 }
 
@@ -51,7 +53,7 @@ function initialConfig(): Config {
       documentHoldDurationMs: typeof value.documentHoldDurationMs === 'number' && Number.isFinite(value.documentHoldDurationMs) && value.documentHoldDurationMs >= 200 && value.documentHoldDurationMs <= 10_000 ? value.documentHoldDurationMs : defaults.documentHoldDurationMs,
       faceMatch: typeof value.faceMatch === 'boolean' ? value.faceMatch : defaults.faceMatch,
       theme: typeof value.theme === 'string' && /^[a-z][a-z0-9-]{0,47}$/.test(value.theme) ? value.theme : defaults.theme,
-      locale: value.locale === 'de' ? 'de' : 'en', challenges,
+      locale: LOCALES.find(([code]) => code === value.locale)?.[0] ?? 'en', challenges,
     };
   } catch { return defaults; }
 }
@@ -216,7 +218,7 @@ function SettingsPage() {
           {config.challenges.length === 0 && <p className="demo-validation" role="alert">Select at least one movement.</p>}
         </fieldset>
         <fieldset><legend>Appearance</legend>
-          <div className="demo-locale-row"><label htmlFor="demo-locale">Language</label><select id="demo-locale" value={config.locale} onChange={event => update('locale', event.target.value as 'en' | 'de')}><option value="en">English</option><option value="de">Deutsch</option></select></div>
+          <div className="demo-locale-row"><label htmlFor="demo-locale">Language</label><select id="demo-locale" value={config.locale} onChange={event => update('locale', event.target.value as KycLocale)}>{LOCALES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></div>
           <div className="demo-theme-row"><span>Theme</span><div className="demo-theme-options" role="radiogroup" aria-label="Theme">{themes.map(theme => <button key={theme.id} type="button" role="radio" aria-checked={config.theme === theme.id} className={config.theme === theme.id ? 'selected' : ''} onClick={() => update('theme', theme.id)}>
             <span className="demo-theme-swatch" style={{ '--swatch-bg': theme.tokens.color.background, '--swatch-primary': theme.tokens.color.primary, '--swatch-accent': theme.tokens.color.accent } as CSSProperties} aria-hidden="true" />{theme.name}
           </button>)}</div></div>
