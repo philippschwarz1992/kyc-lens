@@ -64,6 +64,10 @@
 .kyc-kit::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--kyc-backdrop); pointer-events: none; }
 .kyc-kit[data-kyc-ambient]::before { inset: -25%; animation: kyc-ambient calc(26s * var(--kyc-motion-duration-scale)) ease-in-out infinite alternate; }
 .kyc-kit *, .kyc-kit *::before, .kyc-kit *::after { box-sizing: border-box; }
+/* App-like touch behavior: no double-tap zoom delay, scroll chaining, long-press callouts or accidental text selection. */
+.kyc-kit { touch-action: manipulation; overscroll-behavior: contain; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.kyc-kit img, .kyc-kit video { -webkit-user-drag: none; }
+.kyc-kit .kyc-error-detail { -webkit-user-select: text; user-select: text; }
 .kyc-kit button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .kyc-kit button:disabled { cursor: wait; opacity: .55; }
 .kyc-kit button:focus-visible, .kyc-document-type-button:focus-within { outline: 3px solid var(--kyc-color-focus); outline-offset: 3px; }

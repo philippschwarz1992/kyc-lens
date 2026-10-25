@@ -182,7 +182,17 @@ function PreviewPage() {
   const [handoff, setHandoff] = useState<{ id: string; url: string } | null>(null);
   const [phoneSummary, setPhoneSummary] = useState<CaptureSummary | null>(null);
   useThemeFonts([theme]);
-  useEffect(() => { document.title = 'KYC Lens — Identity capture'; }, []);
+  useEffect(() => {
+    document.title = 'KYC Lens — Identity capture';
+    document.documentElement.classList.add('demo-app-mode');
+    return () => document.documentElement.classList.remove('demo-app-mode');
+  }, []);
+  // The browser chrome and safe-area edges take the theme's background, so the frame reads as one app surface.
+  useEffect(() => {
+    const color = theme.tokens.color.background;
+    if (window.matchMedia('(max-width: 480px)').matches) document.documentElement.style.background = color;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+  }, [theme]);
   // A desktop preview offers a QR code that opens the same configuration on a phone.
   useEffect(() => {
     if (phoneHandoff) return;

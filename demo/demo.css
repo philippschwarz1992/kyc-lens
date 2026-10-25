@@ -81,11 +81,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .demo-handoff-done p { margin: 0 0 16px; color: #697386; font-size: 13px; line-height: 1.6; }
 .demo-handoff-done pre { max-height: 320px; overflow: auto; padding: 12px; border-radius: 12px; background: #f6f8fb; font-size: 11px; }
 @media (max-width: 480px) {
-  :root { background: #fff; }
-  .demo-preview-page { height: 100svh; height: 100dvh; padding: 0; background: #fff; }
-  .demo-phone { max-width: none; }
-  .demo-phone > .kyc-kit { max-width: none; height: 100svh; height: 100dvh; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
-  .demo-theme-picker { top: 10px; right: 10px; }
+  /* Full-screen app frame inside the notch and home-indicator safe areas; the page itself never scrolls. */
+  .demo-preview-page { display: block; height: 100%; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); background: transparent; }
+  .demo-phone { max-width: none; height: 100%; }
+  .demo-phone > .kyc-kit { max-width: none; height: 100%; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
   .demo-handoff-done { border-radius: 0; min-height: 100dvh; }
   .demo-settings-header { padding: 16px 20px 0; }
   .demo-settings-main { padding: 22px 16px 28px; }
@@ -209,3 +208,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .demo-theme-menu button:hover, .demo-theme-menu button:focus-visible { background: #f1f4f9; }
 .demo-theme-menu button.selected { color: #1d4ed8; background: #eef3ff; }
 .demo-theme-menu .demo-theme-swatch { flex: none; width: 20px; height: 20px; border-radius: 6px; }
+
+/* The capture page behaves like an installed app: the document is pinned, so no rubber-band scroll or pull-to-refresh. */
+html.demo-app-mode, html.demo-app-mode body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+html.demo-app-mode body { position: fixed; inset: 0; }
+html.demo-app-mode #root { height: 100%; }
+html.demo-app-mode .demo-preview-page { height: 100%; }
+@media (max-width: 480px) { .demo-theme-picker { top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); } }
