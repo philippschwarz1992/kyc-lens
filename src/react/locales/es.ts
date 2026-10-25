@@ -59,4 +59,7 @@ export const spanish: KycStrings = {
   documentDark: 'Usa una luz más intensa y uniforme.', documentGlare: 'Inclínalo un poco para evitar reflejos.', documentBlur: 'Mantén el pulso firme y deja que la cámara enfoque.',
   documentHoldStill: 'No te muevas…', documentReady: 'Se ve nítido. Haz la foto.', documentGuidanceUnavailable: 'Mantén visibles las cuatro esquinas. Revisa la foto después de hacerla.',
   documentAutoHoldStill: 'No te muevas… la foto se toma automáticamente.', documentAutoReady: 'Tomando la foto automáticamente…', documentAutoProgress: 'Captura automática de foto',
+  uploadProgress: 'Subido {percent} %',
+  documentSwitchCamera: 'Cambiar cámara', documentTorchOn: 'Encender linterna', documentTorchOff: 'Apagar linterna',
+  documentCameraSwitchFailed: 'No se pudo abrir esa cámara. Se ha vuelto a activar la anterior.',
 };

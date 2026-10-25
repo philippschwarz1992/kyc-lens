@@ -59,4 +59,7 @@ export const turkish: KycStrings = {
   documentDark: 'Daha parlak ve eşit bir ışık kullanın.', documentGlare: 'Yansımaları önlemek için hafifçe eğin.', documentBlur: 'Sabit tutun ve kameranın odaklanmasını bekleyin.',
   documentHoldStill: 'Sabit tutun…', documentReady: 'Görüntü net. Fotoğrafınızı çekin.', documentGuidanceUnavailable: 'Dört köşenin de görünür olmasını sağlayın. Çekimden sonra fotoğrafı kontrol edin.',
   documentAutoHoldStill: 'Sabit tutun… fotoğrafınız otomatik olarak çekiliyor.', documentAutoReady: 'Fotoğrafınız otomatik olarak çekiliyor…', documentAutoProgress: 'Otomatik fotoğraf çekimi',
+  uploadProgress: '%{percent} yüklendi',
+  documentSwitchCamera: 'Kamerayı değiştir', documentTorchOn: 'Feneri açın', documentTorchOff: 'Feneri kapatın',
+  documentCameraSwitchFailed: 'Bu kamera açılamadı. Önceki kameranız yeniden etkin.',
 };

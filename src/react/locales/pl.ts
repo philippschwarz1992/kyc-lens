@@ -59,4 +59,7 @@ export const polish: KycStrings = {
   documentDark: 'Zapewnij jaśniejsze, równomierne światło.', documentGlare: 'Przechyl lekko dokument, aby uniknąć odblasków.', documentBlur: 'Trzymaj nieruchomo i poczekaj, aż kamera ustawi ostrość.',
   documentHoldStill: 'Nie ruszaj się…', documentReady: 'Obraz jest wyraźny. Zrób zdjęcie.', documentGuidanceUnavailable: 'Wszystkie cztery rogi muszą być widoczne. Sprawdź zdjęcie po jego wykonaniu.',
   documentAutoHoldStill: 'Nie ruszaj się… zdjęcie zostanie zrobione automatycznie.', documentAutoReady: 'Automatyczne robienie zdjęcia…', documentAutoProgress: 'Automatyczne zdjęcie',
+  uploadProgress: 'Przesłano {percent}%',
+  documentSwitchCamera: 'Przełącz aparat', documentTorchOn: 'Włącz latarkę', documentTorchOff: 'Wyłącz latarkę',
+  documentCameraSwitchFailed: 'Nie udało się otworzyć tego aparatu. Przywrócono poprzedni aparat.',
 };
