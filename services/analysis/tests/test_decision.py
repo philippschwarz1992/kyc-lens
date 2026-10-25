@@ -1,0 +1,37 @@
+from dataclasses import replace
+from datetime import date
+
+from app.config import get_settings
+from app.pipeline import Uploads
+from app.schema import Metadata
+from tests.fixtures import face, passport_photo
+
+METADATA = Metadata.model_validate({"document": {"type": "passport"}})
+BEFORE_EXPIRY = date(2011, 1, 1)  # The ICAO specimen expires on 2012-04-15.
+
+
+def uploads(selfie="collins-portrait.jpg"):
+    return Uploads(passport_photo(), face(selfie), METADATA)
+
+
+def test_approves_a_valid_unexpired_passport_with_a_matching_face(analyzer):
+    result = analyzer.analyze(uploads(), replace(get_settings(), require_liveness=False), today=BEFORE_EXPIRY)
+    assert (result.status, result.reasons) == ("approved", [])
+
+
+def test_sends_a_missing_video_to_review(analyzer):
+    result = analyzer.analyze(uploads(), get_settings(), today=BEFORE_EXPIRY)
+    assert (result.status, result.reasons, result.liveness) == ("review", ["liveness-missing"], None)
+
+
+def test_rejects_an_expired_document(analyzer):
+    result = analyzer.analyze(uploads(), replace(get_settings(), require_liveness=False), today=date(2026, 10, 25))
+    assert (result.status, result.reasons) == ("rejected", ["document-expired"])
+
+
+def test_thresholds_come_from_the_environment(analyzer, monkeypatch):
+    monkeypatch.setenv("FACE_MATCH_THRESHOLD", "0.99")
+    monkeypatch.setenv("REQUIRE_LIVENESS", "false")
+    result = analyzer.analyze(uploads(), get_settings(), today=BEFORE_EXPIRY)
+    assert result.faceMatch.threshold == 0.99
+    assert (result.status, result.reasons) == ("rejected", ["face-mismatch"])

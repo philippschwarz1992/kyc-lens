@@ -1,0 +1,118 @@
+"""One analysis: document, zone, face match, liveness and the decision. Everything stays in memory."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+
+from .config import Settings
+from .document import decode_image, measure_quality, rectify
+from .face import FaceModels
+from .liveness import InvalidVideo, SpoofModels, check_liveness, sample_frames
+from .mrz import DecodedMrz, mrz_fields
+from .ocr import read_lines, read_mrz, type_from_text
+from .schema import Document, DocumentType, FaceMatch, Liveness, Metadata, Mrz, MrzFields, VerificationResult
+
+# Reasons that reject outright; every other reason sends the capture to manual review.
+REJECTING = {"document-expired", "document-type-mismatch", "face-mismatch", "liveness-failed"}
+# Liveness failures that point at an attack rather than a poor recording.
+ATTACK_SIGNS = {"liveness-identity-mismatch", "liveness-no-motion", "liveness-spoof-suspected"}
+MRZ_TYPES: dict[str, DocumentType] = {"passport": "passport", "id-card": "id-card"}
+
+
+@dataclass
+class Uploads:
+    document_front: bytes
+    selfie: bytes
+    metadata: Metadata
+    document_back: bytes | None = None
+    face_video: bytes | None = None
+
+
+class Analyzer:
+    def __init__(self, models_dir: Path):
+        self.faces = FaceModels(models_dir)
+        self.spoof = SpoofModels(models_dir)
+
+    def analyze(self, uploads: Uploads, settings: Settings, today: date | None = None) -> VerificationResult:
+        today = today or date.today()
+        reasons: list[str] = []
+
+        # Document photos: rectified, measured and read.
+        front, front_flat = rectify(decode_image(uploads.document_front))
+        sides = [(front, front_flat)]
+        if uploads.document_back:
+            sides.append(rectify(decode_image(uploads.document_back)))
+        quality = measure_quality(front, front_flat, settings)
+        if not quality.acceptable or any(not measure_quality(image, flat, settings).acceptable for image, flat in sides[1:]):
+            reasons.append("document-quality-poor")
+        texts = [read_lines(image) for image, _ in sides]
+        ocr_text = "\n".join(text for lines in texts for text, _ in lines) or None
+
+        decoded: DecodedMrz | None = None
+        for (image, _), lines in zip(sides, texts):
+            candidate = read_mrz(image, lines)
+            if candidate is not None and (decoded is None or (candidate.summary.valid, candidate.confidence) > (decoded.summary.valid, decoded.confidence)):
+                decoded = candidate
+        mrz = None
+        if decoded is not None:
+            fields = mrz_fields(decoded.lines, decoded.summary.format)
+            mrz = Mrz(format=decoded.summary.format, kind=decoded.summary.kind, valid=decoded.summary.valid, fields=MrzFields(**fields))
+            if not mrz.valid:
+                reasons.append("mrz-invalid")
+            elif fields["expiryDate"] and date.fromisoformat(fields["expiryDate"]) < today:
+                reasons.append("document-expired")
+
+        detected = MRZ_TYPES.get(mrz.kind) if mrz is not None and mrz.valid else None
+        detected = detected or type_from_text(ocr_text or "")
+        declared = uploads.metadata.document.type if uploads.metadata.document else None
+        if declared and detected and declared != detected:
+            reasons.append("document-type-mismatch")
+        if detected is None:
+            reasons.append("document-type-unknown")
+        if mrz is None and (declared or detected) in ("passport", "id-card"):
+            reasons.append("mrz-not-found")
+
+        # Face: the upscaled document portrait against the selfie.
+        selfie_image = decode_image(uploads.selfie)
+        selfie_face = self.faces.largest(selfie_image)
+        selfie_embedding = self.faces.embed(selfie_image, selfie_face) if selfie_face is not None else None
+        if selfie_embedding is None:
+            reasons.append("selfie-face-not-found")
+        portrait = None
+        for image, _ in sides:
+            portrait = self.faces.document_portrait(image)
+            if portrait is not None:
+                break
+        if portrait is None:
+            reasons.append("document-face-not-found")
+        face_match = None
+        if portrait is not None and selfie_embedding is not None:
+            score = self.faces.similarity(self.faces.embed(*portrait), selfie_embedding)
+            matched = score >= settings.face_match_threshold
+            face_match = FaceMatch(score=round(score, 4), threshold=settings.face_match_threshold, decision="match" if matched else "no-match")
+            if not matched:
+                reasons.append("face-mismatch")
+
+        liveness = None
+        if uploads.face_video:
+            try:
+                frames = sample_frames(uploads.face_video, settings.liveness_frames)
+            except InvalidVideo:
+                frames = []
+            check = check_liveness(frames, selfie_embedding, self.faces, self.spoof,
+                                   match_threshold=settings.face_match_threshold, threshold=settings.liveness_threshold,
+                                   min_frames=settings.liveness_min_frames, min_motion=settings.liveness_min_motion)
+            liveness = Liveness(score=check.score, decision="pass" if check.passed else "fail",
+                                framesWithFace=check.frames_with_face, framesSampled=check.frames_sampled)
+            if not check.passed:
+                reasons.append("liveness-failed" if ATTACK_SIGNS & set(check.failures) else "liveness-inconclusive")
+                reasons.extend(check.failures)
+        elif settings.require_liveness:
+            reasons.append("liveness-missing")
+
+        status = "rejected" if REJECTING & set(reasons) else "review" if reasons else "approved"
+        return VerificationResult(status=status, reasons=reasons,
+                                  document=Document(type=detected, quality=quality, mrz=mrz, ocrText=ocr_text),
+                                  faceMatch=face_match, liveness=liveness)
