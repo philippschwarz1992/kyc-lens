@@ -74,7 +74,9 @@ function quadrilateral(hull: PixelPoint[]): PixelPoint[] | null {
 function plausibleShape(corners: PixelPoint[], type: DocumentInput['type']): boolean {
   const lengths = corners.map((point, i) => distance(point, corners[(i + 1) % 4]!));
   const aspect = (lengths[0]! + lengths[2]!) / (lengths[1]! + lengths[3]!);
-  if (aspect < (type === 'passport' ? 1.04 : 1.2) || aspect > (type === 'passport' ? 1.95 : 2.02)) return false;
+  // A passport is held either as the open booklet, upright (125 x 176 mm, about 0.71), or as the photo page alone (about 1.42).
+  const plausibleAspect = type === 'passport' ? (aspect >= 0.6 && aspect <= 0.86) || (aspect >= 1.04 && aspect <= 1.95) : aspect >= 1.2 && aspect <= 2.02;
+  if (!plausibleAspect) return false;
   if (Math.max(lengths[0]!, lengths[2]!) / Math.min(lengths[0]!, lengths[2]!) > 1.55
     || Math.max(lengths[1]!, lengths[3]!) / Math.min(lengths[1]!, lengths[3]!) > 1.55) return false;
   for (let i = 0; i < 4; i++) {
@@ -82,7 +84,7 @@ function plausibleShape(corners: PixelPoint[], type: DocumentInput['type']): boo
     const cosine = ((a.x - b.x) * (c.x - b.x) + (a.y - b.y) * (c.y - b.y)) / (distance(a, b) * distance(c, b));
     if (!Number.isFinite(cosine) || Math.abs(cosine) > 0.6) return false;
   }
-  // A landscape page/card should be held approximately horizontally in this guide.
+  // The document should be held approximately level in this guide, whether upright or landscape.
   return Math.abs(corners[1]!.y - corners[0]!.y) / lengths[0]! < 0.57;
 }
 

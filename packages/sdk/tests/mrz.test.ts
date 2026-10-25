@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { readDocumentZone } from '../src/mrz/index.js';
+import { grayscale, rectify } from '../src/mrz/read.js';
 import { checkDigit, decodeMrz, MRZ_ALPHABET, summarizeMrz, type MrzFormat } from '../src/mrz/parse.js';
 
 // Fictional ICAO 9303 specimens (Utopia, Anna Maria Eriksson).
@@ -103,6 +104,19 @@ describe('MRZ reading from a photo', () => {
       }
     });
   }
+
+  it('reads the passport zone when the whole open booklet is photographed upright', () => {
+    // The photo page under an (empty) visa page, as a phone sees the open passport held upright.
+    const shot = photo('mrz-td3');
+    const { page, width, height } = rectify(grayscale(shot.rgba, shot.width, shot.height), shot.width, shot.height, shot.corners);
+    const booklet = new Uint8ClampedArray(width * height * 2 * 4).fill(255);
+    for (let i = 0; i < width * height; i++) booklet.fill(Math.round(page[i]!), (width * height + i) * 4, (width * height + i) * 4 + 3);
+    for (let i = 0; i < width * height; i++) booklet.fill(225, i * 4, i * 4 + 3);
+    const corners = [{ x: 0, y: 0 }, { x: width - 1, y: 0 }, { x: width - 1, y: 2 * height - 1 }, { x: 0, y: 2 * height - 1 }];
+    const read = readDocumentZone(booklet, width, height * 2, corners);
+    expect(read?.lines).toEqual(shot.lines);
+    expect(read?.summary).toEqual({ format: 'TD3', kind: 'passport', valid: true });
+  });
 
   it('finds no zone on a blank page', () => {
     const blank = new Uint8ClampedArray(600 * 400 * 4).fill(230);

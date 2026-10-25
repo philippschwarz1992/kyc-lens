@@ -159,10 +159,11 @@
 .kyc-document-type-detail { display: block; margin-top: 3px; color: var(--kyc-color-muted); font-size: 12px; }
 .kyc-document-type-radio { display: flex; align-items: center; justify-content: center; flex: 0 0 22px; width: 22px; height: 22px; border: 1px solid var(--kyc-color-line-strong); border-radius: 50%; transition: background calc(140ms * var(--kyc-motion-duration-scale)), transform calc(260ms * var(--kyc-motion-duration-scale)) var(--kyc-motion-press); }
 .kyc-document-type-button.is-selected .kyc-document-type-radio { color: var(--kyc-color-on-primary); border-color: var(--kyc-color-primary); background: var(--kyc-color-primary); transform: scale(1.08); }
-.kyc-document-camera { position: relative; overflow: hidden; border-radius: var(--kyc-shape-media); background: var(--kyc-color-camera); }
+.kyc-document-camera { position: relative; overflow: hidden; container-type: size; border-radius: var(--kyc-shape-media); background: var(--kyc-color-camera); }
 .kyc-document-video { display: block; width: 100%; height: 100%; object-fit: cover; }
 .kyc-document-guide { position: absolute; top: 50%; left: 50%; width: 88%; aspect-ratio: 1.58; max-height: 86%; transform: translate(-50%, -50%); border: 2px solid rgb(255 255 255 / 85%); border-radius: calc(var(--kyc-shape-media) * .6); box-shadow: 0 0 0 300px var(--kyc-color-camera-overlay); transition: border-color calc(350ms * var(--kyc-motion-duration-scale)) ease, filter calc(180ms * var(--kyc-motion-duration-scale)); }
-.kyc-document-guide[data-document-type="passport"] { aspect-ratio: 1.42; }
+/* Passports are held as the open booklet, upright; the photo page alone also fits inside. */
+.kyc-document-guide[data-document-type="passport"] { aspect-ratio: 125 / 176; width: min(88cqw, calc(84cqh * 125 / 176)); max-height: none; }
 .kyc-document-guide[data-state="adjust"] { border-color: var(--kyc-color-danger); }
 .kyc-document-guide[data-state="ready"] { border-color: var(--kyc-color-success); }
 .kyc-document-done-mark { display: grid; place-items: center; width: 112px; height: 112px; border-radius: 50%; background: var(--kyc-color-success); color: #fff; animation: kyc-done-pop calc(420ms * var(--kyc-motion-duration-scale)) var(--kyc-motion-press) both; }

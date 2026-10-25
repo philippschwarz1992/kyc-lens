@@ -94,6 +94,13 @@ describe('Document framing and image clarity', () => {
     expect(detect(photo({ corners: page }), { type: 'passport', guide: { x: 0.06, y: 0.22, width: 0.88, height: 0.56 } }).reason).toBe('ready');
   });
 
+  it('accepts an open passport booklet held upright, but not an upright card', () => {
+    const booklet: readonly Point[] = [[90, 82], [230, 82], [230, 280], [90, 280]];
+    const upright = { x: 0.25, y: 0.2, width: 0.5, height: 0.6 };
+    expect(detect(photo({ corners: booklet }), { type: 'passport', guide: upright }).reason).toBe('ready');
+    expect(detect(photo({ corners: booklet }), { type: 'id-card', guide: upright }).reason).not.toBe('ready');
+  });
+
   it('supports modest rotation and perspective without replacing corners with an axis-aligned box', () => {
     const rotation = detect(photo({ corners: rotatedCard(8) }));
     expect(rotation.reason).toBe('ready');

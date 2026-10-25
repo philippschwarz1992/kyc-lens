@@ -102,7 +102,7 @@ test('simulation completes selected challenges, review and authenticated local u
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/settings?simulate=1&document=0');
-  await page.getByRole('switch', { name: 'Local upload API' }).check();
+  await page.getByRole('switch', { name: 'Upload API' }).check();
   await openConfiguredPreview(page);
   await page.getByRole('button', { name: 'Start face capture', exact: true }).click();
   await expectAutomaticFaceReview(page);
@@ -176,7 +176,7 @@ test('optional screens, German locale, retake and upload retry preserve the capt
   await page.getByRole('switch', { name: 'Introduction' }).uncheck();
   await page.locator('#demo-locale').selectOption('de');
   for (const name of ['Turn left', 'Turn right', 'Move closer', 'Move further']) await page.getByRole('checkbox', { name, exact: false }).uncheck();
-  await page.getByRole('switch', { name: 'Local upload API' }).check();
+  await page.getByRole('switch', { name: 'Upload API' }).check();
   await openConfiguredPreview(page);
   await expect(page.getByRole('button', { name: 'Gesichtsaufnahme starten' })).toHaveCount(0);
   await expectAutomaticFaceReview(page);
@@ -314,7 +314,7 @@ test('preview is a standalone capture page and configuration lives on its own ro
   await expect(page.getByRole('tab')).toHaveCount(0);
   await page.goto('/settings?document=0');
   await expect(page.locator('.kyc-kit')).toHaveCount(0);
-  await expect(page.getByRole('switch', { name: 'Local upload API' })).toBeVisible();
+  await expect(page.getByRole('switch', { name: 'Upload API' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open preview', exact: true })).toHaveAttribute('href', /\?config=/);
   await openConfiguredPreview(page);
   await expect(page.locator('.kyc-kit')).toHaveCount(1);
