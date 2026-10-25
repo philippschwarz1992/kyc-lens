@@ -24,6 +24,7 @@ def main() -> None:
     (target / "selfie.jpg").write_bytes(face("collins-portrait.jpg"))
     (target / "other-selfie.jpg").write_bytes(face("ride-portrait.jpg"))
     (target / "face-video.mp4").write_bytes(still_video(face("collins-portrait.jpg")))
+    (target / "other-face-video.mp4").write_bytes(still_video(face("ride-portrait.jpg")))
     (target / "metadata.json").write_text(json.dumps(METADATA), encoding="utf-8")
     print(f"Samples written to {target}")
 

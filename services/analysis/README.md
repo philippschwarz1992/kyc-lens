@@ -64,6 +64,8 @@ The response is a `VerificationResult` (pydantic models in [`app/schema.py`](app
     "ocrText": "..."
   },
   "faceMatch": {"score": 0.8098, "threshold": 0.363, "decision": "match" | "no-match"} | null,
+  "liveFaceMatch": {"score": 0.8098, "threshold": 0.363, "decision": "match" | "no-match",
+                    "framesCompared": 8, "framesMatched": 8} | null,
   "liveness": {"score": 0.76, "decision": "pass" | "fail", "framesWithFace": 8, "framesSampled": 8} | null
 }
 ```
@@ -88,6 +90,10 @@ The response is a `VerificationResult` (pydantic models in [`app/schema.py`](app
    must match the selfie, the frames must change (`LIVENESS_MIN_MOTION`), and the mean MiniFASNetV2 + V1SE
    real-face probability must reach `LIVENESS_THRESHOLD`. The motion check matters: in testing, a still photo
    replayed as a video got a high passive anti-spoofing score, and only the missing motion failed it.
+6. **Document against live face.** The document portrait is also compared with the face in every sampled video
+   frame, so a selfie of the right person cannot cover for someone else in front of the camera. `liveFaceMatch`
+   holds the median similarity over those frames, compared with `FACE_MATCH_THRESHOLD`, and how many frames
+   matched on their own. It is `null` without a video, or when the document or the video shows no face.
 
 ### Decision
 
@@ -95,7 +101,8 @@ The response is a `VerificationResult` (pydantic models in [`app/schema.py`](app
 | --- | --- |
 | `document-expired` (valid zone, expiry before today) | rejected |
 | `document-type-mismatch` (detected type ≠ `metadata.document.type`) | rejected |
-| `face-mismatch` | rejected |
+| `face-mismatch` (document portrait ≠ selfie) | rejected |
+| `live-face-mismatch` (document portrait ≠ face in the video) | rejected |
 | `liveness-failed` (identity mismatch, no motion or spoof suspected; the detailed `liveness-*` reasons follow) | rejected |
 | `mrz-invalid` (zone found, check digits or dates fail; often a misread) | review |
 | `mrz-not-found` (passport or identity card without a readable zone) | review |
@@ -161,7 +168,8 @@ curl -s -H "X-Analysis-Secret: dev-secret" -F documentFront=@samples/document-fr
 ```
 
 The result is `rejected`: the specimen expired in 2012 and the video does not move. The face match is a `match`.
-Use `samples/other-selfie.jpg` to see a `no-match`.
+Use `samples/other-selfie.jpg` for a `faceMatch` `no-match`, or `samples/other-face-video.mp4` for a `liveFaceMatch`
+`no-match` (someone else in front of the camera).
 
 ## Models and licences
 

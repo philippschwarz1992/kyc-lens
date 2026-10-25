@@ -95,6 +95,8 @@ class LivenessCheck:
     frames_with_face: int
     frames_sampled: int
     failures: list[str] = field(default_factory=list)
+    # SFace embeddings of the face in each frame that has one, for comparing with the document portrait.
+    embeddings: list[np.ndarray] = field(default_factory=list)
 
 
 def _motion(frames: list[np.ndarray]) -> float:
@@ -112,16 +114,18 @@ def check_liveness(frames: list[np.ndarray], selfie_embedding: np.ndarray | None
     Passes when every sampled frame shows a face, every face is the selfie's person, the frames move (a replayed
     still image does not) and the mean anti-spoofing score reaches the threshold.
     """
-    scores, with_face, mismatched = [], 0, 0
+    scores, embeddings, mismatched = [], [], 0
     for frame in frames:
         face = faces.largest(frame)
         if face is None:
             continue
-        with_face += 1
-        if selfie_embedding is not None and faces.similarity(faces.embed(frame, face), selfie_embedding) < match_threshold:
+        embedding = faces.embed(frame, face)
+        embeddings.append(embedding)
+        if selfie_embedding is not None and faces.similarity(embedding, selfie_embedding) < match_threshold:
             mismatched += 1
         scores.append(spoof.real_probability(frame, face))
     score = float(np.mean(scores)) if scores else 0.0
+    with_face = len(embeddings)
     failures = []
     if len(frames) < min_frames:
         failures.append("liveness-too-few-frames")
@@ -133,4 +137,4 @@ def check_liveness(frames: list[np.ndarray], selfie_embedding: np.ndarray | None
         failures.append("liveness-no-motion")
     if score < threshold:
         failures.append("liveness-spoof-suspected")
-    return LivenessCheck(round(score, 4), not failures, with_face, len(frames), failures)
+    return LivenessCheck(round(score, 4), not failures, with_face, len(frames), failures, embeddings)
