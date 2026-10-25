@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { playPreview } from '../camera/playback.js';
 import type { AssetOptions, DocumentOptions, DocumentType, OutputOptions } from '../types.js';
+import type { MrzSummary } from '../mrz/parse.js';
+import type { MrzRead } from '../mrz/read.js';
 import { analyzeDocument, type DocumentDetectionReason } from '../core/document.js';
 import { createDocumentHold, sameDocumentSide } from '../core/document-auto.js';
 import { createDocumentTracker } from '../camera/document-tracker.js';
@@ -11,7 +13,9 @@ import { encodeCanvas, scaledSize } from '../camera/output.js';
 
 export type DocumentCameraStatus = 'idle' | 'requesting' | 'ready' | 'capturing';
 export type DocumentSide = 'front' | 'back';
-export type DocumentGuideFeedback = DocumentDetectionReason | 'hold-still' | 'unavailable' | 'off' | 'turn-over' | 'same-side';
+export type DocumentGuideFeedback = DocumentDetectionReason | 'hold-still' | 'unavailable' | 'off' | 'turn-over' | 'same-side'
+  | 'zone-unreadable' | 'looks-like-passport' | 'looks-like-id-card';
+type PauseReason = 'turn-over' | 'same-side' | 'zone-unreadable' | 'looks-like-passport' | 'looks-like-id-card';
 export type DocumentCameraNotice = 'cameraSwitchFailed' | 'tapToStart';
 
 function captureError(message: string): Error {
@@ -53,6 +57,10 @@ async function snapshot(video: HTMLVideoElement, output?: OutputOptions, rect?: 
 
 /** Time the user has to turn the document over before the back side may be photographed. */
 const TURN_OVER_MS = 1800;
+/** A rejected photo's message stays this long before the shutter may fire again, so it can be read. */
+const MESSAGE_MS = 2600;
+/** Photos with an unreadable machine-readable zone before the photo is accepted without it. */
+const ZONE_ATTEMPTS = 3;
 
 /** A small grayscale thumbnail of the photo's center, for telling the two document sides apart. */
 async function thumbnail(photo: Blob): Promise<Float32Array> {
@@ -71,7 +79,7 @@ async function thumbnail(photo: Blob): Promise<Float32Array> {
 }
 
 /** Decode and assess the delivered photo, using the same visible crop and document interior as the guide. */
-async function checkPhoto(photo: Blob, geometry: PreviewGeometry, type: DocumentType, sourceWidth: number, sourceHeight: number) {
+async function checkPhoto(photo: Blob, geometry: PreviewGeometry, type: DocumentType, sourceWidth: number, sourceHeight: number, readZone: boolean) {
   const bitmap = await new Promise<ImageBitmap>((resolve, reject) => {
     let expired = false;
     const timer = setTimeout(() => { expired = true; reject(captureError('documentCaptureFailed')); }, 5000);
@@ -93,8 +101,22 @@ async function checkPhoto(photo: Blob, geometry: PreviewGeometry, type: Document
     const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context) throw captureError('documentCaptureFailed');
     context.drawImage(bitmap, crop.x * sx, crop.y * sy, crop.width * sx, crop.height * sy, 0, 0, canvas.width, canvas.height);
-    return analyzeDocument({ data: context.getImageData(0, 0, canvas.width, canvas.height).data,
+    const detection = analyzeDocument({ data: context.getImageData(0, 0, canvas.width, canvas.height).data,
       width: canvas.width, height: canvas.height, guide: geometry.guide, type });
+    let zone: MrzRead | null = null;
+    if (readZone && detection.reason === 'ready' && detection.corners) {
+      // Loaded on first use, so integrations that never photograph a document do not download it.
+      const { readDocumentZone } = await import('../mrz/index.js');
+      const full = document.createElement('canvas'); full.width = bitmap.width; full.height = bitmap.height;
+      const fullContext = full.getContext('2d', { willReadFrequently: true });
+      if (fullContext) {
+        fullContext.drawImage(bitmap, 0, 0);
+        // Corners are normalized to the checked crop; the zone is read from the full-resolution photo.
+        const corners = detection.corners.map(point => ({ x: (crop.x + point.x * crop.width) * sx, y: (crop.y + point.y * crop.height) * sy }));
+        zone = readDocumentZone(fullContext.getImageData(0, 0, full.width, full.height).data, full.width, full.height, corners);
+      }
+    }
+    return { detection, zone };
   } finally { bitmap.close(); }
 }
 
@@ -180,16 +202,19 @@ function waitForFrame(video: HTMLVideoElement, signal: AbortSignal): Promise<voi
  * `otherSide` is the already accepted photo of the other side: the automatic shutter waits for the
  * document to be turned over and refuses a photo that shows that same side again.
  */
-export function useDocumentCapture({ options, assets, type, side = 'front', otherSide, simulation, output, onCapture, onFailure }: {
+export function useDocumentCapture({ options, assets, type, side = 'front', otherSide, otherSideZone, simulation, output, onCapture, onFailure }: {
   options: DocumentOptions;
   assets: AssetOptions;
   type: DocumentType;
   side?: DocumentSide;
   otherSide?: Blob | null;
+  /** The machine-readable zone already found on the other side, if any. */
+  otherSideZone?: MrzSummary | null;
   simulation: boolean;
   output?: OutputOptions;
   /** `automatic` photos have passed the encoded-photo quality recheck; manual ones have not been checked. */
-  onCapture: (photo: Blob, automatic: boolean) => void;
+  /** `zone` is the valid machine-readable zone found on an automatic photo, when it matches the document type. */
+  onCapture: (photo: Blob, automatic: boolean, zone: MrzSummary | null) => void;
   onFailure: (error: Error) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -205,11 +230,12 @@ export function useDocumentCapture({ options, assets, type, side = 'front', othe
   const generation = useRef(0);
   const mounted = useRef(true);
   const statusRef = useRef<DocumentCameraStatus>('idle');
-  const configuration = useRef({ options, assets, type, side, otherSide, simulation, output });
+  const configuration = useRef({ options, assets, type, side, otherSide, otherSideZone, simulation, output });
   const callbacks = useRef({ onCapture, onFailure });
-  configuration.current = { options, assets, type, side, otherSide, simulation, output };
+  configuration.current = { options, assets, type, side, otherSide, otherSideZone, simulation, output };
   // Until this time the shutter stays closed and the guidance asks the user to turn the document.
-  const turnOver = useRef<{ until: number; reason: 'turn-over' | 'same-side' }>({ until: 0, reason: 'turn-over' });
+  const turnOver = useRef<{ until: number; reason: PauseReason }>({ until: 0, reason: 'turn-over' });
+  const zoneAttempts = useRef(0);
   const otherThumbnail = useRef<{ photo: Blob; gray: Promise<Float32Array> } | null>(null);
   callbacks.current = { onCapture, onFailure };
   const [status, setStatus] = useState<DocumentCameraStatus>('idle');
@@ -307,6 +333,7 @@ export function useDocumentCapture({ options, assets, type, side = 'front', othe
       updateStatus('ready');
       if (settings.options.detection === false) { setFeedback('off'); return; }
       turnOver.current = { until: settings.otherSide ? performance.now() + TURN_OVER_MS : 0, reason: 'turn-over' };
+      zoneAttempts.current = 0;
       const guide = guideRef.current;
       if (!guide) { setFeedback('unavailable'); return; }
       const currentAttempt = () => mounted.current && generation.current === attempt && statusRef.current === 'ready';
@@ -412,10 +439,12 @@ export function useDocumentCapture({ options, assets, type, side = 'front', othe
         ? documentCropRect(geometry, video!.videoWidth, video!.videoHeight) : null;
       const photo = configuration.current.simulation ? await simulatedDocument(type, side, output) : await snapshot(video!, output, framed?.rect);
       if (!mounted.current || generation.current !== attempt) return;
+      const readZone = configuration.current.options.mrz !== false;
+      let zone: MrzSummary | null = null;
       if (automatic) {
-        const detection = framed
-          ? await checkPhoto(photo, photoGeometry(framed.rect, framed.guide), type, framed.rect.width, framed.rect.height)
-          : await checkPhoto(photo, geometry!, type, video!.videoWidth, video!.videoHeight);
+        const { detection, zone: read } = framed
+          ? await checkPhoto(photo, photoGeometry(framed.rect, framed.guide), type, framed.rect.width, framed.rect.height, readZone)
+          : await checkPhoto(photo, geometry!, type, video!.videoWidth, video!.videoHeight, readZone);
         if (!mounted.current || generation.current !== attempt) return;
         const currentGeometry = video && guideRef.current ? documentPreviewGeometry(video, guideRef.current) : null;
         if (detection.reason !== 'ready' || geometry!.key !== currentGeometry?.key || document.hidden) {
@@ -432,8 +461,23 @@ export function useDocumentCapture({ options, assets, type, side = 'front', othe
             setFeedback('same-side'); updateStatus('ready'); return;
           }
         }
+        if (readZone) {
+          const settings = configuration.current;
+          const pause = (reason: PauseReason) => { turnOver.current = { until: performance.now() + MESSAGE_MS, reason }; setFeedback(reason); updateStatus('ready'); };
+          // Only a zone whose check digits all match counts; a misread is treated as no zone.
+          const found = read?.summary.valid ? read.summary : null;
+          const expected = settings.type === 'passport' ? 'passport' : settings.type === 'id-card' ? 'id-card' : null;
+          if (found && found.kind !== expected && (found.kind === 'passport' || found.kind === 'id-card')) {
+            pause(found.kind === 'passport' ? 'looks-like-passport' : 'looks-like-id-card'); return;
+          }
+          // An identity card carries its zone on one side: the back needs one only if the front had none.
+          const required = settings.type === 'passport' || (settings.type === 'id-card' && settings.side === 'back' && !settings.otherSideZone);
+          // After a few unreadable photos the photo is accepted without the zone, so nobody is stuck.
+          if (required && !found && ++zoneAttempts.current < ZONE_ATTEMPTS) { pause('zone-unreadable'); return; }
+          zone = found && found.kind === expected ? found : null;
+        }
       }
-      stop(); callbacks.current.onCapture(photo, automatic);
+      stop(); callbacks.current.onCapture(photo, automatic, zone);
     } catch (failure) { fail(failure, attempt); }
   }, [fail, stop, updateStatus]);
 

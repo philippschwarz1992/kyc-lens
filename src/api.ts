@@ -132,7 +132,7 @@ export function createHttpApi(baseUrl: string, extraHeaders?: HeadersInit, optio
         body.append('documentFront', payload.document.front, `document-front.${imageExtension(payload.document.front)}`);
         if (payload.document.back) body.append('documentBack', payload.document.back, `document-back.${imageExtension(payload.document.back)}`);
       }
-      body.append('metadata', JSON.stringify({ challenges: payload.challenges, capturedAt: payload.capturedAt, mode: payload.mode, ...(payload.document ? { document: { type: payload.document.type } } : {}) }));
+      body.append('metadata', JSON.stringify({ challenges: payload.challenges, capturedAt: payload.capturedAt, mode: payload.mode, ...(payload.document ? { document: { type: payload.document.type, ...(payload.document.mrz ? { mrz: payload.document.mrz } : {}) } } : {}) }));
       const headers = new Headers(extraHeaders);
       headers.delete('Content-Type'); // The browser supplies the multipart boundary.
       if (session.token) headers.set('Authorization', `Bearer ${session.token}`);

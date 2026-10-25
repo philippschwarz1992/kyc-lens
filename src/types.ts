@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { FaceMatchResult } from './matching/protocol.js';
+import type { MrzSummary } from './mrz/parse.js';
 import type { KycThemeDefinition } from './themes.js';
 export type { FaceMatchResult } from './matching/protocol.js';
 
@@ -13,6 +14,12 @@ export interface DocumentOptions {
   detection?: boolean;
   /** Automatically capture a clear document. Default: true. A manual shutter appears only when live analysis is unavailable. */
   autoCapture?: boolean;
+  /**
+   * Read the machine-readable zone (the lines of code on passports and identity cards) on the device and
+   * check its check digits. A passport photo page, or an identity card side, must then carry a valid zone of
+   * the chosen document type; after three unreadable photos the photo is accepted without one. Default: true.
+   */
+  mrz?: boolean;
   /** Show each automatically captured photo for confirmation before continuing. Default: false: a photo that passed the quality check moves straight on. */
   confirmPhotos?: boolean;
   /** Required stable document hold in milliseconds. Default: 0 (capture on the first clear frame); range: 0–10000. */
@@ -29,6 +36,12 @@ export interface DocumentCapture {
   front: Blob;
   /** ID cards and driving licences include both sides. Passports use the photo page. */
   back?: Blob;
+  /**
+   * The valid machine-readable zone read on the device, when one matched the document type: its format,
+   * the document kind it declares and that its check digits passed. It contains no personal data. A client-side
+   * read is a capture aid; verify the document on your server.
+   */
+  mrz?: MrzSummary;
 }
 export type FaceChallenge = 'center' | 'turn-left' | 'turn-right' | 'look-up' | 'look-down' | 'closer' | 'further';
 export interface FaceObservation {

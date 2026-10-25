@@ -21,7 +21,7 @@ interface CaptureMetadata {
   challenges: Evidence[];
   capturedAt: string;
   mode: 'camera' | 'simulation';
-  document?: { type: 'id-card' | 'drivers-license' | 'passport' };
+  document?: { type: 'id-card' | 'drivers-license' | 'passport'; mrz?: { format: 'TD1' | 'TD2' | 'TD3'; kind: 'passport' | 'id-card' | 'visa' | 'other'; valid: boolean } };
 }
 interface ImageMetadata { type: string; sizeBytes: number }
 interface CaptureFiles {
@@ -78,8 +78,11 @@ function validateMetadata(raw: string): CaptureMetadata {
   }
   let document: CaptureMetadata['document'];
   if ('document' in parsed) {
-    if (!isRecord(parsed.document) || !hasOnlyKeys(parsed.document, ['type']) || !['id-card', 'drivers-license', 'passport'].includes(String(parsed.document.type))) throw new ApiError(400, 'Invalid document type metadata.');
-    document = { type: parsed.document.type as NonNullable<CaptureMetadata['document']>['type'] };
+    if (!isRecord(parsed.document) || !hasOnlyKeys(parsed.document, ['type', ...('mrz' in parsed.document ? ['mrz'] : [])]) || !['id-card', 'drivers-license', 'passport'].includes(String(parsed.document.type))) throw new ApiError(400, 'Invalid document type metadata.');
+    const mrz = parsed.document.mrz;
+    if (mrz !== undefined && (!isRecord(mrz) || !hasOnlyKeys(mrz, ['format', 'kind', 'valid']) || !['TD1', 'TD2', 'TD3'].includes(String(mrz.format))
+      || !['passport', 'id-card', 'visa', 'other'].includes(String(mrz.kind)) || typeof mrz.valid !== 'boolean')) throw new ApiError(400, 'Invalid machine-readable zone metadata.');
+    document = { type: parsed.document.type as NonNullable<CaptureMetadata['document']>['type'], ...(mrz ? { mrz: mrz as NonNullable<NonNullable<CaptureMetadata['document']>['mrz']> } : {}) };
   }
   if (parsed.mode !== 'camera' && parsed.mode !== 'simulation') throw new ApiError(400, 'Unsupported capture mode.');
   if (typeof parsed.capturedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(parsed.capturedAt)) {
