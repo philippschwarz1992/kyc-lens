@@ -14,7 +14,8 @@
     "test:e2e": "node scripts/sync-assets.mjs --full && playwright test"
   },
   "dependencies": {
-    "kyc-lens-react": "*"
+    "kyc-lens-react": "*",
+    "@kyc-lens/contracts": "*"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",

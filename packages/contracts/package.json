@@ -1,0 +1,12 @@
+{
+  "name": "@kyc-lens/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Capture upload, verification result and signed webhook contracts shared by the playground, gateway and receivers.",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

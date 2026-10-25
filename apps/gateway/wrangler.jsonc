@@ -1,14 +1,42 @@
 {
+  // Default environment: the public playground (static app, phone handoff, R2-hosted model).
   "name": "kyc-lens-demo",
-  "main": "worker.js",
+  "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "../playground/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/kyc-assets/matching/*", "/api/handoff", "/api/handoff/*"]
+    "run_worker_first": ["/kyc-assets/matching/*", "/api/handoff", "/api/handoff/*", "/api/kyc/*"]
   },
   "durable_objects": { "bindings": [{ "name": "HANDOFF", "class_name": "HandoffRelay" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HandoffRelay"] }],
-  "r2_buckets": [{ "binding": "LARGE_ASSETS", "bucket_name": "kyc-lens-demo-assets" }]
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["HandoffRelay"] },
+    { "tag": "v2", "new_sqlite_classes": ["CaptureSession", "AnalysisContainer"] }
+  ],
+  "r2_buckets": [{ "binding": "LARGE_ASSETS", "bucket_name": "kyc-lens-demo-assets" }],
+
+  "env": {
+    // Server-side verification: capture API, staging, analysis container and webhook delivery.
+    // Secrets (wrangler secret put --env verify): API_KEY, WEBHOOK_SECRET, ANALYSIS_SECRET.
+    "verify": {
+      "name": "kyc-lens-verify",
+      "vars": { "SESSION_MODE": "server", "SESSION_TTL_MINUTES": "15", "ANALYSIS_INSTANCES": "2", "WEBHOOK_URL": "" },
+      "durable_objects": { "bindings": [
+        { "name": "HANDOFF", "class_name": "HandoffRelay" },
+        { "name": "SESSIONS", "class_name": "CaptureSession" },
+        { "name": "ANALYSIS", "class_name": "AnalysisContainer" }
+      ] },
+      "r2_buckets": [
+        { "binding": "LARGE_ASSETS", "bucket_name": "kyc-lens-demo-assets" },
+        // EU jurisdiction; give it a lifecycle rule that deletes objects after 7 days.
+        { "binding": "KYC_STAGING", "bucket_name": "kyc-lens-staging", "jurisdiction": "eu" }
+      ],
+      "queues": {
+        "producers": [{ "binding": "DELIVERY", "queue": "kyc-lens-delivery" }],
+        "consumers": [{ "queue": "kyc-lens-delivery", "max_batch_size": 1, "max_retries": 12, "dead_letter_queue": "kyc-lens-delivery-failed" }]
+      },
+      "containers": [{ "class_name": "AnalysisContainer", "image": "../../services/analysis/Dockerfile", "instance_type": "standard-2", "max_instances": 3 }]
+    }
+  }
 }
