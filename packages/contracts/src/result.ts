@@ -44,7 +44,7 @@ export interface VerificationResult {
   status: VerificationStatus;
   /**
    * Machine-readable reasons, e.g. `mrz-invalid`, `mrz-not-found`, `document-expired`, `document-type-mismatch`,
-   * `document-quality-poor`, `document-face-not-found`, `face-mismatch`, `liveness-failed`, `liveness-missing`.
+   * `document-quality-poor`, `document-face-not-found`, `face-mismatch`, `live-face-mismatch`, `liveness-failed`, `liveness-missing`.
    */
   reasons: string[];
   document: {
@@ -56,6 +56,11 @@ export interface VerificationResult {
   };
   /** Cosine similarity of the document portrait and the selfie. */
   faceMatch: { score: number; threshold: number; decision: 'match' | 'no-match' } | null;
+  /**
+   * The document portrait against the face in each sampled video frame; `score` is the median cosine similarity.
+   * Null when no video was sent, or the document or the video shows no face.
+   */
+  liveFaceMatch: { score: number; threshold: number; decision: 'match' | 'no-match'; framesCompared: number; framesMatched: number } | null;
   /** Mean passive anti-spoofing real-face probability, 0–1, over the sampled video frames. */
   liveness: { score: number; decision: 'pass' | 'fail'; framesWithFace: number; framesSampled: number } | null;
 }
@@ -68,5 +73,5 @@ export function isVerificationResult(value: unknown): value is VerificationResul
   return ['approved', 'review', 'rejected'].includes(String(result.status))
     && Array.isArray(result.reasons) && result.reasons.every(reason => typeof reason === 'string')
     && typeof document === 'object' && document !== null && typeof document.quality === 'object' && 'mrz' in document
-    && 'faceMatch' in result && 'liveness' in result;
+    && 'faceMatch' in result && 'liveFaceMatch' in result && 'liveness' in result;
 }

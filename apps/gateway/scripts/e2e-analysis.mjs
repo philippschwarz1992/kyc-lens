@@ -43,3 +43,4 @@ check(same?.status === 'rejected' && same.reasons.includes('document-expired'), 
 const other = await runCase('e2e-other-person', 'other-selfie.jpg');
 console.log('  verdict', other?.status, other?.reasons?.join(','), '| face', other?.faceMatch?.decision, other?.faceMatch?.score);
 check(other?.faceMatch?.decision === 'no-match' && other.reasons.includes('face-mismatch'), 'different person does not match');
+console.log('  live face', same?.liveFaceMatch?.decision, same?.liveFaceMatch?.framesMatched, '/', same?.liveFaceMatch?.framesCompared, '| other', other?.liveFaceMatch?.decision);

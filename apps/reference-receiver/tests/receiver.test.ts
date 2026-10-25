@@ -13,7 +13,7 @@ function deps(): ReceiverDeps & { rows: Map<string, CaseRow>; blobs: Map<string,
 const sessionId = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const event: VerificationEvent = { type: 'verification.completed', sessionId, reference: 'crm-42', receivedAt: new Date().toISOString(),
   metadata: { challenges: [{ challenge: 'center', completedAt: 1, durationMs: 650 }], capturedAt: new Date().toISOString(), mode: 'camera' },
-  analysis: { status: 'review', reasons: ['liveness-missing'], document: { type: 'passport', quality: { sharpness: 310, glare: 0.01, brightness: 180, rectified: true, acceptable: true, issues: [] }, mrz: null }, faceMatch: null, liveness: null },
+  analysis: { status: 'review', reasons: ['liveness-missing'], document: { type: 'passport', quality: { sharpness: 310, glare: 0.01, brightness: 180, rectified: true, acceptable: true, issues: [] }, mrz: null }, faceMatch: null, liveFaceMatch: null, liveness: null },
   files: [{ field: 'selfie', filename: 'selfie.jpg', type: 'image/jpeg', sizeBytes: 3 }] };
 
 async function delivery(secret = 'webhook-secret', body = event) {
