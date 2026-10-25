@@ -13,8 +13,10 @@ from .document import decode_image, measure_quality, rectify
 from .face import FaceModels
 from .liveness import InvalidVideo, SpoofModels, check_liveness, sample_frames
 from .mrz import DecodedMrz, mrz_fields
-from .ocr import read_lines, read_mrz, type_from_text
-from .schema import Document, DocumentType, FaceMatch, LiveFaceMatch, Liveness, Metadata, Mrz, MrzFields, VerificationResult
+from .ocr import read_boxes, read_mrz, type_from_text
+from .schema import (Document, DocumentType, FaceMatch, LiveFaceMatch, Liveness, Metadata, Mrz, MrzFields, PrintedFields,
+                     VerificationResult)
+from .viz import mismatches, read_printed_fields, respace
 
 # Reasons that reject outright; every other reason sends the capture to manual review.
 REJECTING = {"document-expired", "document-type-mismatch", "face-mismatch", "live-face-mismatch", "liveness-failed"}
@@ -49,7 +51,8 @@ class Analyzer:
         quality = measure_quality(front, front_flat, settings)
         if not quality.acceptable or any(not measure_quality(image, flat, settings).acceptable for image, flat in sides[1:]):
             reasons.append("document-quality-poor")
-        texts = [read_lines(image) for image, _ in sides]
+        boxes = [read_boxes(image) for image, _ in sides]
+        texts = [[(line.text, line.score) for line in side] for side in boxes]
         ocr_text = "\n".join(text for lines in texts for text, _ in lines) or None
 
         decoded: DecodedMrz | None = None
@@ -75,6 +78,21 @@ class Analyzer:
             reasons.append("document-type-unknown")
         if mrz is None and (declared or detected) in ("passport", "id-card"):
             reasons.append("mrz-not-found")
+
+        # Printed data, front first; the back fills what the front lacks.
+        licence = (declared or detected) == "drivers-license"
+        printed: dict[str, str] = {}
+        for side in boxes:
+            printed = read_printed_fields(side, licence) | printed
+        field_mismatches = []
+        if mrz is not None and mrz.valid:
+            printed = respace(printed, mrz.fields.model_dump())
+            field_mismatches = mismatches(printed, mrz.fields.model_dump())
+        if field_mismatches:
+            reasons.append("printed-data-mismatch")
+        if (mrz is None or not mrz.valid) and printed.get("expiryDate") and date.fromisoformat(printed["expiryDate"]) < today:
+            # Without a valid zone the printed date is all there is, but a misread digit must not reject on its own.
+            reasons.append("printed-expiry-passed")
 
         # Face: the upscaled document portrait against the selfie.
         selfie_image = decode_image(uploads.selfie)
@@ -122,7 +140,9 @@ class Analyzer:
 
         status = "rejected" if REJECTING & set(reasons) else "review" if reasons else "approved"
         return VerificationResult(status=status, reasons=reasons,
-                                  document=Document(type=detected, quality=quality, mrz=mrz, ocrText=ocr_text),
+                                  document=Document(type=detected, quality=quality, mrz=mrz, ocrText=ocr_text,
+                                                    printedFields=PrintedFields(**printed) if printed else None,
+                                                    fieldMismatches=field_mismatches),
                                   faceMatch=face_match, liveFaceMatch=live_face_match, liveness=liveness)
 
     def _live_face_match(self, portrait: np.ndarray, frames: list[np.ndarray], threshold: float) -> LiveFaceMatch:

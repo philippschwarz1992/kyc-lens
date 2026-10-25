@@ -61,6 +61,10 @@ The response is a `VerificationResult` (pydantic models in [`app/schema.py`](app
             "fields": {"documentCode": "P", "issuingState": "UTO", "documentNumber": "L898902C3", "surname": "ERIKSSON",
                        "givenNames": "ANNA MARIA", "nationality": "UTO", "birthDate": "1974-08-12", "sex": "F",
                        "expiryDate": "2012-04-15", "optionalData": "ZE184226B"}} | null,
+    "printedFields": {"surname": "ERIKSSON", "givenNames": "ANNA MARIA", "documentNumber": "L898902C3",
+                      "nationality": "UTOPIAN", "birthDate": "1974-08-12", "placeOfBirth": "ZENITH", "sex": "F",
+                      "issueDate": "2007-04-16", "expiryDate": "2012-04-15"} | null,
+    "fieldMismatches": [],
     "ocrText": "..."
   },
   "faceMatch": {"score": 0.8098, "threshold": 0.363, "decision": "match" | "no-match"} | null,
@@ -83,14 +87,21 @@ The response is a `VerificationResult` (pydantic models in [`app/schema.py`](app
 3. **Type.** A valid zone decides: a `P` code in TD3 is a passport, `I`/`A`/`C` in TD1 or TD2 an identity card.
    Without one, printed keywords decide: PASSPORT/REISEPASS, PERSONALAUSWEIS/IDENTITY CARD,
    FÜHRERSCHEIN/DRIVING LICENCE (and a few other languages).
-4. **Face match.** YuNet finds the document portrait, which is cut out, upscaled to at least 400 px and detected
+4. **Printed data.** The labelled fields on the data page are read from the OCR boxes: the text under or
+   beside a label such as "Name/Surname/Nom", "Date of birth/Geburtstag" or "Gültig bis" (English, German, French
+   and Spanish labels; OCR that drops spaces and umlauts is tolerated). On driving licences, the EU field numbers
+   are read instead (1. surname, 2. given names, 3. birth date and place, 4a. issue, 4b. expiry, 5. number).
+   `printedFields` holds the values, folded to upper case without diacritics as in the MRZ, with ISO dates. With
+   a valid zone, the document number, names, birth and expiry dates and sex are cross-checked;
+   `fieldMismatches` lists those that disagree. A printed name may continue past the zone's truncated one.
+5. **Face match.** YuNet finds the document portrait, which is cut out, upscaled to at least 400 px and detected
    again. SFace embeds it and the selfie's largest face, and the cosine similarity is compared with
    `FACE_MATCH_THRESHOLD`.
-5. **Liveness.** PyAV samples `LIVENESS_FRAMES` evenly spaced frames. Every frame must show a face, every face
+6. **Liveness.** PyAV samples `LIVENESS_FRAMES` evenly spaced frames. Every frame must show a face, every face
    must match the selfie, the frames must change (`LIVENESS_MIN_MOTION`), and the mean MiniFASNetV2 + V1SE
    real-face probability must reach `LIVENESS_THRESHOLD`. The motion check matters: in testing, a still photo
    replayed as a video got a high passive anti-spoofing score, and only the missing motion failed it.
-6. **Document against live face.** The document portrait is also compared with the face in every sampled video
+7. **Document against live face.** The document portrait is also compared with the face in every sampled video
    frame, so a selfie of the right person cannot cover for someone else in front of the camera. `liveFaceMatch`
    holds the median similarity over those frames, compared with `FACE_MATCH_THRESHOLD`, and how many frames
    matched on their own. It is `null` without a video, or when the document or the video shows no face.
@@ -106,6 +117,8 @@ The response is a `VerificationResult` (pydantic models in [`app/schema.py`](app
 | `liveness-failed` (identity mismatch, no motion or spoof suspected; the detailed `liveness-*` reasons follow) | rejected |
 | `mrz-invalid` (zone found, check digits or dates fail; often a misread) | review |
 | `mrz-not-found` (passport or identity card without a readable zone) | review |
+| `printed-data-mismatch` (printed data and a valid zone disagree; see `fieldMismatches`) | review |
+| `printed-expiry-passed` (no valid zone, and the printed expiry date is before today) | review |
 | `document-quality-poor`, `document-type-unknown` | review |
 | `document-face-not-found`, `selfie-face-not-found` | review |
 | `liveness-inconclusive` (too few frames, or a frame without a face) | review |

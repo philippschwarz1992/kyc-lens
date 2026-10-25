@@ -64,10 +64,30 @@ class Mrz(BaseModel):
     fields: MrzFields
 
 
+class PrintedFields(BaseModel):
+    """
+    The printed data (visual inspection zone), read by label or by EU driving licence field number. Text is upper
+    case without diacritics, transliterated as in the MRZ (MÜLLER becomes MUELLER); dates are ISO 8601. A field
+    that is not printed, or not read, is null.
+    """
+    surname: str | None = None
+    givenNames: str | None = None
+    documentNumber: str | None = None
+    nationality: str | None = None
+    birthDate: str | None = None
+    placeOfBirth: str | None = None
+    sex: Literal["M", "F", "X"] | None = None
+    issueDate: str | None = None
+    expiryDate: str | None = None
+
+
 class Document(BaseModel):
     type: DocumentType | None = Field(description="Detected from the zone, or from printed keywords without one.")
     quality: Quality
     mrz: Mrz | None
+    printedFields: PrintedFields | None = Field(default=None, description="Null when no labelled field was read.")
+    fieldMismatches: list[Literal["documentNumber", "surname", "givenNames", "birthDate", "expiryDate", "sex"]] = Field(
+        default_factory=list, description="Fields where the printed data and a valid MRZ disagree.")
     ocrText: str | None = None
 
 
