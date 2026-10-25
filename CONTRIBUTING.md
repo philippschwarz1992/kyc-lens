@@ -19,7 +19,7 @@ Initial setup needs internet access to download the pinned MediaPipe face model.
 - Use a bug report for reproducible behavior and a feature request for a proposed improvement. Discuss substantial API changes before implementing them.
 - Keep a pull request focused on one problem. Explain the user-visible behavior, the reason for the change, and how you checked it.
 - Update the documentation when public props, payloads, asset hosting, or backend behavior change.
-- Add a regression test when fixing behavior that can be tested reliably. Existing unit tests live in `tests/`; browser tests live in `tests/e2e/`.
+- Add a regression test when fixing behavior that can be tested reliably. SDK unit tests live in `packages/sdk/tests/`; browser tests live in `apps/playground/e2e/`.
 - Use fictional documents and synthetic camera fixtures. Do not commit real identity documents, face recordings, credentials, session tokens, or other personal data.
 
 For vulnerabilities, follow [SECURITY.md](./SECURITY.md) instead of opening a public bug report.
