@@ -166,6 +166,22 @@ function quality(data: Uint8ClampedArray, gray: Float32Array, magnitude: Uint16A
     detailFraction: detail / Math.max(1, count), edgeSupport: support };
 }
 
+// Reused between frames: a worker analyzes several frames per second at the same size.
+let scratch: { pixels: number; gray: Float32Array; smooth: Float32Array; gx: Int16Array; gy: Int16Array;
+  magnitude: Uint16Array; edges: Uint8Array; connected: Uint8Array; queue: Int32Array } | undefined;
+function buffers(pixels: number) {
+  if (scratch?.pixels !== pixels) {
+    scratch = { pixels, gray: new Float32Array(pixels), smooth: new Float32Array(pixels), gx: new Int16Array(pixels),
+      gy: new Int16Array(pixels), magnitude: new Uint16Array(pixels), edges: new Uint8Array(pixels),
+      connected: new Uint8Array(pixels), queue: new Int32Array(pixels) };
+  } else {
+    // Border pixels are never written by the filters below, so every array starts from zero.
+    scratch.smooth.fill(0); scratch.gx.fill(0); scratch.gy.fill(0); scratch.magnitude.fill(0);
+    scratch.edges.fill(0); scratch.connected.fill(0);
+  }
+  return scratch;
+}
+
 /**
  * Dependency-free document framing/clarity aid. It detects a supported rectangular
  * outline and readable image detail, not the document's identity or authenticity.
@@ -179,9 +195,7 @@ export function analyzeDocument({ data, width, height, guide, type }: DocumentIn
     || guide.x + guide.width > 1.001 || guide.y + guide.height > 1.001
     || !['id-card', 'drivers-license', 'passport'].includes(type)) return { reason: 'searching' };
   const pixels = width * height;
-  const gray = new Float32Array(pixels), smooth = new Float32Array(pixels);
-  const gx = new Int16Array(pixels), gy = new Int16Array(pixels), magnitude = new Uint16Array(pixels);
-  const edges = new Uint8Array(pixels), connected = new Uint8Array(pixels), queue = new Int32Array(pixels);
+  const { gray, smooth, gx, gy, magnitude, edges, connected, queue } = buffers(pixels);
   for (let i = 0; i < pixels; i++) gray[i] = data[i * 4]! * 0.299 + data[i * 4 + 1]! * 0.587 + data[i * 4 + 2]! * 0.114;
   for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
     const i = y * width + x;
@@ -229,9 +243,9 @@ export function analyzeDocument({ data, width, height, guide, type }: DocumentIn
     if (area < guideArea * 0.12) continue;
     const supports = corners.map((a, i) => sideSupport(a, corners[(i + 1) % 4]!, gx, gy, magnitude, width, height, threshold));
     const support = supports.reduce((sum, value) => sum + value / 4, 0);
-    if (supports.some((value) => value < 0.73) || support < 0.83) {
+    if (supports.some((value) => value < 0.65) || support < 0.75) {
       // A clipped edge cannot have four visible corners; retain it only as a red candidate.
-      if (!clipped || supports.filter((value) => value >= 0.73).length < 3) continue;
+      if (!clipped || supports.filter((value) => value >= 0.65).length < 3) continue;
     }
     if (!clipped) {
       const contrasts = corners.map((a, i) => sideContrast(a, corners[(i + 1) % 4]!, gray, width, height));
@@ -244,12 +258,13 @@ export function analyzeDocument({ data, width, height, guide, type }: DocumentIn
   if (!candidate) return { reason: 'searching' };
   const { corners, area, support, clipped } = candidate;
   const normalized = corners.map((point) => ({ x: point.x / width, y: point.y / height }));
-  const toleranceX = 1.5 / width, toleranceY = 1.5 / height;
+  // The guide is visual and the photo keeps the whole camera image, so a corner just past it still counts.
+  const toleranceX = Math.max(1.5 / width, guide.width * 0.03), toleranceY = Math.max(1.5 / height, guide.height * 0.03);
   if (clipped || normalized.some((point) => point.x < guide.x - toleranceX || point.x > guide.x + guide.width + toleranceX
     || point.y < guide.y - toleranceY || point.y > guide.y + guide.height + toleranceY)) return { reason: 'outside', corners: normalized };
-  if (area < guideArea * 0.5) return { reason: 'too-small', corners: normalized };
+  if (area < guideArea * 0.4) return { reason: 'too-small', corners: normalized };
   const metrics = quality(data, gray, magnitude, corners, width, height, support)!;
-  const reason: DocumentDetectionReason = metrics.brightness < 68 ? 'dark' : metrics.clippedFraction > 0.16 ? 'glare'
+  const reason: DocumentDetectionReason = metrics.brightness < 55 ? 'dark' : metrics.clippedFraction > 0.16 ? 'glare'
     : metrics.sharpness < 38 || metrics.detailFraction < 0.016 ? 'blur' : 'ready';
   return { reason, corners: normalized, metrics };
 }

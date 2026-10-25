@@ -143,8 +143,8 @@ For Next.js, render `KycFlow` in a Client Component and import the stylesheet in
 | `face.timeoutMs` | Overall face timeout, 1,000–600,000 ms; default 90,000 ms |
 | `face.trackingFps` | Target tracking frequency, 3–30 fps; default 12 |
 | `document.detection` | Defaults to `true`; use `false` for a neutral manual-capture guide |
-| `document.autoCapture` | Defaults to `true`; use `false` to keep the shutter manual |
-| `document.holdDurationMs` | Stable document hold, 200–10,000 ms; default 800 ms |
+| `document.autoCapture` | Defaults to `true` (no Take photo button); use `false` for a manual shutter |
+| `document.holdDurationMs` | Stable document hold before the automatic shutter, 0–10,000 ms; default 0 (first clear frame) |
 | `faceMatch` | Enabled when a document is present; `false` disables comparison; options set threshold, inconclusive margin and timeout |
 | `face.camera`, `document.camera` | Override browser camera constraints |
 | `theme` | A theme id such as `"aurora"`, a `defineTheme()` result, or quick color/radius/font overrides. See [theming](./docs/theming.md) |

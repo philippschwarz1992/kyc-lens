@@ -70,7 +70,7 @@ function checkPublicTypes(packageName) {
   const source = `
     import { KycFlow, createHttpApi, compareFaces, type CompareFacesOptions, type FaceMatchResult, type KycFlowProps, type CapturePayload, type CaptureResult, type KycScreenContext } from '${packageName}';
     import { ChallengeRunner, isCenteredFace, type FaceObservation } from '${packageName}/core';
-    const props = { face: { challenges: ['center'], holdDurationMs: 100, autoStart: true, recordVideo: true }, document: { autoCapture: true, holdDurationMs: 800 }, faceMatch: { threshold: .363 }, locale: 'en' } satisfies KycFlowProps;
+    const props = { face: { challenges: ['center'], holdDurationMs: 100, autoStart: true, recordVideo: true }, document: { autoCapture: true, holdDurationMs: 0 }, faceMatch: { threshold: .363 }, locale: 'en' } satisfies KycFlowProps;
     KycFlow(props);
     const payload = { selfie: new Blob(), video: new Blob([], { type: 'video/webm' }), challenges: [], capturedAt: new Date().toISOString(), mode: 'camera' } satisfies CapturePayload;
     const context = { next() {}, cancel() {}, retry() {}, videoUrl: 'blob:example', selfieUrl: 'blob:poster' } satisfies KycScreenContext;
@@ -124,11 +124,27 @@ async function checkCopyAssets(assetFiles, builtFiles) {
     });
     for (const path of [...assetFiles, ...runtimeFiles]) {
       const base = assetFiles.includes(path) ? resolve(root, 'assets') : resolve(root, 'dist');
-      const copied = await readFile(join(destination, relative(base, path)));
-      assert.equal(hash(copied), hash(await readFile(path)), `Asset-copy changed or missed ${path}`);
+      const target = join(destination, relative(base, path));
+      if (!assetFiles.includes(path) && path.endsWith('.map')) {
+        await assert.rejects(stat(target), { code: 'ENOENT' }, `Asset-copy copied a source map without --source-maps: ${path}`);
+        continue;
+      }
+      const copied = await readFile(target);
+      const expected = assetFiles.includes(path) ? await readFile(path) : (await readFile(path, 'utf8')).replace(/\n*\/\/# sourceMappingURL=[^\n]*\n*$/, '\n');
+      assert.equal(hash(copied), hash(expected), `Asset-copy changed or missed ${path}`);
+      if (!assetFiles.includes(path)) assert(!copied.includes('sourceMappingURL='), `Asset-copy kept a source map reference in ${path}`);
     }
     await checkJavaScriptImports(await filesBelow(destination), destination);
-    process.stdout.write('Asset-copy CLI: model, WASM, licenses, workers and relative chunks verified.\n');
+    process.stdout.write('Asset-copy CLI: model, WASM, licenses, workers and relative chunks verified; no source maps by default.\n');
+
+    // --source-maps copies the built workers and their maps unchanged.
+    const withMaps = join(temporary, 'public', 'kyc-assets-source-maps');
+    run(process.execPath, [resolve(root, 'scripts/copy-assets.mjs'), withMaps, '--source-maps']);
+    for (const path of runtimeFiles) {
+      const copied = await readFile(join(withMaps, relative(resolve(root, 'dist'), path)));
+      assert.equal(hash(copied), hash(await readFile(path)), `Asset-copy --source-maps changed or missed ${path}`);
+    }
+    process.stdout.write('Asset-copy CLI: --source-maps copies workers and maps unchanged.\n');
 
     // --no-matching omits only the comparison worker and matching runtime/models.
     const reduced = join(temporary, 'public', 'kyc-assets-no-matching');

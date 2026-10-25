@@ -8,6 +8,14 @@ const clear: DocumentDetection = { reason: 'ready', corners: [
 const move = (x: number): DocumentDetection => ({ ...clear, corners: clear.corners!.map(point => ({ ...point, x: point.x + x })) });
 
 describe('Automatic document shutter', () => {
+  it('captures on the first fresh clear observation by default', () => {
+    const hold = createDocumentHold();
+    expect(hold.observe({ reason: 'blur' }, 900, 900, 'view').capture).toBe(false);
+    expect(hold.observe(clear, 1000, 1000, 'view')).toEqual({ feedback: 'ready', progress: 1, capture: true });
+    expect(hold.observe(clear, 1000, 1010, 'view').capture).toBe(false);
+    expect(hold.observe({ reason: 'ready' }, 1100, 1100, 'view').capture).toBe(false);
+  });
+
   it('waits for the full hold on repeated clear observations rather than advancing on a timer', () => {
     const hold = createDocumentHold(800);
     expect(hold.observe(clear, 1000, 1000, 'landscape')).toEqual({ feedback: 'hold-still', progress: 0, capture: false });

@@ -215,3 +215,6 @@ html.demo-app-mode body { position: fixed; inset: 0; }
 html.demo-app-mode #root { height: 100%; }
 html.demo-app-mode .demo-preview-page { height: 100%; }
 @media (max-width: 480px) { .demo-theme-picker { top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); } }
+
+/* Holds the frame's space while the desktop checks the phone-handoff relay, so nothing jumps. */
+.demo-flow-pending { width: 100%; height: min(700px, calc(100svh - 48px)); }

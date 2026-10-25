@@ -569,7 +569,7 @@ test('leaving document camera during permission stops a late stream without adva
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByRole('button', { name: 'Open camera', exact: true }).click();
   await expect(page.locator('.kyc-document-screen').getByRole('status')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   const track = await page.evaluateHandle(() => {
     const state = window as unknown as { resolveCamera: (stream: MediaStream) => void };

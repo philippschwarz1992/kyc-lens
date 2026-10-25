@@ -31,7 +31,7 @@ function initialConfig(): Config {
   const defaults: Config = {
     intro: true, document: params.get('document') !== '0', review: true, result: true, challenges: [...defaultChallenges],
     theme: 'classic', locale: 'en', simulation: params.get('simulate') === '1', upload: false,
-    documentAutoCapture: true, documentHoldDurationMs: 800, faceMatch: true,
+    documentAutoCapture: true, documentHoldDurationMs: 0, faceMatch: true,
   };
   try {
     const raw = params.get('config');
@@ -50,7 +50,7 @@ function initialConfig(): Config {
       simulation: typeof value.simulation === 'boolean' ? value.simulation : defaults.simulation,
       upload: typeof value.upload === 'boolean' ? value.upload : defaults.upload,
       documentAutoCapture: typeof value.documentAutoCapture === 'boolean' ? value.documentAutoCapture : defaults.documentAutoCapture,
-      documentHoldDurationMs: typeof value.documentHoldDurationMs === 'number' && Number.isFinite(value.documentHoldDurationMs) && value.documentHoldDurationMs >= 200 && value.documentHoldDurationMs <= 10_000 ? value.documentHoldDurationMs : defaults.documentHoldDurationMs,
+      documentHoldDurationMs: typeof value.documentHoldDurationMs === 'number' && Number.isFinite(value.documentHoldDurationMs) && value.documentHoldDurationMs >= 0 && value.documentHoldDurationMs <= 10_000 ? value.documentHoldDurationMs : defaults.documentHoldDurationMs,
       faceMatch: typeof value.faceMatch === 'boolean' ? value.faceMatch : defaults.faceMatch,
       theme: typeof value.theme === 'string' && /^[a-z][a-z0-9-]{0,47}$/.test(value.theme) ? value.theme : defaults.theme,
       locale: LOCALES.find(([code]) => code === value.locale)?.[0] ?? 'en', challenges,
@@ -142,6 +142,7 @@ function Switch({ label, checked, onChange, description }: { label: string; chec
 const HANDOFF_ID = /^[A-Za-z0-9_-]{22,64}$/;
 const handoffPollMs = 2_000;
 const handoffLifetimeMs = 15 * 60_000;
+const handoffCheckMs = 1_500;
 
 function newHandoffId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(18));
@@ -180,6 +181,10 @@ function PreviewPage() {
   const theme = themes.find(item => item.id === themeId) ?? findTheme('classic')!;
   const [phoneHandoff] = useState(() => { const id = new URLSearchParams(window.location.search).get('handoff'); return id && HANDOFF_ID.test(id) ? id : null; });
   const [handoff, setHandoff] = useState<{ id: string; url: string } | null>(null);
+  // Only desktops offer the phone QR. They wait briefly for the relay check, so the first screen
+  // shown is already the final one instead of the intro swapping to the QR code a moment later.
+  const [wantsHandoff] = useState(() => !phoneHandoff && window.matchMedia('(pointer: fine)').matches && !window.matchMedia('(any-pointer: coarse)').matches && (navigator.maxTouchPoints ?? 0) === 0);
+  const [handoffChecked, setHandoffChecked] = useState(!wantsHandoff);
   const [phoneSummary, setPhoneSummary] = useState<CaptureSummary | null>(null);
   useThemeFonts([theme]);
   useEffect(() => {
@@ -195,15 +200,19 @@ function PreviewPage() {
   }, [theme]);
   // A desktop preview offers a QR code that opens the same configuration on a phone.
   useEffect(() => {
-    if (phoneHandoff) return;
+    if (!wantsHandoff) return;
     let current = true;
+    const giveUp = setTimeout(() => setHandoffChecked(true), handoffCheckMs);
     void handoffRelayAvailable().then(available => {
-      if (!current || !available) return;
-      const id = newHandoffId();
-      setHandoff({ id, url: `${window.location.origin}/?config=${encodeURIComponent(JSON.stringify({ ...config, theme: themeId }))}&handoff=${id}` });
+      if (!current) return;
+      if (available) {
+        const id = newHandoffId();
+        setHandoff({ id, url: `${window.location.origin}/?config=${encodeURIComponent(JSON.stringify({ ...config, theme: themeId }))}&handoff=${id}` });
+      }
+      clearTimeout(giveUp); setHandoffChecked(true);
     });
-    return () => { current = false; };
-  }, [phoneHandoff, themeId]);
+    return () => { current = false; clearTimeout(giveUp); };
+  }, [wantsHandoff, themeId]);
   useEffect(() => {
     if (!handoff || phoneSummary) return;
     const started = Date.now();
@@ -225,6 +234,7 @@ function PreviewPage() {
   return <main className="demo-preview-page" aria-label="Identity capture preview"><div className="demo-phone" data-testid="sdk-preview">
     <ThemePicker themes={themes} value={theme.id} onChange={setThemeId} />
     {phoneSummary ? <section className="demo-handoff-done" aria-live="polite"><h2>Completed on your phone</h2><p>The phone sent its capture summary. Photos and video stay on the phone.</p><pre>{JSON.stringify(phoneSummary, null, 2)}</pre><a className="demo-primary-button" href={window.location.pathname + window.location.search}>Start again</a></section>
+      : !handoffChecked ? <div className="demo-flow-pending" aria-busy="true" />
       : <KycFlow
       steps={getSteps(config)} face={{ challenges: config.challenges, trackingFps: 15 }}
       document={{ autoCapture: config.documentAutoCapture, holdDurationMs: config.documentHoldDurationMs }} faceMatch={config.faceMatch ? {} : false}
@@ -283,7 +293,7 @@ function SettingsPage() {
         <fieldset><legend>Screens</legend>
           <Switch label="Introduction" checked={config.intro} onChange={value => update('intro', value)} />
           <Switch label="Document capture" checked={config.document} onChange={value => update('document', value)} />
-          <Switch label="Automatic document photo" description="Capture when the document is clear and steady" checked={config.documentAutoCapture} onChange={value => update('documentAutoCapture', value)} />
+          <Switch label="Automatic document photo" description="Capture as soon as the document is clear inside the frame" checked={config.documentAutoCapture} onChange={value => update('documentAutoCapture', value)} />
           <Switch label="Compare document and selfie" description="Compare the faces on this device" checked={config.faceMatch} onChange={value => update('faceMatch', value)} />
           <div className="demo-required-step"><span>Face capture</span><span className="demo-required-badge">Required</span></div>
           <Switch label="Face capture review" checked={config.review} onChange={value => update('review', value)} />

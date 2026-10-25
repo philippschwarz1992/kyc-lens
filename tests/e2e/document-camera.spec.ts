@@ -36,7 +36,7 @@ async function installCameras(page: Page, devices: CameraFixture['devices'], tor
         if (exact && fixture.failDevices.includes(exact)) throw new DOMException('Camera busy.', 'NotReadableError');
         const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = 800;
         const context = canvas.getContext('2d')!;
-        const draw = () => { context.fillStyle = '#3c4650'; context.fillRect(0, 0, canvas.width, canvas.height); requestAnimationFrame(draw); };
+        const draw = () => { context.fillStyle = '#3c4650'; context.fillRect(0, 0, canvas.width, canvas.height); setTimeout(draw, 100); };
         draw();
         const stream = canvas.captureStream(10);
         const [track] = stream.getVideoTracks();

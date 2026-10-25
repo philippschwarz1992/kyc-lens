@@ -4,9 +4,10 @@ import type { AssetOptions, DocumentOptions, DocumentType, OutputOptions } from 
 import { analyzeDocument, type DocumentDetectionReason } from '../core/document.js';
 import { createDocumentHold } from '../core/document-auto.js';
 import { createDocumentTracker } from '../camera/document-tracker.js';
-import { documentPreviewGeometry } from '../camera/document-preview.js';
+import { documentCropRect, documentPreviewGeometry, type SourceRect } from '../camera/document-preview.js';
+import type { DocumentGuide } from '../core/document.js';
 import { documentVideoConstraints, nextCamera, videoInputs, type DocumentCamera } from '../camera/document-devices.js';
-import { drawScaled, encodeCanvas } from '../camera/output.js';
+import { encodeCanvas, scaledSize } from '../camera/output.js';
 
 export type DocumentCameraStatus = 'idle' | 'requesting' | 'ready' | 'capturing';
 export type DocumentSide = 'front' | 'back';
@@ -30,15 +31,25 @@ function encodePhoto(canvas: HTMLCanvasElement, output?: OutputOptions): Promise
   });
 }
 
-async function snapshot(video: HTMLVideoElement, output?: OutputOptions): Promise<Blob> {
-  if (!video.videoWidth || !video.videoHeight || video.readyState < 2) return Promise.reject(captureError('documentCameraUnavailable'));
-  // Preserve the entire camera image at native resolution unless output.maxDimension limits it; the guide is only visual.
-  const canvas = drawScaled(video, video.videoWidth, video.videoHeight, output);
-  if (!canvas) return Promise.reject(captureError('documentCaptureFailed'));
-  return encodePhoto(canvas, output);
+type PreviewGeometry = NonNullable<ReturnType<typeof documentPreviewGeometry>>;
+/** Geometry that describes a delivered photo of `rect`, so the recheck analyzes it like the live preview. */
+function photoGeometry(rect: SourceRect, guide: DocumentGuide): PreviewGeometry {
+  const sampleScale = Math.min(320 / rect.width, 480 / rect.height, 1);
+  return { guide, key: '', crop: { x: 0, y: 0, width: rect.width, height: rect.height,
+    sampleWidth: Math.max(1, Math.round(rect.width * sampleScale)), sampleHeight: Math.max(1, Math.round(rect.height * sampleScale)) } };
 }
 
-type PreviewGeometry = NonNullable<ReturnType<typeof documentPreviewGeometry>>;
+async function snapshot(video: HTMLVideoElement, output?: OutputOptions, rect?: SourceRect): Promise<Blob> {
+  if (!video.videoWidth || !video.videoHeight || video.readyState < 2) return Promise.reject(captureError('documentCameraUnavailable'));
+  // Native resolution unless output.maxDimension limits it; `rect` restricts the photo to the framed document.
+  const area = rect ?? { x: 0, y: 0, width: video.videoWidth, height: video.videoHeight };
+  const size = scaledSize(area.width, area.height, output?.maxDimension);
+  const canvas = document.createElement('canvas'); canvas.width = size.width; canvas.height = size.height;
+  const context = canvas.getContext('2d');
+  if (!context) return Promise.reject(captureError('documentCaptureFailed'));
+  context.drawImage(video, area.x, area.y, area.width, area.height, 0, 0, size.width, size.height);
+  return encodePhoto(canvas, output);
+}
 
 /** Decode and assess the delivered photo, using the same visible crop and document interior as the guide. */
 async function checkPhoto(photo: Blob, geometry: PreviewGeometry, type: DocumentType, sourceWidth: number, sourceHeight: number) {
@@ -367,10 +378,14 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
         setFeedback('searching'); updateStatus('ready'); return;
       }
       const { output } = configuration.current;
-      const photo = configuration.current.simulation ? await simulatedDocument(type, side, output) : await snapshot(video!, output);
+      const framed = !configuration.current.simulation && geometry && configuration.current.options.crop !== 'full'
+        ? documentCropRect(geometry, video!.videoWidth, video!.videoHeight) : null;
+      const photo = configuration.current.simulation ? await simulatedDocument(type, side, output) : await snapshot(video!, output, framed?.rect);
       if (!mounted.current || generation.current !== attempt) return;
       if (automatic) {
-        const detection = await checkPhoto(photo, geometry!, type, video!.videoWidth, video!.videoHeight);
+        const detection = framed
+          ? await checkPhoto(photo, photoGeometry(framed.rect, framed.guide), type, framed.rect.width, framed.rect.height)
+          : await checkPhoto(photo, geometry!, type, video!.videoWidth, video!.videoHeight);
         if (!mounted.current || generation.current !== attempt) return;
         const currentGeometry = video && guideRef.current ? documentPreviewGeometry(video, guideRef.current) : null;
         if (detection.reason !== 'ready' || geometry!.key !== currentGeometry?.key || document.hidden) {

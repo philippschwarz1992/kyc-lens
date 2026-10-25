@@ -157,9 +157,7 @@ async function finishDistanceChecks(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'Confirm & continue', exact: true })).toBeVisible();
 }
 
-async function faceWindowGeometry(page: Page, scale: number) {
-  await expect.poll(() => page.locator('.kyc-camera-stage').evaluate(element => new DOMMatrixReadOnly(getComputedStyle(element).transform).a))
-    .toBeCloseTo(scale, 3);
+async function faceWindowGeometry(page: Page) {
   const geometry = await page.evaluate(() => {
     const bounds = (selector: string) => {
       const element = document.querySelector(selector);
@@ -172,8 +170,7 @@ async function faceWindowGeometry(page: Page, scale: number) {
       frame: bounds('.kyc-kit'), instruction: bounds('.kyc-current-instruction'), actions: bounds('.kyc-actions'),
       noScroll: document.documentElement.scrollWidth <= innerWidth + 1 && document.documentElement.scrollHeight <= innerHeight + 1 };
   });
-  // The green ellipse must sit at the live-video mask edge, and both must grow
-  // together. Scaling only an overlay would leave the video bounds unchanged.
+  // The ellipse must sit at the live-video mask edge.
   for (const key of ['x', 'y', 'width', 'height'] as const) {
     expect(Math.abs(geometry.aperture[key] - geometry.video[key])).toBeLessThan(0.5);
     // Firefox lays out the SVG ring box up to ~2.4 px from the aperture; Chrome stays within half a pixel.
@@ -201,7 +198,7 @@ for (const viewport of faceViewports) {
     const frame = await page.locator('.kyc-kit').boundingBox();
     await expect(page.getByRole('status').filter({ hasText: 'Bring your face into the circle' })).toBeVisible();
     await expect(page.locator('.kyc-challenge-list, .kyc-challenge-progress')).toHaveCount(0);
-    const normalWindow = await faceWindowGeometry(page, 0.8);
+    const normalWindow = await faceWindowGeometry(page);
     await page.screenshot({ path: `.cache/face-window-center-${viewport.width}.png` });
     await page.waitForTimeout(800);
     await expect(page.locator('.kyc-current-instruction')).toHaveText('Bring your face into the circle');
@@ -227,9 +224,9 @@ for (const viewport of faceViewports) {
     await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'closer');
     await expect(page.locator('.kyc-current-instruction')).toHaveText('Move a little closer');
     await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
-    const closerWindow = await faceWindowGeometry(page, 1);
-    expect(closerWindow.video.width / normalWindow.video.width).toBeCloseTo(1.25, 2);
-    expect(closerWindow.video.height / normalWindow.video.height).toBeCloseTo(1.25, 2);
+    // Distance prompts animate the tick ring; the aperture keeps its size and position.
+    const closerWindow = await faceWindowGeometry(page);
+    expect(closerWindow.video).toEqual(normalWindow.video);
     expect(closerWindow.frame).toEqual(normalWindow.frame);
     expect(closerWindow.instruction).toEqual(normalWindow.instruction);
     expect(closerWindow.actions).toEqual(normalWindow.actions);
@@ -239,9 +236,8 @@ for (const viewport of faceViewports) {
     await expect(page.locator('.kyc-current-instruction')).toHaveText('Face the camera straight on');
     await pose(page, 'center');
     await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'further');
-    const furtherWindow = await faceWindowGeometry(page, 0.624);
-    expect(furtherWindow.video.width / normalWindow.video.width).toBeCloseTo(0.78, 2);
-    expect(furtherWindow.video.height / normalWindow.video.height).toBeCloseTo(0.78, 2);
+    const furtherWindow = await faceWindowGeometry(page);
+    expect(furtherWindow.video).toEqual(normalWindow.video);
     expect(furtherWindow.frame).toEqual(normalWindow.frame);
     expect(furtherWindow.instruction).toEqual(normalWindow.instruction);
     expect(furtherWindow.actions).toEqual(normalWindow.actions);
@@ -322,7 +318,7 @@ for (const viewport of faceViewports) {
     const stage = page.locator('.kyc-camera-stage');
     const arrow = page.locator('.kyc-direction-arrow');
     await expect(stage).toHaveAttribute('data-direction', 'turn-left');
-    const initial = await faceWindowGeometry(page, 0.8);
+    const initial = await faceWindowGeometry(page);
     const expectArrow = async (direction: 'turn-left' | 'turn-right') => {
       await expect(arrow).toHaveAttribute('data-direction', direction);
       await expect(arrow.locator('svg path')).toBeVisible();
@@ -348,7 +344,7 @@ for (const viewport of faceViewports) {
       expect(visual.mirrored).toBe(direction === 'turn-right');
       if (direction === 'turn-left') expect(visual.right).toBeLessThanOrEqual(visual.apertureLeft + 4);
       else expect(visual.left).toBeGreaterThanOrEqual(visual.apertureRight - 4);
-      const current = await faceWindowGeometry(page, 0.8);
+      const current = await faceWindowGeometry(page);
       expect(current.frame).toEqual(initial.frame);
       expect(current.actions).toEqual(initial.actions);
       await page.screenshot({ path: `.cache/face-window-${direction}-${viewport.width}.png` });

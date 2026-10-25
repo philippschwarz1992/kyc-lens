@@ -77,6 +77,8 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
           : s.documentFrontBody ?? 'Place your document on a flat surface. Make sure all four corners are visible.';
   const guideState = feedback === 'off' ? 'off' : feedback === 'ready' ? 'ready' : 'adjust';
   const automatic = !simulation && options.detection !== false && options.autoCapture !== false;
+  // The shutter is automatic; a manual one appears only when live analysis cannot run.
+  const manualShutter = !automatic || feedback === 'unavailable';
   const liveGuidance = isCamera && status === 'ready';
   const showSwitch = isCamera && !simulation && options.cameraSwitch !== false && cameras.length > 1;
   const showTorch = isCamera && !simulation && options.torch !== false && torch.available;
@@ -120,7 +122,7 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
   };
 
   return <div ref={screenRef} className={`kyc-screen kyc-document-screen ${isReview ? 'kyc-document-review-screen' : ''}`}>
-    {stage !== 'select' ? <button type="button" className="kyc-back" aria-label={s.back ?? 'Back'} onClick={goBack}>←</button> : null}
+    {stage !== 'select' ? <button type="button" className="kyc-back" aria-label={s.back ?? 'Back'} onClick={goBack}><Icon name="back" size={22} /></button> : null}
     <div className="kyc-screen-heading">
       <h2 ref={headingRef} id={titleId} tabIndex={-1}>{title}</h2>
       <p className="kyc-description" role={liveGuidance ? 'status' : undefined} aria-live={liveGuidance ? 'polite' : undefined} aria-atomic={liveGuidance ? true : undefined}>{liveGuidance ? notice === 'cameraSwitchFailed' ? s.documentCameraSwitchFailed ?? 'That camera could not be opened. Your previous camera is back on.' : guideHints[feedback] : body}</p>
@@ -154,7 +156,7 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
        : isReview ? <div className="kyc-actions-row">
         <button type="button" className="kyc-button kyc-button-secondary" onClick={retake}><Icon name="refresh" size={17} />{s.documentRetake ?? 'Retake photo'}</button>
         <button type="button" className="kyc-button kyc-button-primary" onClick={confirm}>{s.documentConfirm ?? 'Looks good'}<Icon name="arrow" size={18} /></button>
-      </div> : isCamera ? <button type="button" className="kyc-button kyc-button-primary" disabled={status !== 'ready'} onClick={() => void capture(selected, side)}><Icon name="camera" size={18} />{s.documentTakePhoto ?? 'Take photo'}</button>
+      </div> : isCamera ? manualShutter ? <button type="button" className="kyc-button kyc-button-primary" disabled={status !== 'ready'} onClick={() => void capture(selected, side)}><Icon name="camera" size={18} />{s.documentTakePhoto ?? 'Take photo'}</button> : null
         : <button type="button" className="kyc-button kyc-button-primary" onClick={() => setStage(isBack ? 'camera-back' : 'camera-front')}>{simulation ? s.documentStartDemo ?? 'Continue' : s.documentStartCamera ?? 'Open camera'}<Icon name="arrow" size={18} /></button>}
     </div>
   </div>;

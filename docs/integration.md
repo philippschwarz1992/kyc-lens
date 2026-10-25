@@ -19,6 +19,8 @@ npx kyc-lens-copy-assets ./public/kyc-assets --no-matching
 
 The command does not delete files from an earlier full copy. Remove `matching/` and `match-worker.js` from the destination if you switch. `npx kyc-lens-copy-assets --help` lists the options.
 
+The workers are copied without source maps, so visitors to your site cannot download the original library source. Add `--source-maps` to copy the `.js.map` files as well, for example to debug worker stack traces locally. Do not serve them in production unless you want the source public.
+
 Import the stylesheet once in your app's root layout:
 
 ```tsx
@@ -65,7 +67,7 @@ Automatic start and video recording are enabled by default. If your host needs a
 
 Omit `'document'` from `steps` for a face-only capture. When enabled, document selection and individual photo reviews happen before the face screen. Pass `document.types` to restrict available choices and `document.camera` to override rear-camera constraints. Your upload service receives document photos along with the selfie and optional `faceVideo`; validate required sides and required media using your server's policy.
 
-Document guidance and auto-capture are on by default. A steady clear document triggers a full-resolution photo and encoded-image quality recheck before review. `document={{ autoCapture: false }}` keeps the shutter manual. `detection: false` disables analysis and automatic capture. The manual fallback remains available when analysis is unavailable. No document detector score is included in the upload or completion payload; the outline does not authenticate an ID or recognize its type.
+Document guidance and auto-capture are on by default. The first clear frame with the document inside the guide triggers a full-resolution photo and encoded-image quality recheck before review; there is no Take photo button. Set `document.holdDurationMs` to require a steady hold first. `document={{ autoCapture: false }}` shows a manual shutter instead. `detection: false` disables analysis and automatic capture and also shows the manual shutter. The manual shutter also appears when analysis is unavailable. No document detector score is included in the upload or completion payload; the outline does not authenticate an ID or recognize its type.
 
 Missing or blocked worker/image APIs leave the guide red with a request to check the photo after capture; they do not block the shutter. Simulation uses a neutral outline because it does not analyze a live document.
 

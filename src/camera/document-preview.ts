@@ -29,3 +29,19 @@ export function documentPreviewGeometry(video: HTMLVideoElement, guideElement: H
   return { crop, guide, key: [video.videoWidth, video.videoHeight, crop.x, crop.y, crop.width, crop.height,
     view.width, view.height, guide.x, guide.y, guide.width, guide.height].map(value => value.toFixed(3)).join(':') };
 }
+
+export type SourceRect = { x: number; y: number; width: number; height: number };
+
+// Space kept around the guide, as a share of its size, so slightly misplaced edges stay in the photo.
+const DOCUMENT_CROP_MARGIN = 0.06;
+
+/** The guide in camera pixels, widened by the margin: what the person framed, in the document's own proportions. */
+export function documentCropRect(geometry: { crop: SourceRect; guide: DocumentGuide }, sourceWidth: number, sourceHeight: number): { rect: SourceRect; guide: DocumentGuide } {
+  const { crop, guide } = geometry;
+  const gx = crop.x + guide.x * crop.width, gy = crop.y + guide.y * crop.height;
+  const gw = guide.width * crop.width, gh = guide.height * crop.height;
+  const x = Math.max(0, Math.floor(gx - gw * DOCUMENT_CROP_MARGIN)), y = Math.max(0, Math.floor(gy - gh * DOCUMENT_CROP_MARGIN));
+  const right = Math.min(sourceWidth, Math.ceil(gx + gw * (1 + DOCUMENT_CROP_MARGIN))), bottom = Math.min(sourceHeight, Math.ceil(gy + gh * (1 + DOCUMENT_CROP_MARGIN)));
+  const rect = { x, y, width: Math.max(1, right - x), height: Math.max(1, bottom - y) };
+  return { rect, guide: { x: (gx - x) / rect.width, y: (gy - y) / rect.height, width: gw / rect.width, height: gh / rect.height } };
+}

@@ -6,9 +6,12 @@ export interface DocumentHoldState {
   capture: boolean;
 }
 
-/** A shutter advances only on fresh, consecutive observations of the same stationary outline. */
-export function createDocumentHold(holdDurationMs = 800) {
-  const duration = Number.isFinite(holdDurationMs) ? Math.max(200, Math.min(10_000, holdDurationMs)) : 800;
+/**
+ * A shutter advances only on fresh, consecutive observations of the same stationary outline.
+ * With no hold (the default) the first fresh, clear observation captures at once.
+ */
+export function createDocumentHold(holdDurationMs = 0) {
+  const duration = Number.isFinite(holdDurationMs) ? Math.max(0, Math.min(10_000, holdDurationMs)) : 0;
   let started = -Infinity;
   let previous = -Infinity;
   let lastObservation = -Infinity;
@@ -40,6 +43,7 @@ export function createDocumentHold(holdDurationMs = 800) {
         started = timestamp; frames = 0; anchor = detection.corners.map(point => ({ ...point })); key = geometryKey;
       }
       previous = timestamp; frames++;
+      if (duration === 0) return { feedback: 'ready', progress: 1, capture: true };
       const progress = Math.min(1, (timestamp - started) / duration);
       const capture = progress >= 1 && frames >= 3;
       return { feedback: capture ? 'ready' : 'hold-still', progress: capture ? 1 : Math.min(progress, 0.99), capture };

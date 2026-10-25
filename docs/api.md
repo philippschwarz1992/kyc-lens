@@ -24,8 +24,8 @@ All flow props are optional. The default steps are `['intro', 'face', 'review', 
 | `document.types` | All three supported types | One to three unique choices. |
 | `document.camera` | Rear camera, ideal 1920×1080 | `MediaTrackConstraints` merged over the defaults. |
 | `document.detection` | `true` | Local guidance; `false` uses a neutral guide. |
-| `document.autoCapture` | `true` | Capture after a stable good-quality hold and encoded-photo recheck; manual shutter remains available. |
-| `document.holdDurationMs` | `800` | 200–10,000 ms of consecutive suitable document frames. |
+| `document.autoCapture` | `true` | Capture as soon as a clear document is inside the guide, then recheck the encoded photo. No manual shutter is shown unless live analysis is unavailable; `false` shows a manual shutter instead. |
+| `document.holdDurationMs` | `0` | 0–10,000 ms of consecutive steady, suitable frames before the automatic shutter; `0` captures on the first suitable frame. |
 | `document.cameraSwitch` | `true` | Show a Switch camera control when more than one camera is available; `false` hides it. |
 | `document.torch` | `true` | Show a flashlight toggle when the active camera reports torch support; `false` hides it. |
 | `faceMatch` | Enabled with documents | `false` disables it; otherwise an options object configures local comparison. |
@@ -73,8 +73,8 @@ interface DocumentOptions {
   types?: readonly DocumentType[];
   camera?: MediaTrackConstraints;
   detection?: boolean; // Defaults to true: local framing/quality guidance.
-  autoCapture?: boolean; // Defaults to true, requires successful live analysis.
-  holdDurationMs?: number; // Defaults to 800.
+  autoCapture?: boolean; // Defaults to true, requires successful live analysis; hides the manual shutter.
+  holdDurationMs?: number; // Defaults to 0: capture on the first suitable frame.
   cameraSwitch?: boolean; // Defaults to true: Switch camera control when several cameras exist.
   torch?: boolean; // Defaults to true: flashlight toggle when the camera supports torch.
 }

@@ -1,8 +1,9 @@
 import type { CSSProperties } from 'react';
 
-export function Icon({ name, size = 20, className, style }: { name: 'arrow' | 'check' | 'camera' | 'sun' | 'face' | 'shield' | 'refresh' | 'close' | 'upload' | 'switchCamera' | 'flash'; size?: number; className?: string; style?: CSSProperties }) {
+export function Icon({ name, size = 20, className, style }: { name: 'arrow' | 'check' | 'camera' | 'sun' | 'face' | 'shield' | 'refresh' | 'close' | 'upload' | 'switchCamera' | 'flash' | 'back'; size?: number; className?: string; style?: CSSProperties }) {
   const paths = {
     arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
+    back: <path d="m15 5-7 7 7 7" />,
     check: <path d="m5 12 4 4L19 6" />,
     camera: <><path d="M4 6h4l2-2h4l2 2h4v14H4z" /><circle cx="12" cy="13" r="4" /></>,
     sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></>,

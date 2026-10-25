@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { initialTransition, transition } from 'xstate';
 import type { EventFrom, SnapshotFrom } from 'xstate';
@@ -33,6 +33,8 @@ function readableError(error: Error, strings: Record<string, string>): string {
   return error.message;
 }
 
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
 /** A configurable capture shell. Guided movements alone do not verify identity or liveness. */
 export function KycFlow(props: KycFlowProps) {
   const s = getStrings(props.locale, props.strings);
@@ -50,7 +52,7 @@ export function KycFlow(props: KycFlowProps) {
     if (props.document?.detection !== undefined && typeof props.document.detection !== 'boolean') throw new Error('document.detection must be true or false.');
     if (props.document?.autoCapture !== undefined && typeof props.document.autoCapture !== 'boolean') throw new Error('document.autoCapture must be true or false.');
     validateDocumentCameraOptions(props.document);
-    if (props.document?.holdDurationMs !== undefined && (!Number.isFinite(props.document.holdDurationMs) || props.document.holdDurationMs < 200 || props.document.holdDurationMs > 10_000)) throw new Error('document.holdDurationMs must be between 200 and 10000.');
+    if (props.document?.holdDurationMs !== undefined && (!Number.isFinite(props.document.holdDurationMs) || props.document.holdDurationMs < 0 || props.document.holdDurationMs > 10_000)) throw new Error('document.holdDurationMs must be between 0 and 10000.');
     if (props.faceMatch !== false && props.faceMatch !== undefined) {
       if (!props.faceMatch || typeof props.faceMatch !== 'object' || Array.isArray(props.faceMatch)) throw new Error('faceMatch must be an options object or false.');
       if (!validDecisionOptions(props.faceMatch.threshold ?? DEFAULT_MATCH_THRESHOLD, props.faceMatch.inconclusiveMargin ?? DEFAULT_INCONCLUSIVE_MARGIN)) throw new Error('Invalid face matching threshold or inconclusive margin.');
@@ -188,9 +190,10 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
     if (phase === 'review') { events.retake(); setCapture(null); setResult(undefined); send({ type: 'RETAKE' }); }
     else if (phase === 'error') { events.retry(state.context.errorStage); setError(null); send({ type: 'RETRY' }); }
   };
-  // Read the pointer type after mount, so server-rendered markup matches the first client render.
+  // Read the pointer type after mount, so server-rendered markup matches the first client render. A layout
+  // effect decides before the first paint, so desktops never flash the intro before the QR screen.
   const [offerHandoff, setOfferHandoff] = useState(false);
-  useEffect(() => { setOfferHandoff(Boolean(props.handoff) && prefersHandoff(props.handoff?.show)); }, [props.handoff?.url, props.handoff?.show]);
+  useIsomorphicLayoutEffect(() => { setOfferHandoff(Boolean(props.handoff) && prefersHandoff(props.handoff?.show)); }, [props.handoff?.url, props.handoff?.show]);
   const handoffUrl = offerHandoff ? props.handoff?.url : undefined;
   const context: KycScreenContext = { next: () => send({ type: 'NEXT' }), cancel, retry, result: result ?? (capture ? { status: 'capture_complete', payload: capture } : undefined), selfieUrl, videoUrl, handoffUrl };
   const { Intro, Review, Result } = props.components ?? {};

@@ -31,4 +31,5 @@ export function documentVideoConstraints(camera?: MediaTrackConstraints, deviceI
 export function validateDocumentCameraOptions(options?: DocumentOptions): void {
   if (options?.cameraSwitch !== undefined && typeof options.cameraSwitch !== 'boolean') throw new Error('document.cameraSwitch must be true or false.');
   if (options?.torch !== undefined && typeof options.torch !== 'boolean') throw new Error('document.torch must be true or false.');
+  if (options?.crop !== undefined && options.crop !== 'document' && options.crop !== 'full') throw new Error('document.crop must be "document" or "full".');
 }

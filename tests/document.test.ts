@@ -105,8 +105,13 @@ describe('Document framing and image clarity', () => {
   it('marks an oversized or shifted document outside even when its sharp inner content fits', () => {
     const oversized: readonly Point[] = [[7, 84], [311, 84], [311, 277], [7, 277]];
     expect(detect(photo({ corners: oversized })).reason).toBe('outside');
-    const shifted = card.map(([x, y]) => [x + 20, y] as const);
+    const shifted = card.map(([x, y]) => [x + 30, y] as const);
     expect(detect(photo({ corners: shifted })).reason).toBe('outside');
+  });
+
+  it('accepts a corner just past the guide so the user need not frame exactly', () => {
+    const nudged = card.map(([x, y]) => [x + 16, y] as const);
+    expect(detect(photo({ corners: nudged })).reason).toBe('ready');
   });
 
   it('never makes a partially clipped card green', () => {

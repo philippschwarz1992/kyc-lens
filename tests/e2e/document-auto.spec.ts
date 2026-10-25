@@ -5,7 +5,6 @@ interface AutomaticDocumentFixture {
   duplicateTimestamps: boolean;
   corruptPhoto: boolean;
   failEncoding: boolean;
-  manualRace: boolean;
   deferEncoding: boolean;
   pendingEncodes: Array<() => void>;
   encodes: number;
@@ -18,14 +17,18 @@ interface AutomaticDocumentFixture {
 async function clickOpenCamera(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Open camera', exact: true }).click();
   const prompt = page.getByText('Tap the screen to start the camera.');
-  const takePhoto = page.getByRole('button', { name: 'Take photo', exact: true });
-  await expect.poll(async () => await prompt.isVisible() || await takePhoto.isEnabled({ timeout: 100 }).catch(() => false), { timeout: 15_000 }).toBe(true);
+  await expect.poll(async () => await prompt.isVisible() || await cameraReady(page), { timeout: 15_000 }).toBe(true);
   if (await prompt.isVisible()) await prompt.click();
+}
+/** The preview shows frames and no opening/capturing status remains; the shutter itself is automatic. */
+async function cameraReady(page: Page): Promise<boolean> {
+  return page.evaluate(() => (document.querySelector<HTMLVideoElement>('.kyc-document-video')?.readyState ?? 0) >= 2
+    && !document.querySelector('.kyc-document-status'));
 }
 async function installCamera(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const fixture: AutomaticDocumentFixture = { mode: 'good', duplicateTimestamps: false, corruptPhoto: false,
-      failEncoding: false, manualRace: false, deferEncoding: false, pendingEncodes: [], encodes: 0, streams: [] };
+      failEncoding: false, deferEncoding: false, pendingEncodes: [], encodes: 0, streams: [] };
     (window as unknown as { automaticDocumentFixture: AutomaticDocumentFixture }).automaticDocumentFixture = fixture;
     const NativeWorker = window.Worker;
     window.Worker = new Proxy(NativeWorker, {
@@ -48,10 +51,6 @@ async function installCamera(page: Page): Promise<void> {
     HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
       if (this.width === 1200 && this.height === 800) {
         fixture.encodes++;
-        if (fixture.manualRace) {
-          // React has not committed its disabled state yet; the hook must own the race lock.
-          [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('Take photo'))?.click();
-        }
         if (fixture.corruptPhoto) {
           const context = this.getContext('2d')!;
           context.fillStyle = '#525c66'; context.fillRect(0, 0, this.width, this.height);
@@ -93,7 +92,8 @@ async function installCamera(page: Page): Promise<void> {
             for (let column = 0; column < 46; column++) context.fillRect(left + width * (0.06 + column * 0.019),
               top + height * 0.84, width * (column % 3 === 0 ? 0.009 : 0.004), height * (column % 2 ? 0.07 : 0.1));
           }
-          requestAnimationFrame(draw);
+          // The stream captures 10 fps; redrawing per animation frame only loads the main thread on slow runners.
+          setTimeout(draw, 100);
         };
         draw(); const stream = canvas.captureStream(10); fixture.streams.push(stream); return stream;
       },
@@ -107,7 +107,7 @@ async function openCamera(page: Page, options: Record<string, unknown> = {}) {
   await page.goto(`/?config=${encodeURIComponent(JSON.stringify(config))}`);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await clickOpenCamera(page);
-  await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeEnabled();
+  await expect.poll(() => cameraReady(page)).toBe(true);
 }
 
 async function changeFixture(page: Page, changes: Partial<AutomaticDocumentFixture>) {
@@ -118,13 +118,15 @@ async function encodes(page: Page) {
   return page.evaluate(() => (window as unknown as { automaticDocumentFixture: AutomaticDocumentFixture }).automaticDocumentFixture.encodes);
 }
 
-test('automatic quality-gated photos retain full resolution and respect front/back and manual races', async ({ page }) => {
+test('a clear document is photographed at once, at full resolution, with no manual shutter', async ({ page }) => {
   await installCamera(page);
-  await openCamera(page);
-  await changeFixture(page, { manualRace: true });
+  await openCamera(page, { documentHoldDurationMs: 0 });
+  await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toHaveCount(0);
   const front = page.getByRole('img', { name: 'Photograph of the front of your document', exact: true });
   await expect(front).toBeVisible({ timeout: 15_000 });
-  expect(await front.evaluate(image => [(image as HTMLImageElement).naturalWidth, (image as HTMLImageElement).naturalHeight])).toEqual([1200, 800]);
+  // The photo is cropped to the guide (ID-card proportions plus margin) at the camera's native pixel density.
+  const [width, height] = await front.evaluate(image => [(image as HTMLImageElement).naturalWidth, (image as HTMLImageElement).naturalHeight]);
+  expect(width).toBeLessThanOrEqual(1200); expect(height).toBeLessThan(800); expect(width / height).toBeCloseTo(1.58, 1);
   expect(await encodes(page)).toBe(1);
   await page.getByRole('button', { name: 'Looks good', exact: true }).click();
   await clickOpenCamera(page);
@@ -139,7 +141,7 @@ test('the captured JPEG is checked again and unusable pixels return to the camer
   await openCamera(page);
   await changeFixture(page, { corruptPhoto: true });
   await expect.poll(() => encodes(page), { timeout: 15_000 }).toBe(1);
-  await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeEnabled();
+  await expect.poll(() => cameraReady(page)).toBe(true);
   await expect(page.locator('.kyc-document-guide')).toHaveAttribute('data-reason', 'searching');
   await expect(page.getByRole('button', { name: 'Looks good', exact: true })).toHaveCount(0);
   await changeFixture(page, { corruptPhoto: false, mode: 'good' });
@@ -154,7 +156,6 @@ test('duplicate and stale worker observations cannot finish the hold', async ({ 
   await changeFixture(page, { duplicateTimestamps: true });
   await page.waitForTimeout(1800);
   expect(await encodes(page)).toBe(0);
-  await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeEnabled();
   await changeFixture(page, { duplicateTimestamps: false });
   await expect(page.getByRole('img', { name: 'Photograph of the front of your document', exact: true })).toBeVisible({ timeout: 15_000 });
   expect(await encodes(page)).toBe(1);
@@ -227,6 +228,6 @@ test('blocked camera autoplay asks for a tap instead of reporting denied permiss
   await expect(page.getByText('Tap the screen to start the camera.')).toBeVisible();
   await expect(page.locator('.kyc-error-screen')).toHaveCount(0);
   await page.getByText('Tap the screen to start the camera.').click();
-  await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeEnabled();
   await expect(page.getByText('Tap the screen to start the camera.')).toHaveCount(0);
+  await expect(page.getByRole('img', { name: 'Photograph of the front of your document', exact: true })).toBeVisible({ timeout: 15_000 });
 });

@@ -3,7 +3,7 @@ import type { AssetOptions, DocumentType } from '../types.js';
 import { documentPreviewGeometry } from './document-preview.js';
 import type { DocumentFrameRequest, DocumentWorkerResponse } from './document-protocol.js';
 
-/** Six preview frames per second, one transferable bitmap in flight, no model or network service. */
+/** Up to twelve preview frames per second, one transferable bitmap in flight, no model or network service. */
 export async function createDocumentTracker(options: {
   video: HTMLVideoElement;
   guide: HTMLElement;
@@ -60,7 +60,7 @@ export async function createDocumentTracker(options: {
       options.onDetection({ reason: 'searching' }, timestamp);
     }
     const video = options.video;
-    if (busy || timestamp - previousFrameTime < 1000 / 6 || video.readyState < 2 || video.currentTime === previousVideoTime) return;
+    if (busy || timestamp - previousFrameTime < 1000 / 12 || video.readyState < 2 || video.currentTime === previousVideoTime) return;
     const geometry = documentPreviewGeometry(video, options.guide);
     if (!geometry) return;
     busy = true;

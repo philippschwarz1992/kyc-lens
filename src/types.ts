@@ -11,14 +11,16 @@ export interface DocumentOptions {
   camera?: MediaTrackConstraints;
   /** Local framing/clarity guidance. Defaults to true. */
   detection?: boolean;
-  /** Automatically capture a steady, clear document. Default: true. Manual fallback remains available. */
+  /** Automatically capture a clear document. Default: true. A manual shutter appears only when live analysis is unavailable. */
   autoCapture?: boolean;
-  /** Required stable document hold in milliseconds. Default: 800; range: 200–10000. */
+  /** Required stable document hold in milliseconds. Default: 0 (capture on the first clear frame); range: 0–10000. */
   holdDurationMs?: number;
   /** Show a Switch camera control when more than one camera is available. Default: true. */
   cameraSwitch?: boolean;
   /** Show a flashlight toggle when the active camera supports torch. Default: true. */
   torch?: boolean;
+  /** `document` (default) crops the photo to the on-screen guide plus a small margin; `full` keeps the whole camera frame. */
+  crop?: 'document' | 'full';
 }
 export interface DocumentCapture {
   type: DocumentType;

@@ -92,7 +92,8 @@ async function installDocumentCamera(page: Page): Promise<void> {
           } else context.drawImage(original, 0, 0);
           if (!filtersWork && camera.mode === 'dark') { context.fillStyle = 'rgb(0 0 0 / 75%)'; context.fillRect(0, 0, original.width, original.height); }
           context.filter = 'none';
-          requestAnimationFrame(draw);
+          // The stream captures 10 fps; redrawing per animation frame only loads the main thread on slow runners.
+          setTimeout(draw, 100);
         };
         draw();
         const stream = canvas.captureStream(10);
@@ -191,8 +192,8 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await page.getByRole('button', { name: 'Take photo', exact: true }).click();
     const photo = page.getByRole('img', { name: 'Photograph of the front of your document', exact: true });
     await expect(photo).toBeVisible();
-    await expect.poll(() => photo.evaluate(image => ({ width: (image as HTMLImageElement).naturalWidth, height: (image as HTMLImageElement).naturalHeight })))
-      .toEqual({ width: 1200, height: 800 });
+    // Manual photos are cropped to the guide too, so the review shows the document's own format.
+    await expect.poll(() => photo.evaluate(image => (image as HTMLImageElement).naturalWidth / (image as HTMLImageElement).naturalHeight)).toBeCloseTo(1.58, 1);
     await expectStopped(page);
     expect(external).toEqual([]);
     expect(errors).toEqual([]);
