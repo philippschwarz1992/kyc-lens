@@ -58,7 +58,7 @@ export const turkish: KycStrings = {
   documentSearching: 'Dört köşeyi de çerçevenin içinde tutun.', documentOutside: 'Belgenin tamamını çerçevenin içine alın.', documentTooSmall: 'Biraz yaklaşın.',
   documentDark: 'Daha parlak ve eşit bir ışık kullanın.', documentGlare: 'Yansımaları önlemek için hafifçe eğin.', documentBlur: 'Sabit tutun ve kameranın odaklanmasını bekleyin.',
   documentHoldStill: 'Sabit tutun…', documentReady: 'Görüntü net. Fotoğrafınızı çekin.', documentGuidanceUnavailable: 'Dört köşenin de görünür olmasını sağlayın. Çekimden sonra fotoğrafı kontrol edin.',
-  documentAutoHoldStill: 'Sabit tutun… fotoğrafınız otomatik olarak çekiliyor.', documentAutoReady: 'Fotoğrafınız otomatik olarak çekiliyor…', documentAutoProgress: 'Otomatik fotoğraf çekimi',
+  documentAutoHoldStill: 'Sabit tutun… fotoğrafınız otomatik olarak çekiliyor.', documentAutoReady: 'Fotoğrafınız otomatik olarak çekiliyor…', documentAutoProgress: 'Otomatik fotoğraf çekimi', documentFrontCaptured: 'Ön yüz çekildi', documentBackCaptured: 'Arka yüz çekildi', documentPageCaptured: 'Fotoğraflı sayfa çekildi', documentTurnOver: 'Şimdi belgenizi çevirin.', documentAllCaptured: 'Belge fotoğraflarınız hazır.', documentSameSide: 'Bu aynı yüz. Belgenizi çevirin.',
   uploadProgress: '%{percent} yüklendi',
   documentSwitchCamera: 'Kamerayı değiştir', documentTorchOn: 'Feneri açın', documentTorchOff: 'Feneri kapatın',
   documentCameraSwitchFailed: 'Bu kamera açılamadı. Önceki kameranız yeniden etkin.',

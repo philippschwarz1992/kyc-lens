@@ -163,10 +163,13 @@
 .kyc-document-type-button.is-selected .kyc-document-type-radio { color: var(--kyc-color-on-primary); border-color: var(--kyc-color-primary); background: var(--kyc-color-primary); transform: scale(1.08); }
 .kyc-document-camera { position: relative; overflow: hidden; border-radius: var(--kyc-shape-media); background: var(--kyc-color-camera); }
 .kyc-document-video { display: block; width: 100%; height: 100%; object-fit: cover; }
-.kyc-document-guide { position: absolute; top: 50%; left: 50%; width: 88%; aspect-ratio: 1.58; max-height: 86%; transform: translate(-50%, -50%); border: 2px solid rgb(255 255 255 / 85%); border-radius: calc(var(--kyc-shape-media) * .6); box-shadow: 0 0 0 300px var(--kyc-color-camera-overlay); transition: border-color calc(180ms * var(--kyc-motion-duration-scale)), filter calc(180ms * var(--kyc-motion-duration-scale)); }
+.kyc-document-guide { position: absolute; top: 50%; left: 50%; width: 88%; aspect-ratio: 1.58; max-height: 86%; transform: translate(-50%, -50%); border: 2px solid rgb(255 255 255 / 85%); border-radius: calc(var(--kyc-shape-media) * .6); box-shadow: 0 0 0 300px var(--kyc-color-camera-overlay); transition: border-color calc(350ms * var(--kyc-motion-duration-scale)) ease, filter calc(180ms * var(--kyc-motion-duration-scale)); }
 .kyc-document-guide[data-document-type="passport"] { aspect-ratio: 1.42; }
 .kyc-document-guide[data-state="adjust"] { border-color: var(--kyc-color-danger); }
 .kyc-document-guide[data-state="ready"] { border-color: var(--kyc-color-success); }
+.kyc-document-done-mark { display: grid; place-items: center; width: 112px; height: 112px; border-radius: 50%; background: var(--kyc-color-success); color: #fff; animation: kyc-done-pop calc(420ms * var(--kyc-motion-duration-scale)) var(--kyc-motion-press) both; }
+.kyc-document-done-mark svg { stroke-width: 2.6; }
+@keyframes kyc-done-pop { from { transform: scale(.6); opacity: 0; } }
 .kyc-document-auto-progress { position: absolute; bottom: 14px; left: 10%; right: 10%; height: 4px; overflow: hidden; border-radius: 4px; background: rgb(255 255 255 / 35%); }
 .kyc-document-auto-progress > span { display: block; height: 100%; background: var(--kyc-color-success); transition: width 100ms linear; }
 .kyc-document-camera-controls { position: absolute; top: 10px; right: 10px; z-index: 2; display: flex; gap: 8px; }

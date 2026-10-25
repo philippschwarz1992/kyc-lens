@@ -58,7 +58,7 @@ export const french: KycStrings = {
   documentSearching: 'Gardez les quatre coins dans le cadre.', documentOutside: 'Placez tout le document dans le cadre.', documentTooSmall: 'Rapprochez-vous un peu.',
   documentDark: 'Utilisez un éclairage plus vif et uniforme.', documentGlare: 'Inclinez légèrement pour éviter les reflets.', documentBlur: 'Restez immobile et laissez la caméra faire la mise au point.',
   documentHoldStill: 'Ne bougez plus…', documentReady: 'L’image est nette. Prenez votre photo.', documentGuidanceUnavailable: 'Gardez les quatre coins visibles. Vérifiez la photo après la capture.',
-  documentAutoHoldStill: 'Ne bougez plus… la photo est prise automatiquement.', documentAutoReady: 'Prise de la photo automatique…', documentAutoProgress: 'Capture photo automatique',
+  documentAutoHoldStill: 'Ne bougez plus… la photo est prise automatiquement.', documentAutoReady: 'Prise de la photo automatique…', documentAutoProgress: 'Capture photo automatique', documentFrontCaptured: 'Recto enregistré', documentBackCaptured: 'Verso enregistré', documentPageCaptured: 'Page photo enregistrée', documentTurnOver: 'Retournez maintenant votre document.', documentAllCaptured: 'Les photos de votre document sont prêtes.', documentSameSide: 'C’est le même côté. Retournez votre document.',
   uploadProgress: 'Téléversé à {percent} %',
   documentSwitchCamera: 'Changer de caméra', documentTorchOn: 'Allumer la lampe', documentTorchOff: 'Éteindre la lampe',
   documentCameraSwitchFailed: 'Impossible d’ouvrir cette caméra. Votre caméra précédente est rétablie.',

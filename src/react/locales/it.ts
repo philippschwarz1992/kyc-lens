@@ -58,7 +58,7 @@ export const italian: KycStrings = {
   documentSearching: 'Tieni tutti e quattro gli angoli nella cornice.', documentOutside: 'Sposta l’intero documento all’interno della cornice.', documentTooSmall: 'Avvicinati un po’.',
   documentDark: 'Usa una luce più intensa e uniforme.', documentGlare: 'Inclina leggermente per evitare i riflessi.', documentBlur: 'Resta fermo e lascia che la fotocamera metta a fuoco.',
   documentHoldStill: 'Resta fermo…', documentReady: 'L’immagine è nitida. Scatta la foto.', documentGuidanceUnavailable: 'Tieni visibili tutti e quattro gli angoli. Controlla la foto dopo lo scatto.',
-  documentAutoHoldStill: 'Resta fermo… la foto verrà scattata automaticamente.', documentAutoReady: 'Scatto automatico della foto…', documentAutoProgress: 'Scatto automatico',
+  documentAutoHoldStill: 'Resta fermo… la foto verrà scattata automaticamente.', documentAutoReady: 'Scatto automatico della foto…', documentAutoProgress: 'Scatto automatico', documentFrontCaptured: 'Fronte acquisito', documentBackCaptured: 'Retro acquisito', documentPageCaptured: 'Pagina con foto acquisita', documentTurnOver: 'Ora gira il documento.', documentAllCaptured: 'Le foto del documento sono pronte.', documentSameSide: 'È lo stesso lato. Gira il documento.',
   uploadProgress: 'Caricato {percent}%',
   documentSwitchCamera: 'Cambia fotocamera', documentTorchOn: 'Accendi la torcia', documentTorchOff: 'Spegni la torcia',
   documentCameraSwitchFailed: 'Impossibile aprire quella fotocamera. È di nuovo attiva quella precedente.',
