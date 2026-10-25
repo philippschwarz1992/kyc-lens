@@ -146,7 +146,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     const external: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => {
-      if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) external.push(request.url());
+      if (/^https?:/.test(request.url()) && !request.url().startsWith(`http://127.0.0.1:${process.env.E2E_PORT || 5173}`)) external.push(request.url());
     });
     await openDocumentCamera(page);
     await expectGuidance(page, 'ready');

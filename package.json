@@ -68,6 +68,8 @@
     "check:consumer": "node scripts/check-consumer.mjs",
     "check": "npm run typecheck && npm test && npm run build",
     "check:package": "node scripts/check-package.mjs",
+    "check:size": "node scripts/check-size.mjs",
+    "check:name": "node scripts/check-npm-name.mjs",
     "prepack": "npm run setup && npm run build"
   },
   "peerDependencies": {

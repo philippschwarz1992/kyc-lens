@@ -196,7 +196,8 @@ test('optional screens, German locale, retake and upload retry preserve the capt
   expect(attempts).toBe(2);
 });
 
-test('real worker initializes with local assets, runs on fake camera frames and cleans up after a camera frame error', async ({ page }) => {
+test('real worker initializes with local assets, runs on fake camera frames and cleans up after a camera frame error', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'WebKit has no fake camera device; this test needs native getUserMedia frames.');
   await installRecordingDiagnostics(page, true);
   await page.addInitScript(() => {
     const state = { failFrame: false, workerTerminated: false };
@@ -219,7 +220,7 @@ test('real worker initializes with local assets, runs on fake camera frames and 
   const errors: string[] = [];
   const external: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) external.push(request.url()); });
+  page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith(`http://127.0.0.1:${process.env.E2E_PORT || 5173}`)) external.push(request.url()); });
   await page.goto('/?document=0');
   let modelLoaded = false;
   page.on('response', response => { if (response.url().endsWith('/face_landmarker.task')) modelLoaded = response.ok(); });

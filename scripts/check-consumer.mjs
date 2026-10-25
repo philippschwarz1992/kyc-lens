@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { matchingModels } from './matching-assets.mjs';
@@ -38,8 +38,12 @@ for (const model of matchingModels) {
   assert.equal(createHash('sha256').update(bytes).digest('hex'), model.sha256);
 }
 for (const file of ['face-worker.js', 'document-worker.js', 'match-worker.js', 'matching/ort/ort-wasm-simd-threaded.mjs', 'matching/ort/ort-wasm-simd-threaded.wasm']) assert((await readFile(resolve(assets, file))).length > 0);
+const reduced = resolve(consumer, 'public/kyc-assets-no-matching');
+run([resolve(installed, 'scripts/copy-assets.mjs'), reduced, '--no-matching'], consumer);
+for (const file of ['face-worker.js', 'document-worker.js']) assert((await readFile(resolve(reduced, file))).length > 0);
+for (const file of ['match-worker.js', 'matching']) await assert.rejects(stat(resolve(reduced, file)), { code: 'ENOENT' });
 await writeFile(resolve(root, '.cache/consumer-check.json'), JSON.stringify({ package: `${pkg.name}@${pkg.version}`, react, reactDom,
   consumer, assets, tarball: resolve(root, '.cache', packed.filename), packedBytes: packed.size,
-  checks: ['fresh tarball installation', 'public ESM imports', 'SSR-safe comparison API', 'installed asset-copy CLI', 'bundled worker/runtime files', 'pinned model integrity'],
+  checks: ['fresh tarball installation', 'public ESM imports', 'SSR-safe comparison API', 'installed asset-copy CLI', 'asset-copy --no-matching','bundled worker/runtime files', 'pinned model integrity'],
   pending: ['complete capture in clean consumer browser', 'React 18 and Next.js matrix', 'physical device and held-out biometric evaluation'] }, null, 2));
 process.stdout.write(`Fresh consumer passed: ${pkg.name}@${pkg.version}, React ${react}, bundled assets intact.\nEvidence: .cache/consumer-check.json\n`);
