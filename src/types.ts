@@ -133,9 +133,10 @@ export interface KycFlowProps {
   assets?: AssetOptions;
   /** A registered theme id (`classic`, `aurora`, `ledger`, `pebble` or your own), a `defineTheme()` result, or quick overrides. */
   theme?: string | KycTheme | KycThemeDefinition;
-  /** Built-in English and German; other locales use custom strings. */
-  locale?: 'en' | 'de';
-  strings?: Partial<Record<string, string>>;
+  /** Built-in English, German, French, Spanish, Italian, Polish, and Turkish; also sets the `lang` attribute. */
+  locale?: 'en' | 'de' | 'fr' | 'es' | 'it' | 'pl' | 'tr';
+  /** Overrides individual built-in strings; keys are typed. */
+  strings?: Partial<import('./react/strings.js').KycStrings>;
   components?: Partial<Record<'Intro' | 'Review' | 'Result', ComponentType<KycScreenContext>>>;
   apiBaseUrl?: string;
   api?: KycApi;

@@ -31,7 +31,7 @@ All flow props are optional. The default steps are `['intro', 'face', 'review', 
 | `faceMatch.inconclusiveMargin` | `0.03` | 0–0.25; threshold ± margin must stay within [-1, 1]. |
 | `faceMatch.timeoutMs` | `45_000` | 1,000–120,000 ms, including model loading and inference. |
 | `assets.baseUrl` | `/kyc-assets` | Public URL for the self-hosted assets. |
-| `locale` | `en` | Built-in `en` or `de`, with individual `strings` overrides. |
+| `locale` | `en` | Built-in `en`, `de`, `fr`, `es`, `it`, `pl` or `tr`; also sets the `lang` attribute. Override individual keys with `strings`. |
 
 `theme` takes a registered theme id, a `defineTheme()` result or quick overrides; see [theming](./theming.md) for `builtInThemes`, `defineTheme`, `registerTheme`, `getTheme`, `listThemes`, `unregisterTheme`, `resolveTheme`, `themeVariables` and `themeCss`. Other props configure `components`, `apiBaseUrl`, `headers`, a custom `api`, callbacks, `simulation` and `className`. See the [README configuration table](../README.md#configure-the-flow). Configuration errors are displayed before camera access. Changing steps, document/face options, assets or simulation resets the flow; keep those settings stable during capture. Change the component's React `key` to explicitly start a fresh flow.
 
@@ -289,11 +289,16 @@ Simulation is off unless explicitly enabled by `simulation={true}`. It runs the 
 
 ## Copy and core exports
 
-Built-in copy is available in English and German. Override specific keys when adapting the flow to your product:
+Built-in copy is available in English (`en`), German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Polish (`pl`) and Turkish (`tr`). Every locale has the same keys. Override specific keys when adapting the flow to your product; overrides apply on top of the selected locale:
 
 ```tsx
-<KycFlow locale="en" strings={{ start: 'Begin selfie' }} />;
+import { KycFlow, type KycStrings } from 'kyc-lens-react';
+
+const copy: Partial<KycStrings> = { start: 'Commencer le selfie' };
+<KycFlow locale="fr" strings={copy} />;
 ```
+
+`KycStrings` maps every `KycStringKey` to a string, so misspelled override keys fail type checking.
 
 The framework-independent challenge runner is exported from `kyc-lens-react/core` along with `DEFAULT_CHALLENGES`, `MAX_OBSERVATION_GAP_MS`, `validateChallenges`, `validateFaceOptions`, `isCenteredFace`, `isNeutralFace` and observation/evidence types. These utilities describe local geometry guidance; they do not verify liveness or identity. `DEFAULT_CHALLENGES` is also exported from the main package.
 

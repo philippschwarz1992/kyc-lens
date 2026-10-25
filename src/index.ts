@@ -5,6 +5,7 @@ export { createHttpApi, KycHttpError } from './api.js';
 export { DEFAULT_CHALLENGES } from './core/challenges.js';
 export { compareFaces } from './matching/client.js';
 export { builtInThemes, defineTheme, getTheme, listThemes, registerTheme, resolveTheme, themeCss, themeVariables, unregisterTheme } from './themes.js';
+export type { KycLocale, KycStringKey, KycStrings } from './react/strings.js';
 export type { KycBuiltInThemeId, KycThemeDefinition, KycThemeInput, KycThemeTokenOverrides, KycThemeTokens } from './themes.js';
 export type { CompareFacesOptions, FaceMatchReason } from './matching/protocol.js';
 export type { AssetOptions, CapturePayload, CaptureResult, ChallengeEvidence, ChallengeFeedback, DocumentCapture, DocumentOptions, DocumentType, FaceChallenge, FaceMatchOptions, FaceMatchResult, FaceObservation, FaceOptions, KycApi, KycFlowProps, KycScreenContext, KycSession, KycStep, KycTheme } from './types.js';

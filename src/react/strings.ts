@@ -1,5 +1,11 @@
-export const english: Record<string, string> = {
-  brand: 'KYC KIT', secureCapture: 'Guided face capture', captureOnly: 'Your camera stops after capture',
+import { spanish } from './locales/es.js';
+import { french } from './locales/fr.js';
+import { italian } from './locales/it.js';
+import { polish } from './locales/pl.js';
+import { turkish } from './locales/tr.js';
+
+export const english = {
+  brand: 'KYC Lens', secureCapture: 'Guided face capture', captureOnly: 'Your camera stops after capture',
   introTitle: 'Take a quick selfie', introBody: 'Follow a few simple movements. Your capture starts automatically.',
   identityTitle: 'Verify your identity', identityBody: 'Photograph your document, then follow the face guide.', documentBegin: 'Choose document', back: 'Back',
   introEyebrow: 'LET’S GET YOU READY', goodLight: 'Find a well-lit space', goodLightBody: 'Face a light source and keep your face visible.',
@@ -57,10 +63,14 @@ export const english: Record<string, string> = {
   documentDark: 'Use brighter, even lighting.', documentGlare: 'Tilt slightly to avoid reflections.', documentBlur: 'Hold steady and let the camera focus.',
   documentHoldStill: 'Hold steady…', documentReady: 'Looks clear. Take your photo.', documentGuidanceUnavailable: 'Keep all four corners visible. Check the photo after capture.',
   documentAutoHoldStill: 'Hold steady… taking your photo automatically.', documentAutoReady: 'Taking your photo automatically…', documentAutoProgress: 'Automatic photo capture',
-};
+} satisfies Record<string, string>;
 
-const german: Record<string, string> = {
-  brand: 'KYC KIT', secureCapture: 'Geführte Gesichtsaufnahme', captureOnly: 'Ihre Kamera stoppt nach der Aufnahme',
+export type KycStringKey = keyof typeof english;
+export type KycStrings = Record<KycStringKey, string>;
+export type KycLocale = 'en' | 'de' | 'fr' | 'es' | 'it' | 'pl' | 'tr';
+
+const german: KycStrings = {
+  brand: 'KYC Lens', secureCapture: 'Geführte Gesichtsaufnahme', captureOnly: 'Ihre Kamera stoppt nach der Aufnahme',
   introTitle: 'Ein kurzes Selfie', introBody: 'Ein paar einfache Bewegungen für ein klares Foto.',
   identityTitle: 'Identität bestätigen', identityBody: 'Fotografieren Sie Ihr Dokument und nehmen Sie ein Selfie auf.', documentBegin: 'Dokument auswählen', back: 'Zurück',
   introEyebrow: 'BEREIT FÜR DIE AUFNAHME', goodLight: 'Einen gut beleuchteten Ort wählen', goodLightBody: 'Schauen Sie in Richtung einer Lichtquelle. Ihr Gesicht sollte gut sichtbar sein.',
@@ -120,8 +130,10 @@ const german: Record<string, string> = {
   documentAutoHoldStill: 'Ruhig halten… das Foto wird automatisch aufgenommen.', documentAutoReady: 'Das Foto wird automatisch aufgenommen…', documentAutoProgress: 'Automatische Fotoaufnahme',
 };
 
-export function getStrings(locale: 'en' | 'de' = 'en', overrides?: Partial<Record<string, string>>): Record<string, string> {
-  const result = { ...english, ...(locale === 'de' ? german : {}) };
+export const locales: Record<KycLocale, KycStrings> = { en: english, de: german, fr: french, es: spanish, it: italian, pl: polish, tr: turkish };
+
+export function getStrings(locale: KycLocale = 'en', overrides?: Partial<Record<string, string>>): KycStrings & Record<string, string> {
+  const result: KycStrings & Record<string, string> = { ...english, ...(locales[locale] ?? {}) };
   for (const [key, value] of Object.entries(overrides ?? {})) if (typeof value === 'string') result[key] = value;
   return result;
 }
