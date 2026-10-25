@@ -18,6 +18,7 @@ import { createEventReporter } from './events.js';
 import { FaceScreen } from './FaceScreen.js';
 import { createFlowMachine, DEFAULT_STEPS, validateFlowConfiguration } from './flow.js';
 import { Icon } from './Icons.js';
+import { prefersHandoff, validateHandoffOptions } from './Handoff.js';
 import { IntroScreen, ResultScreen, ReviewScreen } from './Screens.js';
 import { getStrings } from './strings.js';
 import { useScreenTransition } from './useScreenTransition.js';
@@ -56,7 +57,7 @@ export function KycFlow(props: KycFlowProps) {
       const timeout = props.faceMatch.timeoutMs ?? 45_000;
       if (!Number.isFinite(timeout) || timeout < 1_000 || timeout > 120_000) throw new Error('faceMatch.timeoutMs must be between 1000 and 120000.');
     }
-    validateOutputOptions(props.output); validateHttpApiOptions(props.upload);
+    validateOutputOptions(props.output); validateHttpApiOptions(props.upload); validateHandoffOptions(props.handoff);
     if (props.onEvent !== undefined && typeof props.onEvent !== 'function') throw new Error('onEvent must be a function.');
   }
   catch (error) { invalid = error instanceof Error ? error : new Error(String(error)); }
@@ -187,7 +188,11 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
     if (phase === 'review') { events.retake(); setCapture(null); setResult(undefined); send({ type: 'RETAKE' }); }
     else if (phase === 'error') { events.retry(state.context.errorStage); setError(null); send({ type: 'RETRY' }); }
   };
-  const context: KycScreenContext = { next: () => send({ type: 'NEXT' }), cancel, retry, result: result ?? (capture ? { status: 'capture_complete', payload: capture } : undefined), selfieUrl, videoUrl };
+  // Read the pointer type after mount, so server-rendered markup matches the first client render.
+  const [offerHandoff, setOfferHandoff] = useState(false);
+  useEffect(() => { setOfferHandoff(Boolean(props.handoff) && prefersHandoff(props.handoff?.show)); }, [props.handoff?.url, props.handoff?.show]);
+  const handoffUrl = offerHandoff ? props.handoff?.url : undefined;
+  const context: KycScreenContext = { next: () => send({ type: 'NEXT' }), cancel, retry, result: result ?? (capture ? { status: 'capture_complete', payload: capture } : undefined), selfieUrl, videoUrl, handoffUrl };
   const { Intro, Review, Result } = props.components ?? {};
   const { resolvedTheme } = props;
   const themeStyle = themeVariables(resolvedTheme) as CSSProperties;

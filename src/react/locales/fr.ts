@@ -62,4 +62,6 @@ export const french: KycStrings = {
   uploadProgress: 'Téléversé à {percent} %',
   documentSwitchCamera: 'Changer de caméra', documentTorchOn: 'Allumer la lampe', documentTorchOff: 'Éteindre la lampe',
   documentCameraSwitchFailed: 'Impossible d’ouvrir cette caméra. Votre caméra précédente est rétablie.',
+  handoffTitle: 'Continuer sur votre téléphone', handoffBody: 'Scannez ce code avec l’appareil photo de votre téléphone pour y prendre les photos. Il donne généralement de meilleurs résultats.',
+  handoffThisDevice: 'Utiliser cet appareil', handoffQrLabel: 'QR code pour continuer sur votre téléphone',
 };

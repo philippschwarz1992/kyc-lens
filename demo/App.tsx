@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { KycFlow } from '../src/index';
-import type { CaptureResult, FaceChallenge, KycLocale, KycStep } from '../src/index';
+import type { CaptureResult, FaceChallenge, KycLocale, KycStep, KycThemeDefinition } from '../src/index';
 
 const LOCALES: readonly [KycLocale, string][] = [['en', 'English'], ['de', 'Deutsch'], ['fr', 'Français'], ['es', 'Español'], ['it', 'Italiano'], ['pl', 'Polski'], ['tr', 'Türkçe']];
 import FaceWorkerUrl from '../src/camera/face.worker.ts?worker&url';
@@ -139,21 +139,78 @@ function Switch({ label, checked, onChange, description }: { label: string; chec
   </label>;
 }
 
+const HANDOFF_ID = /^[A-Za-z0-9_-]{22,64}$/;
+const handoffPollMs = 2_000;
+const handoffLifetimeMs = 15 * 60_000;
+
+function newHandoffId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(18));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// The Cloudflare deployment relays the phone's capture summary back to this page; the Vite dev server has no relay.
+async function handoffRelayAvailable(): Promise<boolean> {
+  try { const response = await fetch('/api/handoff', { cache: 'no-store' }); return response.ok && (await response.json() as { available?: unknown }).available === true; }
+  catch { return false; }
+}
+
+function ThemeBar({ themes, value, onChange }: { themes: readonly KycThemeDefinition[]; value: string; onChange: (id: string) => void }) {
+  return <div className="demo-theme-bar" role="radiogroup" aria-label="Theme">{themes.map(theme => <button key={theme.id} type="button" role="radio" aria-checked={value === theme.id} className={value === theme.id ? 'selected' : ''} onClick={() => onChange(theme.id)}>
+    <span className="demo-theme-swatch" style={{ '--swatch-bg': theme.tokens.color.background, '--swatch-primary': theme.tokens.color.primary, '--swatch-accent': theme.tokens.color.accent } as CSSProperties} aria-hidden="true" />{theme.name}
+  </button>)}</div>;
+}
+
 function PreviewPage() {
   const [config] = useState(initialConfig);
   // Custom themes live in this browser's storage, shared with the settings and studio pages.
-  const [theme] = useState(() => findTheme(config.theme) ?? findTheme('classic')!);
+  const [themes] = useState(() => allThemes());
+  const [themeId, setThemeId] = useState(() => findTheme(config.theme)?.id ?? 'classic');
+  const theme = themes.find(item => item.id === themeId) ?? findTheme('classic')!;
+  const [phoneHandoff] = useState(() => { const id = new URLSearchParams(window.location.search).get('handoff'); return id && HANDOFF_ID.test(id) ? id : null; });
+  const [handoff, setHandoff] = useState<{ id: string; url: string } | null>(null);
+  const [phoneSummary, setPhoneSummary] = useState<CaptureSummary | null>(null);
   useThemeFonts([theme]);
   useEffect(() => { document.title = 'KYC Lens — Identity capture'; }, []);
+  // A desktop preview offers a QR code that opens the same configuration on a phone.
+  useEffect(() => {
+    if (phoneHandoff) return;
+    let current = true;
+    void handoffRelayAvailable().then(available => {
+      if (!current || !available) return;
+      const id = newHandoffId();
+      setHandoff({ id, url: `${window.location.origin}/?config=${encodeURIComponent(JSON.stringify({ ...config, theme: themeId }))}&handoff=${id}` });
+    });
+    return () => { current = false; };
+  }, [phoneHandoff, themeId]);
+  useEffect(() => {
+    if (!handoff || phoneSummary) return;
+    const started = Date.now();
+    let current = true;
+    const timer = setInterval(() => {
+      if (Date.now() - started > handoffLifetimeMs) { clearInterval(timer); return; }
+      void fetch(`/api/handoff/${handoff.id}`, { cache: 'no-store' }).then(response => response.ok ? response.json() : null).then((data: { status?: string; summary?: CaptureSummary } | null) => {
+        if (!current || data?.status !== 'complete' || !data.summary) return;
+        clearInterval(timer); rememberSummary(data.summary); setPhoneSummary(data.summary);
+        try { const channel = new BroadcastChannel(summaryChannel); channel.postMessage(data.summary); channel.close(); } catch { /* Optional cross-tab convenience. */ }
+      }, () => {});
+    }, handoffPollMs);
+    return () => { current = false; clearInterval(timer); };
+  }, [handoff, phoneSummary]);
+  const complete = (capture: CaptureResult) => {
+    publishSummary(capture);
+    if (phoneHandoff) void fetch(`/api/handoff/${phoneHandoff}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(summaryFor(capture)) }).catch(() => {});
+  };
   return <main className="demo-preview-page" aria-label="Identity capture preview"><div className="demo-phone" data-testid="sdk-preview">
-    <KycFlow
+    <ThemeBar themes={themes} value={theme.id} onChange={setThemeId} />
+    {phoneSummary ? <section className="demo-handoff-done" aria-live="polite"><h2>Completed on your phone</h2><p>The phone sent its capture summary. Photos and video stay on the phone.</p><pre>{JSON.stringify(phoneSummary, null, 2)}</pre><a className="demo-primary-button" href={window.location.pathname + window.location.search}>Start again</a></section>
+      : <KycFlow
       steps={getSteps(config)} face={{ challenges: config.challenges, trackingFps: 15 }}
       document={{ autoCapture: config.documentAutoCapture, holdDurationMs: config.documentHoldDurationMs }} faceMatch={config.faceMatch ? {} : false}
-      theme={theme} locale={config.locale}
+      theme={theme} locale={config.locale} handoff={handoff ? { url: handoff.url } : undefined}
       assets={{ baseUrl: '/kyc-assets', workerUrl: FaceWorkerUrl, documentWorkerUrl: DocumentWorkerUrl, matchWorkerUrl: MatchWorkerUrl }}
       apiBaseUrl={config.upload ? '/api/kyc' : undefined} simulation={config.simulation}
-      onComplete={publishSummary}
-    />
+      onComplete={complete}
+    />}
   </div></main>;
 }
 

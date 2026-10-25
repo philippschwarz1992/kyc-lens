@@ -151,6 +151,13 @@ export interface KycApi {
   createSession: (signal: AbortSignal) => Promise<KycSession>;
   submitCapture: (session: KycSession, payload: CapturePayload, signal: AbortSignal) => Promise<unknown>;
 }
+/** Offer a QR code on the intro screen so the capture can continue on a phone. */
+export interface HandoffOptions {
+  /** Absolute http(s) URL the phone opens; the host binds it to its own session. */
+  url: string;
+  /** `desktop` (default) shows the code only on devices without a touch screen. */
+  show?: 'desktop' | 'always';
+}
 export interface KycScreenContext {
   next: () => void;
   cancel: () => void;
@@ -159,6 +166,8 @@ export interface KycScreenContext {
   selfieUrl?: string;
   /** Local object URL for reviewing the recorded video. Revoked on retake/unmount. */
   videoUrl?: string;
+  /** Set when the intro screen should offer the phone handoff QR code. */
+  handoffUrl?: string;
 }
 export interface KycFlowProps {
   steps?: readonly KycStep[];
@@ -187,6 +196,8 @@ export interface KycFlowProps {
   onError?: (error: Error) => void;
   /** Privacy-safe analytics events. Exceptions thrown by this callback are ignored. */
   onEvent?: (event: KycEvent) => void;
+  /** QR code on the intro screen to continue on a phone. Requires the intro step. */
+  handoff?: HandoffOptions;
   /** Explicit camera-free demo driver; never use this to evaluate identity. */
   simulation?: boolean;
   className?: string;

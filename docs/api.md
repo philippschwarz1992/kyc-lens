@@ -359,3 +359,13 @@ runner.reset();
 ```
 
 Timestamps must increase. A gap over `MAX_OBSERVATION_GAP_MS` (500 ms) interrupts a hold. Positive yaw means anatomical left; positive pitch means looking down. The core entry processes observations without camera access or React rendering; the package still declares React peer dependencies. Copy override keys are listed in [src/react/strings.ts](../src/react/strings.ts).
+
+## Phone handoff
+
+```tsx
+<KycFlow steps={['intro', 'document', 'face', 'review']} handoff={{ url: `https://example.com/kyc/phone?session=${sessionId}` }} />
+```
+
+With `handoff`, the intro screen on a device without a touch screen shows a QR code for `url` and a **Use this device instead** button. Set `show: 'always'` to offer it on every device. The flow needs the `intro` step for the code to appear.
+
+The package only displays the link. Your application owns the session behind it: authenticate the phone, give each link a short lifetime and a single use, and tell the desktop page when the phone finishes (for example by polling your API). Do not put tokens that grant broader account access in the URL, because QR codes are easy to photograph.

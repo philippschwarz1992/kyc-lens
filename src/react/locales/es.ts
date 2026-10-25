@@ -62,4 +62,6 @@ export const spanish: KycStrings = {
   uploadProgress: 'Subido {percent} %',
   documentSwitchCamera: 'Cambiar cámara', documentTorchOn: 'Encender linterna', documentTorchOff: 'Apagar linterna',
   documentCameraSwitchFailed: 'No se pudo abrir esa cámara. Se ha vuelto a activar la anterior.',
+  handoffTitle: 'Continúa en tu móvil', handoffBody: 'Escanea este código con la cámara del móvil para hacer las fotos allí. Suele dar mejores resultados.',
+  handoffThisDevice: 'Usar este dispositivo', handoffQrLabel: 'Código QR para continuar en tu móvil',
 };

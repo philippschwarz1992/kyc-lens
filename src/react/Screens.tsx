@@ -1,10 +1,16 @@
 import type { KycScreenContext } from '../types.js';
+import { HandoffQr } from './Handoff.js';
 import { Icon } from './Icons.js';
 import { Illustration } from './Illustrations.js';
 
 type ScreenProps = KycScreenContext & { strings: Record<string, string> };
 
-export function IntroScreen({ next, strings: s, hasDocument = false }: ScreenProps & { hasDocument?: boolean }) {
+export function IntroScreen({ next, strings: s, hasDocument = false, handoffUrl }: ScreenProps & { hasDocument?: boolean }) {
+  if (handoffUrl) return <div className="kyc-screen kyc-intro-screen kyc-handoff-screen">
+    <div className="kyc-screen-heading"><h2>{s.handoffTitle}</h2><p className="kyc-description">{s.handoffBody}</p></div>
+    <div className="kyc-media kyc-handoff-media"><HandoffQr url={handoffUrl} label={s.handoffQrLabel} /></div>
+    <div className="kyc-actions"><button type="button" className="kyc-button kyc-button-secondary" onClick={next}>{s.handoffThisDevice}</button></div>
+  </div>;
   return <div className="kyc-screen kyc-intro-screen">
     <div className="kyc-screen-heading"><h2>{hasDocument ? s.identityTitle : s.introTitle}</h2><p className="kyc-description">{hasDocument ? s.identityBody : s.introBody}</p></div>
     <div className="kyc-media"><Illustration kind={hasDocument ? 'identity' : 'selfie'} /></div>

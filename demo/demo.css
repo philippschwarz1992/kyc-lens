@@ -75,11 +75,25 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .demo-validation { font-size: 12px; line-height: 1.6; color: #c24135; margin: 12px 0 0; }
 .demo-clipboard-error { padding: 0 20px 16px; }
 .demo-settings-note { color: #697386; font-size: 11px; line-height: 1.6; text-align: center; max-width: 400px; margin: 24px auto 0; }
+.demo-preview-page { grid-template-columns: minmax(0, 1fr); }
+/* The theme bar floats outside the capture frame, so the frame keeps the SDK's centered geometry. */
+.demo-preview-page { position: relative; }
+.demo-theme-bar { position: absolute; z-index: 2; top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; max-width: calc(100% - 32px); }
+@media (min-width: 900px) { .demo-theme-bar { top: 50%; left: 24px; flex-direction: column; transform: translateY(-50%); } }
+.demo-theme-bar button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid #e6e9ef; border-radius: 999px; background: #fff; color: #4e586a; font: 500 12px/1 inherit; white-space: nowrap; cursor: pointer; }
+.demo-theme-bar button.selected { border-color: #2563eb; color: #1d4ed8; box-shadow: 0 0 0 1px #2563eb; }
+.demo-handoff-done { padding: 28px 24px; border-radius: 24px; background: #fff; box-shadow: 0 20px 60px rgba(15, 23, 42, .12); }
+.demo-handoff-done h2 { margin: 0 0 8px; font-size: 20px; }
+.demo-handoff-done p { margin: 0 0 16px; color: #697386; font-size: 13px; line-height: 1.6; }
+.demo-handoff-done pre { max-height: 320px; overflow: auto; padding: 12px; border-radius: 12px; background: #f6f8fb; font-size: 11px; }
 @media (max-width: 480px) {
   :root { background: #fff; }
   .demo-preview-page { height: 100svh; height: 100dvh; padding: 0; background: #fff; }
   .demo-phone { max-width: none; }
-  .demo-phone > .kyc-kit { max-width: none; height: 100svh; height: 100dvh; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+  /* The transparent top border reserves room for the theme bar inside the full-screen frame. */
+  .demo-phone > .kyc-kit { max-width: none; height: 100svh; height: 100dvh; min-height: 0; border: 0; border-top: 52px solid transparent; border-radius: 0; box-shadow: none; }
+  .demo-theme-bar { top: 0; left: 0; right: 0; transform: none; max-width: none; height: 52px; padding: 8px 12px; overflow-x: auto; }
+  .demo-handoff-done { border-radius: 0; min-height: 100dvh; padding-top: 72px; }
   .demo-settings-header { padding: 16px 20px 0; }
   .demo-settings-main { padding: 22px 16px 28px; }
   .demo-settings-title { padding: 0 4px; }
@@ -192,3 +206,4 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .studio-fields { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { .studio-notice, .studio-fields { animation: none; } .studio-theme-list button { transition: none; } }
+.demo-theme-bar .demo-theme-swatch { flex: 0 0 16px; width: 16px; height: 16px; border-radius: 5px; }

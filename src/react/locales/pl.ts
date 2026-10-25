@@ -62,4 +62,6 @@ export const polish: KycStrings = {
   uploadProgress: 'Przesłano {percent}%',
   documentSwitchCamera: 'Przełącz aparat', documentTorchOn: 'Włącz latarkę', documentTorchOff: 'Wyłącz latarkę',
   documentCameraSwitchFailed: 'Nie udało się otworzyć tego aparatu. Przywrócono poprzedni aparat.',
+  handoffTitle: 'Kontynuuj na telefonie', handoffBody: 'Zeskanuj ten kod aparatem telefonu, aby zrobić zdjęcia na nim. Zwykle daje to lepsze wyniki.',
+  handoffThisDevice: 'Użyj tego urządzenia', handoffQrLabel: 'Kod QR do kontynuowania na telefonie',
 };

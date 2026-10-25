@@ -199,3 +199,7 @@
   .kyc-button:active:not(:disabled) { transform: none; }
   .kyc-guide-dots, .kyc-direction-arrow { animation: none !important; }
 }
+.kyc-handoff-media { display: grid; place-items: center; container-type: size; }
+/* The code scales with the flexible media region, so the screen never scrolls on short viewports. */
+.kyc-handoff-qr { width: min(240px, 100cqw, 100cqh); height: auto; aspect-ratio: 1; padding: 10px; border-radius: var(--kyc-shape-media); background: #fff; box-shadow: 0 0 0 1px var(--kyc-color-line); }
+.kyc-handoff-qr.is-loading { background: var(--kyc-color-surface); }

@@ -6,7 +6,9 @@
     "directory": "../demo-dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/kyc-assets/matching/*"]
+    "run_worker_first": ["/kyc-assets/matching/*", "/api/handoff", "/api/handoff/*"]
   },
+  "durable_objects": { "bindings": [{ "name": "HANDOFF", "class_name": "HandoffRelay" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HandoffRelay"] }],
   "r2_buckets": [{ "binding": "LARGE_ASSETS", "bucket_name": "kyc-lens-demo-assets" }]
 }
