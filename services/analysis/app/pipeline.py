@@ -6,16 +6,18 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+import numpy as np
+
 from .config import Settings
 from .document import decode_image, measure_quality, rectify
 from .face import FaceModels
 from .liveness import InvalidVideo, SpoofModels, check_liveness, sample_frames
 from .mrz import DecodedMrz, mrz_fields
 from .ocr import read_lines, read_mrz, type_from_text
-from .schema import Document, DocumentType, FaceMatch, Liveness, Metadata, Mrz, MrzFields, VerificationResult
+from .schema import Document, DocumentType, FaceMatch, LiveFaceMatch, Liveness, Metadata, Mrz, MrzFields, VerificationResult
 
 # Reasons that reject outright; every other reason sends the capture to manual review.
-REJECTING = {"document-expired", "document-type-mismatch", "face-mismatch", "liveness-failed"}
+REJECTING = {"document-expired", "document-type-mismatch", "face-mismatch", "live-face-mismatch", "liveness-failed"}
 # Liveness failures that point at an attack rather than a poor recording.
 ATTACK_SIGNS = {"liveness-identity-mismatch", "liveness-no-motion", "liveness-spoof-suspected"}
 MRZ_TYPES: dict[str, DocumentType] = {"passport": "passport", "id-card": "id-card"}
@@ -87,15 +89,16 @@ class Analyzer:
                 break
         if portrait is None:
             reasons.append("document-face-not-found")
+        portrait_embedding = self.faces.embed(*portrait) if portrait is not None else None
         face_match = None
-        if portrait is not None and selfie_embedding is not None:
-            score = self.faces.similarity(self.faces.embed(*portrait), selfie_embedding)
+        if portrait_embedding is not None and selfie_embedding is not None:
+            score = self.faces.similarity(portrait_embedding, selfie_embedding)
             matched = score >= settings.face_match_threshold
             face_match = FaceMatch(score=round(score, 4), threshold=settings.face_match_threshold, decision="match" if matched else "no-match")
             if not matched:
                 reasons.append("face-mismatch")
 
-        liveness = None
+        liveness, live_face_match = None, None
         if uploads.face_video:
             try:
                 frames = sample_frames(uploads.face_video, settings.liveness_frames)
@@ -109,10 +112,22 @@ class Analyzer:
             if not check.passed:
                 reasons.append("liveness-failed" if ATTACK_SIGNS & set(check.failures) else "liveness-inconclusive")
                 reasons.extend(check.failures)
+            # The person in the video must also be the person on the document, not only the selfie's.
+            if portrait_embedding is not None and check.embeddings:
+                live_face_match = self._live_face_match(portrait_embedding, check.embeddings, settings.face_match_threshold)
+                if live_face_match.decision == "no-match":
+                    reasons.append("live-face-mismatch")
         elif settings.require_liveness:
             reasons.append("liveness-missing")
 
         status = "rejected" if REJECTING & set(reasons) else "review" if reasons else "approved"
         return VerificationResult(status=status, reasons=reasons,
                                   document=Document(type=detected, quality=quality, mrz=mrz, ocrText=ocr_text),
-                                  faceMatch=face_match, liveness=liveness)
+                                  faceMatch=face_match, liveFaceMatch=live_face_match, liveness=liveness)
+
+    def _live_face_match(self, portrait: np.ndarray, frames: list[np.ndarray], threshold: float) -> LiveFaceMatch:
+        """The median keeps one blurred or turned-away frame from deciding either way."""
+        scores = [self.faces.similarity(portrait, frame) for frame in frames]
+        score = float(np.median(scores))
+        return LiveFaceMatch(score=round(score, 4), threshold=threshold, decision="match" if score >= threshold else "no-match",
+                             framesCompared=len(scores), framesMatched=sum(value >= threshold for value in scores))

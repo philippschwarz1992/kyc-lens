@@ -69,6 +69,7 @@ def test_returns_a_verification_result(client):
     assert result.document.type == "passport"
     assert result.document.mrz.valid and result.document.mrz.fields.documentNumber == "L898902C3"
     assert result.faceMatch.decision == "match"
+    assert result.liveFaceMatch.decision == "match"
     assert result.liveness.decision == "fail"
     # The ICAO specimen expired in 2012 and the video is a still image.
     assert result.status == "rejected"

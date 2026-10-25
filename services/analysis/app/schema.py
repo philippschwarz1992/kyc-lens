@@ -77,6 +77,15 @@ class FaceMatch(BaseModel):
     decision: Literal["match", "no-match"]
 
 
+class LiveFaceMatch(BaseModel):
+    """The document portrait against the live face in the sampled video frames."""
+    score: float = Field(description="Median cosine similarity over the frames that show a face.")
+    threshold: float
+    decision: Literal["match", "no-match"]
+    framesCompared: int
+    framesMatched: int
+
+
 class Liveness(BaseModel):
     score: float = Field(description="Mean passive anti-spoofing real-face probability, 0–1.")
     decision: Literal["pass", "fail"]
@@ -88,5 +97,6 @@ class VerificationResult(BaseModel):
     status: Literal["approved", "review", "rejected"]
     reasons: list[str]
     document: Document
-    faceMatch: FaceMatch | None
+    faceMatch: FaceMatch | None = Field(description="The document portrait against the selfie.")
+    liveFaceMatch: LiveFaceMatch | None = Field(description="The document portrait against the face video.")
     liveness: Liveness | None
