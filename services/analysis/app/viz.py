@@ -20,18 +20,18 @@ FIELDS: tuple[Field, ...] = ("surname", "givenNames", "documentNumber", "nationa
                              "issueDate", "expiryDate")
 
 # Most specific first: a line is the label of the first field that matches it. OCR often drops spaces and
-# umlauts in small print ("Gltigbis"), so both are optional.
+# umlauts in small print ("Gltigbis", "Staatsangeh rigkeit"), so both are optional, and "rn" may read as "m".
 _LABELS: list[tuple[Field, re.Pattern[str]]] = [(field, re.compile(pattern)) for field, pattern in [
     ("givenNames", r"\b(GIVEN\s*NAMES?|VORNAMEN?|PRENOMS?|FORENAMES?|NOMBRES?)\b"),
     ("placeOfBirth", r"PLACE\s*OF\s*BIRTH|GEBURTSORT|LIEU\s*DE\s*NAISSANCE|LUGAR\s*DE\s*NACIMIENTO"),
     ("birthDate", r"DATE\s*OF\s*BIRTH|BIRTH\s*DATE|GEBURTSTAG|GEBURTSDATUM|DATE\s*DE\s*NAISSANCE|FECHA\s*DE\s*NACIMIENTO"),
-    ("expiryDate", r"DATE\s*OF\s*EXPIRY|EXPIRY\s*DATE|\bEXPIRES\b|VALID\s*UNTIL|G(UE|U)?LTIG\s*BIS|DATE\s*D\W?\s*EXPIRATION"),
+    ("expiryDate", r"DATE\s*OF\s*EXPIRY|EXPIRY\s*DATE|\bEXPIRES\b|VALID\s*UNTIL|G\W?(UE|U)?\W?LTIG\s*BIS|DATE\s*D\W?\s*EXPIRATION"),
     ("issueDate", r"DATE\s*OF\s*ISSUE|ISSUE\s*DATE|AUSSTELLUNGSDATUM|DATE\s*DE\s*DELIVRANCE"),
     ("documentNumber", r"PASSPORT\s*N(O|R|UMBER)\b|PASS\s*-?\s*NR|DOCUMENT\s*N(O|UMBER)\b|CARD\s*N(O|UMBER)\b|AUSWEIS\s*-?\s*N(R|UMMER)"
                        r"|\bN\W?\s*DU\s*PASSEPORT|LICEN[CS]E\s*N(O|UMBER)\b"),
-    ("nationality", r"NATIONALIT(Y|E|AET)?|STAATSANGEH(OE|O)?RIGKEIT|NACIONALIDAD"),
+    ("nationality", r"NATIONALIT(Y|E|AET)?|STAATSANGEH\W?(OE|O)?\W?RIGKEIT|NACIONALIDAD"),
     ("sex", r"\b(SEX|SEXE|GESCHLECHT|SEXO)\b"),
-    ("surname", r"\b(SURNAME|NAME|NOM|FAMILIENNAME|APELLIDOS?|COGNOME)\b"),
+    ("surname", r"\b(SU(RN|M)AME|NAME|NOM(\s*DE\s*FAMILLE|\s*D\W?\s*USAGE)?|FAMILIENNAME|APELLIDOS?|COGNOME)\b"),
 ]]
 # EU driving licence field numbers (Directive 2006/126/EC, annex I).
 _LICENCE_LABELS: list[tuple[Field, re.Pattern[str]]] = [(field, re.compile(rf"^\s*{number}[.,]\s*")) for field, number in [
@@ -92,8 +92,12 @@ def _label(line: OcrLine, licence: bool) -> tuple[Field, str] | None:
             return field, folded[match.end():].strip(" .,:;/")
     for field, pattern in _LABELS:
         if pattern.search(folded):
-            # Multilingual labels ("Name/Surname/Nom") are removed as a whole; what remains is an inline value.
-            return field, _ANY_LABEL.sub(" ", folded).strip(" .,:;/")
+            # Multilingual labels ("Name/Surname/Nom") are removed as a whole; what remains is an inline value. A
+            # lone word between slashes is a translation the patterns do not know (or misread), not a value.
+            segments = folded.split("/")
+            rest = [_ANY_LABEL.sub(" ", segment) for segment in segments
+                    if len(segments) == 1 or _ANY_LABEL.search(segment) or len(segment.split()) > 1]
+            return field, " ".join(rest).strip(" .,:;/")
     return None
 
 

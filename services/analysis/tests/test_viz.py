@@ -10,7 +10,7 @@ from app.ocr import OcrLine, read_boxes
 from app.pipeline import Uploads
 from app.schema import Metadata
 from app.viz import mismatches, parse_date, read_printed_fields
-from tests.fixtures import SPECIMEN_PRINTED, face, licence_photo, passport_photo
+from tests.fixtures import SPECIMEN_PRINTED, booklet_photo, face, licence_photo, passport_photo
 
 SPECIMEN = {"surname": "ERIKSSON", "givenNames": "ANNA MARIA", "documentNumber": "L898902C3", "nationality": "UTOPIAN",
             "birthDate": "1974-08-12", "placeOfBirth": "ZENITH", "sex": "F", "issueDate": "2007-04-16",
@@ -48,6 +48,14 @@ def test_reads_inline_and_beside_values_and_folds_umlauts():
              line("Geburtstag", 0, 100), line("01.02.1990", 200, 100), line("Gültig bis 31.12.2031", 0, 150)]
     assert read_printed_fields(lines) == {"surname": "MUELLER", "givenNames": "JOERG", "birthDate": "1990-02-01",
                                           "expiryDate": "2031-12-31"}
+
+
+@pytest.mark.parametrize("label", ["Sumame/Name", "Nationality/Staatsangeh rigkeit", "Familienname/Surname/Nom de famille",
+                                   "Date of expiry/Gltig bis"])
+def test_misread_or_unknown_label_translations_are_not_values(label):
+    # "rn" read as "m", a dropped umlaut, a French label: the value is still the line below.
+    fields = read_printed_fields([line(label, 0, 0), line("15 APR 2012" if "expiry" in label else "UTOPIAN", 0, 22)])
+    assert list(fields.values()) == ["2012-04-15" if "expiry" in label else "UTOPIAN"]
 
 
 def test_a_label_without_a_value_stays_empty():
@@ -102,3 +110,13 @@ def test_a_licence_without_a_zone_uses_the_printed_expiry(analyzer):
     assert (current.status, current.reasons) == ("approved", [])
     expired = analyzer.analyze(Uploads(licence_photo(), face("collins-portrait.jpg"), metadata), NO_LIVENESS, today=date(2028, 6, 1))
     assert (expired.status, expired.reasons) == ("review", ["printed-expiry-passed"])
+
+
+def test_reads_an_open_booklet_held_upright(analyzer):
+    """The SDK uploads the whole booklet when a passport is held upright: visa page on top, data page below."""
+    result = analyzer.analyze(Uploads(booklet_photo(), face("collins-portrait.jpg"), Metadata.model_validate({"document": {"type": "passport"}})),
+                              NO_LIVENESS, today=date(2011, 1, 1))
+    assert result.document.mrz.valid and result.document.type == "passport"
+    assert result.faceMatch.decision == "match"
+    assert result.document.printedFields.model_dump() == SPECIMEN
+    assert (result.status, result.reasons) == ("approved", [])

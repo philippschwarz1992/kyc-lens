@@ -5,7 +5,7 @@ import pytest
 from app.config import get_settings
 from app.document import decode_image, measure_quality, rectify
 from app.mrz import summarize_mrz
-from app.ocr import read_lines, read_mrz, type_from_text
+from app.ocr import read_lines, read_mrz, read_side, type_from_text
 from app.pipeline import Uploads
 from app.schema import Metadata
 from tests.fixtures import encode, face, mrz_fixture, passport_photo
@@ -22,10 +22,23 @@ def test_reads_the_zone_from_the_photographed_specimen(name):
     assert decoded.summary.valid
 
 
-def test_reads_an_upside_down_zone():
+@pytest.mark.parametrize("rotation", [cv2.ROTATE_180, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE])
+def test_turns_the_document_upright(rotation):
     fixture = mrz_fixture("mrz-td3")
-    document, _ = rectify(cv2.rotate(decode_image(encode(fixture["image"])), cv2.ROTATE_180))
-    assert read_mrz(document, read_lines(document)).lines == fixture["lines"]
+    document, _ = rectify(cv2.rotate(decode_image(encode(fixture["image"])), rotation))
+    read = read_side(document)
+    assert read.mrz.lines == fixture["lines"]
+    assert read.image.shape[1] > read.image.shape[0]  # The data page is landscape once upright.
+
+
+def test_keeps_an_upright_booklet_upright():
+    from tests.fixtures import booklet_photo
+
+    document, rectified = rectify(decode_image(booklet_photo()))
+    assert rectified and document.shape[0] > document.shape[1]
+    read = read_side(document)
+    assert read.image is document
+    assert read.mrz.summary.valid
 
 
 def test_finds_no_zone_on_a_blank_page():

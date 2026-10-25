@@ -13,7 +13,7 @@ from .document import decode_image, measure_quality, rectify
 from .face import FaceModels
 from .liveness import InvalidVideo, SpoofModels, check_liveness, sample_frames
 from .mrz import DecodedMrz, mrz_fields
-from .ocr import read_boxes, read_mrz, type_from_text
+from .ocr import read_side, type_from_text
 from .schema import (Document, DocumentType, FaceMatch, LiveFaceMatch, Liveness, Metadata, Mrz, MrzFields, PrintedFields,
                      VerificationResult)
 from .viz import mismatches, read_printed_fields, respace
@@ -51,13 +51,15 @@ class Analyzer:
         quality = measure_quality(front, front_flat, settings)
         if not quality.acceptable or any(not measure_quality(image, flat, settings).acceptable for image, flat in sides[1:]):
             reasons.append("document-quality-poor")
-        boxes = [read_boxes(image) for image, _ in sides]
-        texts = [[(line.text, line.score) for line in side] for side in boxes]
-        ocr_text = "\n".join(text for lines in texts for text, _ in lines) or None
+        declared = uploads.metadata.document.type if uploads.metadata.document else None
+        # Each side turned upright; everything after this reads the upright images.
+        reads = [read_side(image, expect_mrz=declared != "drivers-license") for image, _ in sides]
+        boxes = [read.lines for read in reads]
+        ocr_text = "\n".join(line.text for side in boxes for line in side) or None
 
         decoded: DecodedMrz | None = None
-        for (image, _), lines in zip(sides, texts):
-            candidate = read_mrz(image, lines)
+        for read in reads:
+            candidate = read.mrz
             if candidate is not None and (decoded is None or (candidate.summary.valid, candidate.confidence) > (decoded.summary.valid, decoded.confidence)):
                 decoded = candidate
         mrz = None
@@ -71,7 +73,6 @@ class Analyzer:
 
         detected = MRZ_TYPES.get(mrz.kind) if mrz is not None and mrz.valid else None
         detected = detected or type_from_text(ocr_text or "")
-        declared = uploads.metadata.document.type if uploads.metadata.document else None
         if declared and detected and declared != detected:
             reasons.append("document-type-mismatch")
         if detected is None:
@@ -101,8 +102,8 @@ class Analyzer:
         if selfie_embedding is None:
             reasons.append("selfie-face-not-found")
         portrait = None
-        for image, _ in sides:
-            portrait = self.faces.document_portrait(image)
+        for read in reads:
+            portrait = self.faces.document_portrait(read.image)
             if portrait is not None:
                 break
         if portrait is None:
