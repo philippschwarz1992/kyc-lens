@@ -83,7 +83,7 @@ jobs:
         with:
           name: ${{ matrix.browser }}-test-reports
           path: |
-            playwright-report/
-            test-results/
+            apps/playground/playwright-report/
+            apps/playground/test-results/
           if-no-files-found: ignore
           retention-days: 7
