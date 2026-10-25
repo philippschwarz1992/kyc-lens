@@ -68,10 +68,9 @@ def rectify(image: np.ndarray) -> tuple[np.ndarray, bool]:
     if width < 100 or height < 60:
         return image, False
     target = np.float32([[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]])
-    flat = cv2.warpPerspective(image, cv2.getPerspectiveTransform(corners, target), (width, height), flags=cv2.INTER_CUBIC)
-    if height > width:  # Documents are landscape; a portrait outline is a document photographed sideways.
-        flat = cv2.rotate(flat, cv2.ROTATE_90_CLOCKWISE)
-    return flat, True
+    # The outline's shape does not say which way up the document is: an open passport held upright is portrait.
+    # ocr.read_side turns it upright.
+    return cv2.warpPerspective(image, cv2.getPerspectiveTransform(corners, target), (width, height), flags=cv2.INTER_CUBIC), True
 
 
 def measure_quality(document: np.ndarray, rectified: bool, settings: Settings) -> Quality:

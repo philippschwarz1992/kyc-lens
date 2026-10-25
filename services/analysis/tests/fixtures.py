@@ -97,3 +97,19 @@ def licence_photo(portrait: str = "astronaut.png") -> bytes:
         face = source.convert("RGB").crop((130, 10, 320, 240)).resize((250, 303), Image.LANCZOS)
     photo.paste(face, (140, 240))
     return encode(photo, "JPEG")
+
+
+def booklet_photo(portrait: str = "astronaut.png") -> bytes:
+    """
+    An open passport held upright, as the SDK uploads it (about 125:176): an empty visa page on top and the data
+    page from passport_photo() at the bottom, photographed on a dark table, as JPEG.
+    """
+    with Image.open(io.BytesIO(passport_photo(portrait))) as source:
+        page = source.convert("RGB").crop((70, 106, 1050, 800))  # The data page inside the TD3 photo.
+    width, height = page.size
+    photo = Image.new("RGB", (width + 160, 2 * height + 180), (40, 42, 46))
+    draw = ImageDraw.Draw(photo)
+    draw.rectangle((80, 80, 80 + width, 80 + height), fill=(226, 222, 210))
+    draw.text((80 + width // 2 - 60, 80 + height // 2), "VISAS", fill=(150, 140, 120), font=ImageFont.load_default(size=40))
+    photo.paste(page, (80, 80 + height + 4))
+    return encode(photo, "JPEG")

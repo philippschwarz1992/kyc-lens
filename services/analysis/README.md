@@ -77,7 +77,10 @@ The response is a `VerificationResult` (pydantic models in [`app/schema.py`](app
 ## Pipeline
 
 1. **Document.** Pillow decodes the photo (EXIF orientation applied, at most 2400 px). OpenCV finds the largest
-   four-cornered contour and flattens it; without one the full photo is used. Quality is measured at 1000 px
+   four-cornered contour and flattens it; without one the full photo is used. The shape says nothing about which
+   way up the document is (a card is landscape, an open passport held upright is portrait, with its data page as
+   the lower half), so the photo is read in up to four rotations until one shows a valid zone with horizontal text,
+   or, without a zone, a document-type keyword. OCR, printed fields and the portrait all use that upright view. Quality is measured at 1000 px
    width: variance of the Laplacian (blur), share of near-white pixels (glare) and mean grey level (brightness).
 2. **Text and MRZ.** RapidOCR (PP-OCRv4 ONNX models) reads the page. The zone is looked for in those lines, then
    in the sharpened bottom band, then in the band turned upside down. [`app/mrz.py`](app/mrz.py) ports the SDK's
