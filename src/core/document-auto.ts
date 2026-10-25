@@ -51,3 +51,49 @@ export function createDocumentHold(holdDurationMs = 0) {
     },
   };
 }
+
+/**
+ * Keeps on-screen guidance readable. A new message must persist for `settleMs` and the current one
+ * stays for at least `dwellMs`, so frame-to-frame detector noise does not flash text or colors.
+ * `immediate` values (good news, failures that need action) replace the current message at once.
+ */
+export function createSteadyFeedback<T>({ settleMs = 700, dwellMs = 2000, immediate = () => false }: {
+  settleMs?: number; dwellMs?: number; immediate?: (value: T) => boolean;
+} = {}) {
+  let shown: { value: T; since: number } | undefined;
+  let pending: { value: T; since: number } | undefined;
+  return {
+    /** Returns the value to display at `now` and, if a change is pending, when to ask again. */
+    update(value: T, now: number): { value: T; recheckMs?: number } {
+      if (!shown || Object.is(value, shown.value) || immediate(value)) {
+        if (!shown || !Object.is(value, shown.value)) shown = { value, since: now };
+        pending = undefined;
+        return { value: shown.value };
+      }
+      if (!pending || !Object.is(pending.value, value)) pending = { value, since: now };
+      const due = Math.max(pending.since + settleMs, shown.since + dwellMs);
+      if (now >= due) { shown = { value, since: now }; pending = undefined; return { value }; }
+      return { value: shown.value, recheckMs: due - now };
+    },
+  };
+}
+
+/** Pearson correlation of two equally sized grayscale thumbnails; 1 means the same picture. */
+export function thumbnailSimilarity(a: ArrayLike<number>, b: ArrayLike<number>): number {
+  if (a.length !== b.length || a.length < 2) return 0;
+  let meanA = 0, meanB = 0;
+  for (let i = 0; i < a.length; i++) { meanA += a[i]!; meanB += b[i]!; }
+  meanA /= a.length; meanB /= b.length;
+  let covariance = 0, varianceA = 0, varianceB = 0;
+  for (let i = 0; i < a.length; i++) {
+    const da = a[i]! - meanA, db = b[i]! - meanB;
+    covariance += da * db; varianceA += da * da; varianceB += db * db;
+  }
+  return varianceA && varianceB ? covariance / Math.sqrt(varianceA * varianceB) : 0;
+}
+
+/** Whether `next` shows the same side as `previous`, including a side turned upside down. */
+export function sameDocumentSide(previous: ArrayLike<number>, next: ArrayLike<number>, threshold = 0.88): boolean {
+  const rotated = Array.from(next).reverse();
+  return Math.max(thumbnailSimilarity(previous, next), thumbnailSimilarity(previous, rotated)) >= threshold;
+}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { playPreview } from '../camera/playback.js';
 import type { AssetOptions, DocumentOptions, DocumentType, OutputOptions } from '../types.js';
 import { analyzeDocument, type DocumentDetectionReason } from '../core/document.js';
-import { createDocumentHold } from '../core/document-auto.js';
+import { createDocumentHold, sameDocumentSide } from '../core/document-auto.js';
 import { createDocumentTracker } from '../camera/document-tracker.js';
 import { documentCropRect, documentPreviewGeometry, type SourceRect } from '../camera/document-preview.js';
 import type { DocumentGuide } from '../core/document.js';
@@ -11,7 +11,7 @@ import { encodeCanvas, scaledSize } from '../camera/output.js';
 
 export type DocumentCameraStatus = 'idle' | 'requesting' | 'ready' | 'capturing';
 export type DocumentSide = 'front' | 'back';
-export type DocumentGuideFeedback = DocumentDetectionReason | 'hold-still' | 'unavailable' | 'off';
+export type DocumentGuideFeedback = DocumentDetectionReason | 'hold-still' | 'unavailable' | 'off' | 'turn-over' | 'same-side';
 export type DocumentCameraNotice = 'cameraSwitchFailed' | 'tapToStart';
 
 function captureError(message: string): Error {
@@ -49,6 +49,25 @@ async function snapshot(video: HTMLVideoElement, output?: OutputOptions, rect?: 
   if (!context) return Promise.reject(captureError('documentCaptureFailed'));
   context.drawImage(video, area.x, area.y, area.width, area.height, 0, 0, size.width, size.height);
   return encodePhoto(canvas, output);
+}
+
+/** Time the user has to turn the document over before the back side may be photographed. */
+const TURN_OVER_MS = 1800;
+
+/** A small grayscale thumbnail of the photo's center, for telling the two document sides apart. */
+async function thumbnail(photo: Blob): Promise<Float32Array> {
+  const bitmap = await createImageBitmap(photo);
+  try {
+    const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 20;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) throw captureError('documentCaptureFailed');
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(bitmap, bitmap.width * 0.1, bitmap.height * 0.1, bitmap.width * 0.8, bitmap.height * 0.8, 0, 0, 32, 20);
+    const { data } = context.getImageData(0, 0, 32, 20);
+    const gray = new Float32Array(32 * 20);
+    for (let i = 0; i < gray.length; i++) gray[i] = data[i * 4]! * 0.299 + data[i * 4 + 1]! * 0.587 + data[i * 4 + 2]! * 0.114;
+    return gray;
+  } finally { bitmap.close(); }
 }
 
 /** Decode and assess the delivered photo, using the same visible crop and document interior as the guide. */
@@ -156,15 +175,21 @@ function waitForFrame(video: HTMLVideoElement, signal: AbortSignal): Promise<voi
   });
 }
 
-/** Rear-camera photographs with a quality-gated automatic shutter and manual fallback. */
-export function useDocumentCapture({ options, assets, type, side = 'front', simulation, output, onCapture, onFailure }: {
+/**
+ * Rear-camera photographs with a quality-gated automatic shutter and manual fallback.
+ * `otherSide` is the already accepted photo of the other side: the automatic shutter waits for the
+ * document to be turned over and refuses a photo that shows that same side again.
+ */
+export function useDocumentCapture({ options, assets, type, side = 'front', otherSide, simulation, output, onCapture, onFailure }: {
   options: DocumentOptions;
   assets: AssetOptions;
   type: DocumentType;
   side?: DocumentSide;
+  otherSide?: Blob | null;
   simulation: boolean;
   output?: OutputOptions;
-  onCapture: (photo: Blob) => void;
+  /** `automatic` photos have passed the encoded-photo quality recheck; manual ones have not been checked. */
+  onCapture: (photo: Blob, automatic: boolean) => void;
   onFailure: (error: Error) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -180,9 +205,12 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
   const generation = useRef(0);
   const mounted = useRef(true);
   const statusRef = useRef<DocumentCameraStatus>('idle');
-  const configuration = useRef({ options, assets, type, side, simulation, output });
+  const configuration = useRef({ options, assets, type, side, otherSide, simulation, output });
   const callbacks = useRef({ onCapture, onFailure });
-  configuration.current = { options, assets, type, side, simulation, output };
+  configuration.current = { options, assets, type, side, otherSide, simulation, output };
+  // Until this time the shutter stays closed and the guidance asks the user to turn the document.
+  const turnOver = useRef<{ until: number; reason: 'turn-over' | 'same-side' }>({ until: 0, reason: 'turn-over' });
+  const otherThumbnail = useRef<{ photo: Blob; gray: Promise<Float32Array> } | null>(null);
   callbacks.current = { onCapture, onFailure };
   const [status, setStatus] = useState<DocumentCameraStatus>('idle');
   const [feedback, setFeedback] = useState<DocumentGuideFeedback>('searching');
@@ -278,6 +306,7 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
       if (!mounted.current || generation.current !== attempt) return;
       updateStatus('ready');
       if (settings.options.detection === false) { setFeedback('off'); return; }
+      turnOver.current = { until: settings.otherSide ? performance.now() + TURN_OVER_MS : 0, reason: 'turn-over' };
       const guide = guideRef.current;
       if (!guide) { setFeedback('unavailable'); return; }
       const currentAttempt = () => mounted.current && generation.current === attempt && statusRef.current === 'ready';
@@ -304,9 +333,10 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
             const geometry = documentPreviewGeometry(video, guide);
             const result = holdRef.current.observe(document.hidden ? { reason: 'searching' } : detection,
               timestamp, now, geometry?.key ?? '');
-            setFeedback(result.feedback); setProgress(result.progress);
+            const turning = now < turnOver.current.until;
+            setFeedback(turning ? turnOver.current.reason : result.feedback); setProgress(turning ? 0 : result.progress);
             holdTimer.current = setTimeout(resetHold, Math.max(0, 1000 - (now - timestamp)));
-            if (result.capture && configuration.current.options.autoCapture !== false) automaticCapture.current();
+            if (result.capture && !turning && configuration.current.options.autoCapture !== false) automaticCapture.current();
           },
           onError: () => {
             if (!mounted.current || generation.current !== attempt) return;
@@ -392,8 +422,18 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
           setFeedback(guidanceAvailable.current ? detection.reason === 'ready' ? 'searching' : detection.reason : 'unavailable');
           updateStatus('ready'); return;
         }
+        const previous = configuration.current.otherSide;
+        if (previous) {
+          if (otherThumbnail.current?.photo !== previous) otherThumbnail.current = { photo: previous, gray: thumbnail(previous) };
+          const [before, after] = await Promise.all([otherThumbnail.current.gray, thumbnail(photo)]);
+          if (!mounted.current || generation.current !== attempt) return;
+          if (sameDocumentSide(before, after)) {
+            turnOver.current = { until: performance.now() + TURN_OVER_MS, reason: 'same-side' };
+            setFeedback('same-side'); updateStatus('ready'); return;
+          }
+        }
       }
-      stop(); callbacks.current.onCapture(photo);
+      stop(); callbacks.current.onCapture(photo, automatic);
     } catch (failure) { fail(failure, attempt); }
   }, [fail, stop, updateStatus]);
 

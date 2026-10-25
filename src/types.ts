@@ -13,6 +13,8 @@ export interface DocumentOptions {
   detection?: boolean;
   /** Automatically capture a clear document. Default: true. A manual shutter appears only when live analysis is unavailable. */
   autoCapture?: boolean;
+  /** Show each automatically captured photo for confirmation before continuing. Default: false: a photo that passed the quality check moves straight on. */
+  confirmPhotos?: boolean;
   /** Required stable document hold in milliseconds. Default: 0 (capture on the first clear frame); range: 0–10000. */
   holdDurationMs?: number;
   /** Show a Switch camera control when more than one camera is available. Default: true. */

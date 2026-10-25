@@ -144,6 +144,7 @@ For Next.js, render `KycFlow` in a Client Component and import the stylesheet in
 | `face.trackingFps` | Target tracking frequency, 3–30 fps; default 12 |
 | `document.detection` | Defaults to `true`; use `false` for a neutral manual-capture guide |
 | `document.autoCapture` | Defaults to `true` (no Take photo button); use `false` for a manual shutter |
+| `document.confirmPhotos` | Defaults to `false`: a photo that passed the automatic check skips the review screen; `true` always shows it |
 | `document.holdDurationMs` | Stable document hold before the automatic shutter, 0–10,000 ms; default 0 (first clear frame) |
 | `faceMatch` | Enabled when a document is present; `false` disables comparison; options set threshold, inconclusive margin and timeout |
 | `face.camera`, `document.camera` | Override browser camera constraints |

@@ -262,7 +262,7 @@ export function analyzeDocument({ data, width, height, guide, type }: DocumentIn
   const toleranceX = Math.max(1.5 / width, guide.width * 0.03), toleranceY = Math.max(1.5 / height, guide.height * 0.03);
   if (clipped || normalized.some((point) => point.x < guide.x - toleranceX || point.x > guide.x + guide.width + toleranceX
     || point.y < guide.y - toleranceY || point.y > guide.y + guide.height + toleranceY)) return { reason: 'outside', corners: normalized };
-  if (area < guideArea * 0.4) return { reason: 'too-small', corners: normalized };
+  if (area < guideArea * 0.28) return { reason: 'too-small', corners: normalized };
   const metrics = quality(data, gray, magnitude, corners, width, height, support)!;
   const reason: DocumentDetectionReason = metrics.brightness < 55 ? 'dark' : metrics.clippedFraction > 0.16 ? 'glare'
     : metrics.sharpness < 38 || metrics.detailFraction < 0.016 ? 'blur' : 'ready';

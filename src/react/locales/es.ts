@@ -58,7 +58,7 @@ export const spanish: KycStrings = {
   documentSearching: 'Mantén las cuatro esquinas dentro del marco.', documentOutside: 'Coloca todo el documento dentro del marco.', documentTooSmall: 'Acércate un poco.',
   documentDark: 'Usa una luz más intensa y uniforme.', documentGlare: 'Inclínalo un poco para evitar reflejos.', documentBlur: 'Mantén el pulso firme y deja que la cámara enfoque.',
   documentHoldStill: 'No te muevas…', documentReady: 'Se ve nítido. Haz la foto.', documentGuidanceUnavailable: 'Mantén visibles las cuatro esquinas. Revisa la foto después de hacerla.',
-  documentAutoHoldStill: 'No te muevas… la foto se toma automáticamente.', documentAutoReady: 'Tomando la foto automáticamente…', documentAutoProgress: 'Captura automática de foto',
+  documentAutoHoldStill: 'No te muevas… la foto se toma automáticamente.', documentAutoReady: 'Tomando la foto automáticamente…', documentAutoProgress: 'Captura automática de foto', documentFrontCaptured: 'Anverso capturado', documentBackCaptured: 'Reverso capturado', documentPageCaptured: 'Página de datos capturada', documentTurnOver: 'Ahora dale la vuelta a tu documento.', documentAllCaptured: 'Las fotos de tu documento están listas.', documentSameSide: 'Es la misma cara. Dale la vuelta a tu documento.',
   uploadProgress: 'Subido {percent} %',
   documentSwitchCamera: 'Cambiar cámara', documentTorchOn: 'Encender linterna', documentTorchOff: 'Apagar linterna',
   documentCameraSwitchFailed: 'No se pudo abrir esa cámara. Se ha vuelto a activar la anterior.',

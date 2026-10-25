@@ -51,6 +51,7 @@ export function KycFlow(props: KycFlowProps) {
     }
     if (props.document?.detection !== undefined && typeof props.document.detection !== 'boolean') throw new Error('document.detection must be true or false.');
     if (props.document?.autoCapture !== undefined && typeof props.document.autoCapture !== 'boolean') throw new Error('document.autoCapture must be true or false.');
+    if (props.document?.confirmPhotos !== undefined && typeof props.document.confirmPhotos !== 'boolean') throw new Error('document.confirmPhotos must be true or false.');
     validateDocumentCameraOptions(props.document);
     if (props.document?.holdDurationMs !== undefined && (!Number.isFinite(props.document.holdDurationMs) || props.document.holdDurationMs < 0 || props.document.holdDurationMs > 10_000)) throw new Error('document.holdDurationMs must be between 0 and 10000.');
     if (props.faceMatch !== false && props.faceMatch !== undefined) {

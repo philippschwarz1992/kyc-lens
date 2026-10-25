@@ -25,6 +25,7 @@ All flow props are optional. The default steps are `['intro', 'face', 'review', 
 | `document.camera` | Rear camera, ideal 1920×1080 | `MediaTrackConstraints` merged over the defaults. |
 | `document.detection` | `true` | Local guidance; `false` uses a neutral guide. |
 | `document.autoCapture` | `true` | Capture as soon as a clear document is inside the guide, then recheck the encoded photo. No manual shutter is shown unless live analysis is unavailable; `false` shows a manual shutter instead. |
+| `document.confirmPhotos` | `false` | `true` shows each automatically captured photo with Retake / Looks good. By default a photo that passed the quality recheck shows a short confirmation and the flow continues: to the back camera, or to the next step. Manual photos are always shown for review. |
 | `document.holdDurationMs` | `0` | 0–10,000 ms of consecutive steady, suitable frames before the automatic shutter; `0` captures on the first suitable frame. |
 | `document.cameraSwitch` | `true` | Show a Switch camera control when more than one camera is available; `false` hides it. |
 | `document.torch` | `true` | Show a flashlight toggle when the active camera reports torch support; `false` hides it. |
@@ -74,6 +75,7 @@ interface DocumentOptions {
   camera?: MediaTrackConstraints;
   detection?: boolean; // Defaults to true: local framing/quality guidance.
   autoCapture?: boolean; // Defaults to true, requires successful live analysis; hides the manual shutter.
+  confirmPhotos?: boolean; // Defaults to false: checked automatic photos skip the review screen.
   holdDurationMs?: number; // Defaults to 0: capture on the first suitable frame.
   cameraSwitch?: boolean; // Defaults to true: Switch camera control when several cameras exist.
   torch?: boolean; // Defaults to true: flashlight toggle when the camera supports torch.

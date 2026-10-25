@@ -23,7 +23,7 @@ const summaryChannel = 'kyc-kit-demo-completion';
 interface Config {
   intro: boolean; document: boolean; review: boolean; result: boolean; challenges: FaceChallenge[];
   theme: string; locale: KycLocale; simulation: boolean; upload: boolean;
-  documentAutoCapture: boolean; documentHoldDurationMs: number; faceMatch: boolean;
+  documentAutoCapture: boolean; documentHoldMs: number; faceMatch: boolean;
 }
 
 function initialConfig(): Config {
@@ -31,7 +31,7 @@ function initialConfig(): Config {
   const defaults: Config = {
     intro: true, document: params.get('document') !== '0', review: true, result: true, challenges: [...defaultChallenges],
     theme: 'classic', locale: 'en', simulation: params.get('simulate') === '1', upload: false,
-    documentAutoCapture: true, documentHoldDurationMs: 0, faceMatch: true,
+    documentAutoCapture: true, documentHoldMs: 0, faceMatch: true,
   };
   try {
     const raw = params.get('config');
@@ -50,7 +50,8 @@ function initialConfig(): Config {
       simulation: typeof value.simulation === 'boolean' ? value.simulation : defaults.simulation,
       upload: typeof value.upload === 'boolean' ? value.upload : defaults.upload,
       documentAutoCapture: typeof value.documentAutoCapture === 'boolean' ? value.documentAutoCapture : defaults.documentAutoCapture,
-      documentHoldDurationMs: typeof value.documentHoldDurationMs === 'number' && Number.isFinite(value.documentHoldDurationMs) && value.documentHoldDurationMs >= 0 && value.documentHoldDurationMs <= 10_000 ? value.documentHoldDurationMs : defaults.documentHoldDurationMs,
+      // Not "documentHoldDurationMs": links from older playgrounds carried an 800 ms hold that should no longer apply.
+      documentHoldMs: typeof value.documentHoldMs === 'number' && Number.isFinite(value.documentHoldMs) && value.documentHoldMs >= 0 && value.documentHoldMs <= 10_000 ? value.documentHoldMs : defaults.documentHoldMs,
       faceMatch: typeof value.faceMatch === 'boolean' ? value.faceMatch : defaults.faceMatch,
       theme: typeof value.theme === 'string' && /^[a-z][a-z0-9-]{0,47}$/.test(value.theme) ? value.theme : defaults.theme,
       locale: LOCALES.find(([code]) => code === value.locale)?.[0] ?? 'en', challenges,
@@ -70,7 +71,7 @@ import 'kyc-lens-react/styles.css';
 <KycFlow
   steps={${JSON.stringify(getSteps(config))}}
   face={{ challenges: ${JSON.stringify(config.challenges)} }}
-  document={{ autoCapture: ${config.documentAutoCapture}, holdDurationMs: ${config.documentHoldDurationMs} }}${config.faceMatch ? '' : '\n  faceMatch={false}'}
+  document={{ autoCapture: ${config.documentAutoCapture}, holdDurationMs: ${config.documentHoldMs} }}${config.faceMatch ? '' : '\n  faceMatch={false}'}
   locale="${config.locale}"
   theme=${isBuiltIn(config.theme) ? `"${config.theme}"` : `"${config.theme}" // registerTheme() it first, see the Theme studio export`}
   assets={{ baseUrl: '/kyc-assets' }}${config.upload ? '\n  apiBaseUrl="/api/kyc"' : ''}${config.simulation ? '\n  simulation={true} // Demo only' : ''}
@@ -237,7 +238,7 @@ function PreviewPage() {
       : !handoffChecked ? <div className="demo-flow-pending" aria-busy="true" />
       : <KycFlow
       steps={getSteps(config)} face={{ challenges: config.challenges, trackingFps: 15 }}
-      document={{ autoCapture: config.documentAutoCapture, holdDurationMs: config.documentHoldDurationMs }} faceMatch={config.faceMatch ? {} : false}
+      document={{ autoCapture: config.documentAutoCapture, holdDurationMs: config.documentHoldMs }} faceMatch={config.faceMatch ? {} : false}
       theme={theme} locale={config.locale} handoff={handoff ? { url: handoff.url } : undefined}
       assets={{ baseUrl: '/kyc-assets', workerUrl: FaceWorkerUrl, documentWorkerUrl: DocumentWorkerUrl, matchWorkerUrl: MatchWorkerUrl }}
       apiBaseUrl={config.upload ? '/api/kyc' : undefined} simulation={config.simulation}
