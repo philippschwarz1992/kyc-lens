@@ -31,9 +31,15 @@ All flow props are optional. The default steps are `['intro', 'face', 'review', 
 | `faceMatch.inconclusiveMargin` | `0.03` | 0–0.25; threshold ± margin must stay within [-1, 1]. |
 | `faceMatch.timeoutMs` | `45_000` | 1,000–120,000 ms, including model loading and inference. |
 | `assets.baseUrl` | `/kyc-assets` | Public URL for the self-hosted assets. |
+| `output.imageType` | `image/jpeg` | `image/jpeg` or `image/webp` for the selfie and document photos. Browsers that cannot encode WebP (Safari) fall back to JPEG; check `Blob.type`. |
+| `output.quality` | `0.92` selfie, `0.95` documents | Encoder quality, 0.5–1. |
+| `output.maxDimension` | Native camera resolution | Integer 480–4096 limiting the longest side; images are never upscaled. The document quality recheck uses the encoded, scaled photo. |
+| `upload.retry.attempts` | `2` when `upload.retry` is set | 0–5 additional attempts after network errors and 408, 429 or 5xx responses. |
+| `upload.retry.baseDelayMs` | `500` | 0–30,000 ms; doubles per attempt with jitter. |
+| `upload.onProgress` | None | `(loaded, total) => void` in bytes for the capture upload. |
 | `locale` | `en` | Built-in `en` or `de`, with individual `strings` overrides. |
 
-`theme` takes a registered theme id, a `defineTheme()` result or quick overrides; see [theming](./theming.md) for `builtInThemes`, `defineTheme`, `registerTheme`, `getTheme`, `listThemes`, `unregisterTheme`, `resolveTheme`, `themeVariables` and `themeCss`. Other props configure `components`, `apiBaseUrl`, `headers`, a custom `api`, callbacks, `simulation` and `className`. See the [README configuration table](../README.md#configure-the-flow). Configuration errors are displayed before camera access. Changing steps, document/face options, assets or simulation resets the flow; keep those settings stable during capture. Change the component's React `key` to explicitly start a fresh flow.
+`theme` takes a registered theme id, a `defineTheme()` result or quick overrides; see [theming](./theming.md) for `builtInThemes`, `defineTheme`, `registerTheme`, `getTheme`, `listThemes`, `unregisterTheme`, `resolveTheme`, `themeVariables` and `themeCss`. Other props configure `components`, `apiBaseUrl`, `headers`, `upload`, a custom `api`, callbacks including `onEvent`, `simulation` and `className`. See the [README configuration table](../README.md#configure-the-flow). Configuration errors are displayed before camera access. Changing steps, document/face options, assets, output or simulation resets the flow; keep those settings stable during capture. Change the component's React `key` to explicitly start a fresh flow.
 
 ## Captured data
 
@@ -92,7 +98,7 @@ interface CaptureResult {
 
 `mode` is diagnostic metadata supplied by the client. Checking `mode === 'camera'` on the server does not make the media trustworthy: an attacker controls their client. Production policy needs verified evidence independently of these fields.
 
-`capturedAt` is an ISO date string from the client clock. `ChallengeEvidence.completedAt` is a monotonic browser timestamp in milliseconds, not a Unix timestamp; `durationMs` measures the completed hold. Built-in capture produces JPEG images. Without an API, `sessionId` and `serverResult` are absent.
+`capturedAt` is an ISO date string from the client clock. `ChallengeEvidence.completedAt` is a monotonic browser timestamp in milliseconds, not a Unix timestamp; `durationMs` measures the completed hold. Built-in capture produces JPEG images unless `output.imageType` selects WebP. Without an API, `sessionId` and `serverResult` are absent.
 
 The face step starts automatically after entry and browser camera permission. A silent recording begins once the camera is ready. The SDK waits for the recorder's first nonempty encoded chunk before starting the tracker or accepting any pose hold, then checks centering, configured head movements and relative distance changes. The recording includes encoder/tracker startup and the movement sequence from its first accepted hold. The SDK stops the recording and captures the still after every challenge and a final neutral centered hold are complete. Retaking clears the previous clip and starts a new check. `face.autoStart: false` restores a start button; `face.recordVideo: false` explicitly disables recording and returns a still-only payload. Neither setting changes the movement checks.
 
@@ -203,8 +209,18 @@ The adapter is also exported for explicit composition:
 ```ts
 import { createHttpApi } from 'kyc-lens-react';
 
-const api = createHttpApi('/api/kyc', { 'X-App-Context': 'onboarding' });
+const api = createHttpApi('/api/kyc', { 'X-App-Context': 'onboarding' }, {
+  retry: { attempts: 2, baseDelayMs: 500 },
+  onProgress: (loaded, total) => console.log(Math.round(loaded / total * 100)),
+});
 ```
+
+The optional third argument is `HttpApiOptions`:
+
+- `retry` enables retries for both requests: up to `attempts` (0–5, default 2) additional tries after network errors and 408, 429 or 5xx responses, with exponential backoff from `baseDelayMs` (default 500 ms) and jitter between half and the full delay. A `Retry-After` header in seconds takes precedence; every delay is capped at 30 seconds. Other 4xx responses are not retried. Aborting the signal cancels the request and any pending wait. Without `retry`, each request is sent once.
+- `onProgress(loaded, total)` reports capture upload bytes. When set, the capture upload uses `XMLHttpRequest` with the same headers, bearer token, same-origin cookie behavior, abort handling and `KycHttpError` semantics; without it, or where `XMLHttpRequest` is unavailable, `fetch` is used. Exceptions thrown by the callback are ignored.
+
+With `apiBaseUrl`, the `upload` prop passes these options to the built-in adapter. Setting `upload` also shows the upload percentage (`uploadProgress` string, `{percent}` placeholder) in the submitting screen's status message.
 
 `apiBaseUrl="/api/kyc"` uses these routes:
 
@@ -213,20 +229,22 @@ const api = createHttpApi('/api/kyc', { 'X-App-Context': 'onboarding' });
 | `POST /api/kyc/sessions` | JSON `{ id: string, token?: string }`. |
 | `POST /api/kyc/sessions/:id/capture` | FormData `selfie`, optional `faceVideo` Blob and `documentFront`/`documentBack` image Blobs, plus `metadata` JSON. Expects a successful JSON response. |
 
+Image file names follow the Blob type: `selfie.jpg`, `selfie.png` or `selfie.webp`, and likewise `document-front.*` and `document-back.*`.
+
 Metadata is `{ challenges: ChallengeEvidence[], capturedAt: string, mode: 'camera' | 'simulation', document?: { type: DocumentType } }`; media bytes are sent only as files. `faceVideo` is omitted for still-only capture. Without document capture, document fields are omitted. The sample receiver requires both document sides for `id-card` and `drivers-license`, only the front/photo page for `passport`, and rejects files without matching document metadata. A returned session token is sent as a bearer token on capture submission. `headers` lets you provide extra host headers. Requests include same-origin cookies. The session token takes precedence over any supplied `Authorization` header on capture submission; use your application's session cookie, a separate appropriate header or a custom adapter when additional user authentication is needed. A token and an application user session serve different purposes: production must validate both as needed.
 
 Non-success HTTP responses throw the exported `KycHttpError` with a numeric `status`; a JSON `{ error: string }` supplies its message. Network errors and malformed successful JSON use ordinary errors. Submission retry preserves captured media and reuses its session. Built-in HTTP errors 401, 404 and 410 clear the stored session so the next retry creates a new one. Cross-origin cookie authentication needs a custom adapter and appropriate server CORS behavior.
 
-The local sample also implements authenticated `GET /api/kyc/sessions/:id`. Before upload it returns `pending_capture`; afterwards it returns `capture_complete` with capture metadata, media type/size and saved file names. A recorded clip adds `video: { type, sizeBytes }` to the receipt. Document receipts include `document: { type, front: { type, sizeBytes }, back?: { type, sizeBytes } }`. It never returns captured media bytes or an identity approval. The sample limits the total request to 24 MiB, each image to 6 MiB and the video to 12 MiB; it accepts WebM or MP4 video with matching basic container signatures.
+The local sample also implements authenticated `GET /api/kyc/sessions/:id`. Before upload it returns `pending_capture`; afterwards it returns `capture_complete` with capture metadata, media type/size and saved file names. A recorded clip adds `video: { type, sizeBytes }` to the receipt. Document receipts include `document: { type, front: { type, sizeBytes }, back?: { type, sizeBytes } }`. It never returns captured media bytes or an identity approval. The sample limits the total request to 24 MiB, each image to 6 MiB and the video to 12 MiB; it accepts JPEG, PNG or WebP (`RIFF`…`WEBP`) images and WebM or MP4 video with matching basic container signatures.
 
 The development receiver validates the complete upload before committing files to the checkout's `results/<sessionId>/` directory. The receipt adds this filename map:
 
 ```ts
 interface SavedCaptureFiles {
-  selfie: 'selfie.jpg' | 'selfie.png';
+  selfie: 'selfie.jpg' | 'selfie.png' | 'selfie.webp';
   faceVideo?: 'face-video.webm' | 'face-video.mp4';
-  documentFront?: 'document-front.jpg' | 'document-front.png';
-  documentBack?: 'document-back.jpg' | 'document-back.png';
+  documentFront?: 'document-front.jpg' | 'document-front.png' | 'document-front.webp';
+  documentBack?: 'document-back.jpg' | 'document-back.png' | 'document-back.webp';
   metadata: 'metadata.json';
 }
 ```
@@ -284,6 +302,22 @@ For restrictive CSP, allow your origin for workers/fetches and module scripts, `
 ## Callbacks and cleanup
 
 Keep callbacks inexpensive, and use `onError` to show a useful host error state. `onCancel` lets the host close its modal, clear pending UI, or return to onboarding. SDK cleanup stops camera tracks, recording and worker work, discards unfinished recording buffers, and releases object URLs; unmount the component when its containing route/modal closes. Abortable API requests should respect their signal. Your application owns media Blobs received through `onComplete` and any retention policy it applies to them.
+
+### Analytics events
+
+`onEvent(event: KycEvent)` receives privacy-safe funnel events. Events never contain media, Blobs, object URLs, similarity scores, tokens, embeddings or raw error messages. Exceptions thrown by the callback are ignored.
+
+```ts
+type KycEvent =
+  | { type: 'step'; step: 'intro' | 'document' | 'face' | 'review' | 'submitting' | 'complete' | 'error' | 'cancelled'; elapsedMs: number }
+  | { type: 'retry'; from: 'camera' | 'document' | 'submission' }
+  | { type: 'retake' }
+  | { type: 'error'; stage: 'camera' | 'document' | 'submission'; code: string }
+  | { type: 'complete'; durationMs: number; faceMatchStatus?: 'match' | 'no_match' | 'inconclusive' | 'unavailable' }
+  | { type: 'cancel'; step: KycPhase };
+```
+
+`step` fires once per phase change; `elapsedMs` and `durationMs` are measured with `performance.now()` from when the flow mounted (or was reset by a configuration change). `error.code` is a stable identifier: a built-in string key such as `documentCaptureFailed` or `faceComparisonUnavailable`, `http_<status>` for `KycHttpError`, the error name for DOM errors such as `NotAllowedError`, or `unknown`. `cancel` precedes the `cancelled` step and `complete` follows the `complete` step.
 
 Simulation is off unless explicitly enabled by `simulation={true}`. It runs the movement sequence automatically using synthetic observations and, with video enabled, a watermarked animated canvas recording. It is a testing convenience and does not check a real face. The demo URL parameter only configures the playground; the installed SDK does not read URL parameters itself.
 

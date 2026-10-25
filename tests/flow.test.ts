@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createActor, transition } from 'xstate';
+import { createActor, initialTransition, transition } from 'xstate';
+import type { EventFrom } from 'xstate';
+import { KycHttpError } from '../src/api.js';
+import { createEventReporter, errorCode } from '../src/react/events.js';
 import { createFlowMachine, DEFAULT_STEPS, validateFlowConfiguration } from '../src/react/flow.js';
-import type { FaceChallenge, KycStep } from '../src/types.js';
+import type { FaceChallenge, KycEvent, KycStep } from '../src/types.js';
 
 describe('capture workflow', () => {
   it('requires ordered, unique, supported screens and at least one supported gesture before camera access', () => {
@@ -91,5 +94,57 @@ describe('capture workflow', () => {
       expect(actor.getSnapshot().status).toBe('done');
       actor.stop();
     }
+  });
+});
+
+describe('analytics events', () => {
+  it('reports a privacy-safe sequence of steps, retakes, errors, retries and completion', () => {
+    const events: KycEvent[] = [];
+    let clock = 1000;
+    const reporter = createEventReporter(() => event => events.push(event), () => clock);
+    const machine = createFlowMachine(['intro', 'face', 'review', 'result']);
+    let snapshot = initialTransition(machine)[0];
+    const go = (event: EventFrom<typeof machine>) => { clock += 100; snapshot = transition(machine, snapshot, event)[0]; reporter.step(String(snapshot.value)); };
+    reporter.step(String(snapshot.value)); reporter.step(String(snapshot.value));
+    go({ type: 'NEXT' }); go({ type: 'CAPTURE' });
+    reporter.retake(); go({ type: 'RETAKE' });
+    go({ type: 'CAPTURE' }); go({ type: 'NEXT' });
+    reporter.error('submission', new KycHttpError('Token abc expired for https://example.test/secret', 503)); go({ type: 'FAILURE', stage: 'submission' });
+    reporter.retry(snapshot.context.errorStage); go({ type: 'RETRY' }); go({ type: 'SUCCESS' });
+    reporter.complete({ status: 'capture_complete', payload: { selfie: new Blob(['x']), challenges: [], capturedAt: '', mode: 'camera' }, faceMatch: { status: 'match', reason: 'above-threshold', score: 0.9, threshold: 0.4 } as never });
+    expect(events).toEqual([
+      { type: 'step', step: 'intro', elapsedMs: 0 },
+      { type: 'step', step: 'face', elapsedMs: 100 },
+      { type: 'step', step: 'review', elapsedMs: 200 },
+      { type: 'retake' },
+      { type: 'step', step: 'face', elapsedMs: 300 },
+      { type: 'step', step: 'review', elapsedMs: 400 },
+      { type: 'step', step: 'submitting', elapsedMs: 500 },
+      { type: 'error', stage: 'submission', code: 'http_503' },
+      { type: 'step', step: 'error', elapsedMs: 600 },
+      { type: 'retry', from: 'submission' },
+      { type: 'step', step: 'submitting', elapsedMs: 700 },
+      { type: 'step', step: 'complete', elapsedMs: 800 },
+      { type: 'complete', durationMs: 800, faceMatchStatus: 'match' },
+    ]);
+    expect(JSON.stringify(events)).not.toMatch(/abc|https|secret|blob|score|threshold/i);
+  });
+
+  it('reports cancellation and never lets analytics exceptions escape', () => {
+    const events: KycEvent[] = [];
+    const reporter = createEventReporter(() => event => { events.push(event); throw new Error('analytics down'); }, () => 0);
+    expect(() => { reporter.step('document'); reporter.cancel('document'); reporter.step('cancelled'); reporter.step('initializing'); }).not.toThrow();
+    expect(events).toEqual([{ type: 'step', step: 'document', elapsedMs: 0 }, { type: 'cancel', step: 'document' }, { type: 'step', step: 'cancelled', elapsedMs: 0 }]);
+    expect(() => createEventReporter(() => undefined).step('intro')).not.toThrow();
+  });
+
+  it('maps errors to stable codes instead of raw messages', () => {
+    const named = (message: string, name: string) => Object.assign(new Error(message), { name });
+    expect(errorCode(new Error('documentCaptureFailed'))).toBe('documentCaptureFailed');
+    expect(errorCode(named('faceComparisonUnavailable', 'FaceMatchError'))).toBe('faceComparisonUnavailable');
+    expect(errorCode(named('Permission denied by user at /home/me', 'NotAllowedError'))).toBe('NotAllowedError');
+    expect(errorCode(new KycHttpError('Session expired.', 401))).toBe('http_401');
+    expect(errorCode(new Error('Something with personal data'))).toBe('unknown');
+    expect(errorCode(named('x', 'bad name with spaces'))).toBe('unknown');
   });
 });

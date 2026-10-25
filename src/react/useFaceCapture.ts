@@ -2,28 +2,28 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChallengeRunner } from '../core/challenges.js';
 import { startVideoRecording, type VideoRecording } from '../camera/recording.js';
 import { createSimulatedCamera } from '../camera/simulation.js';
-import type { AssetOptions, CapturePayload, ChallengeFeedback, FaceChallenge, FaceObservation, FaceOptions } from '../types.js';
+import { drawScaled, encodeCanvas } from '../camera/output.js';
+import type { AssetOptions, CapturePayload, ChallengeFeedback, FaceChallenge, FaceObservation, FaceOptions, OutputOptions } from '../types.js';
 
 export type CameraStatus = 'idle' | 'requesting' | 'loading' | 'tracking' | 'capturing';
 
-function snapshot(video: HTMLVideoElement): Promise<Blob> {
-  if (!video.videoWidth || !video.videoHeight) return Promise.reject(new Error('The camera did not provide a usable image. Please try again.'));
-  const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const context = canvas.getContext('2d');
-  if (!context) return Promise.reject(new Error('Could not prepare your selfie. Please try again.'));
-  context.drawImage(video, 0, 0);
-  return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not capture your selfie. Please try again.')), 'image/jpeg', 0.92));
+async function snapshot(video: HTMLVideoElement, output?: OutputOptions): Promise<Blob> {
+  if (!video.videoWidth || !video.videoHeight) throw new Error('The camera did not provide a usable image. Please try again.');
+  const canvas = drawScaled(video, video.videoWidth, video.videoHeight, output);
+  if (!canvas) throw new Error('Could not prepare your selfie. Please try again.');
+  const blob = await encodeCanvas(canvas, output);
+  if (!blob) throw new Error('Could not capture your selfie. Please try again.');
+  return blob;
 }
 
 export function useFaceCapture({
-  options, assets, challenges, simulation, onCapture, onFailure,
+  options, assets, challenges, simulation, output, onCapture, onFailure,
 }: {
   options: FaceOptions;
   assets: AssetOptions;
   challenges: readonly FaceChallenge[];
   simulation: boolean;
+  output?: OutputOptions;
   onCapture: (payload: CapturePayload) => void;
   onFailure: (error: Error) => void;
 }) {
@@ -44,6 +44,8 @@ export function useFaceCapture({
   settings.current = { options, assets, challenges };
   const callbacks = useRef({ onCapture, onFailure });
   callbacks.current = { onCapture, onFailure };
+  const outputRef = useRef(output);
+  outputRef.current = output;
   const [status, setStatus] = useState<CameraStatus>('idle');
   const [feedback, setFeedback] = useState<ChallengeFeedback | null>(null);
 
@@ -81,7 +83,7 @@ export function useFaceCapture({
       if (!preview) throw new Error('The camera view is unavailable. Please try again.');
       // Begin the final JPEG and flush the recording before releasing camera tracks.
       const [selfie, video] = await Promise.all([
-        simulation ? simulationRef.current!.snapshot() : snapshot(preview),
+        simulation ? simulationRef.current!.snapshot() : snapshot(preview, outputRef.current),
         recorderRef.current?.finish(),
       ]);
       if (!mounted.current || generation.current !== attempt) return;

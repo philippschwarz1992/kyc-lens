@@ -111,8 +111,12 @@ function validateImage(bytes: Uint8Array, claimedType: string): string {
     && bytes[bytes.length - 6] === 78 && bytes[bytes.length - 5] === 68;
   const isJpeg = bytes.length >= 16 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
     && bytes[bytes.length - 2] === 255 && bytes[bytes.length - 1] === 217;
-  const type = isPng ? 'image/png' : isJpeg ? 'image/jpeg' : null;
-  if (!type || claimedType !== type) throw new ApiError(400, 'Images must be JPEG or PNG with a matching MIME type.');
+  // WebP: RIFF container whose size field covers the whole file, a WEBP form type and a VP8, VP8L or VP8X first chunk.
+  const riffSize = bytes.length >= 20 ? (bytes[4] | bytes[5] << 8 | bytes[6] << 16 | bytes[7] << 24) >>> 0 : -1;
+  const chunk = String.fromCharCode(...bytes.subarray(12, 16));
+  const isWebp = riffSize === bytes.length - 8 && String.fromCharCode(...bytes.subarray(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.subarray(8, 12)) === 'WEBP' && ['VP8 ', 'VP8L', 'VP8X'].includes(chunk);
+  const type = isPng ? 'image/png' : isJpeg ? 'image/jpeg' : isWebp ? 'image/webp' : null;
+  if (!type || claimedType !== type) throw new ApiError(400, 'Images must be JPEG, PNG or WebP with a matching MIME type.');
   return type;
 }
 
@@ -320,7 +324,7 @@ export function demoApiPlugin({ storageDir = resolve(process.cwd(), 'results') }
               // Include field boundaries and byte lengths to avoid ambiguous concatenations.
               digest.update(field).update(String(bytes.length)).update(bytes);
               const prefix = field === 'selfie' ? 'selfie' : field === 'documentFront' ? 'document-front' : 'document-back';
-              const filename = `${prefix}.${type === 'image/png' ? 'png' : 'jpg'}`;
+              const filename = `${prefix}.${type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg'}`;
               files[field] = filename; media.push({ filename, bytes });
               return { type, sizeBytes: image.size };
             };

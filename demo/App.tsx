@@ -85,7 +85,7 @@ function summaryFor(result: CaptureResult) {
     ? result.serverResult as Record<string, unknown> : undefined;
   const files = receipt?.files !== null && typeof receipt?.files === 'object' && !Array.isArray(receipt?.files)
     ? receipt.files as Record<string, unknown> : undefined;
-  const hasSavedFiles = files?.metadata === 'metadata.json' && (files.selfie === 'selfie.jpg' || files.selfie === 'selfie.png');
+  const hasSavedFiles = files?.metadata === 'metadata.json' && ['selfie.jpg', 'selfie.png', 'selfie.webp'].includes(String(files.selfie));
   const savedDirectory = hasSavedFiles && result.sessionId && /^[A-Za-z0-9_-]{1,128}$/.test(result.sessionId)
     ? `results/${result.sessionId}` : undefined;
   return {
