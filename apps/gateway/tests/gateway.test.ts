@@ -46,7 +46,7 @@ function captureForm(front = jpeg(80), meta = metadata()) {
   form.append('metadata', meta);
   return form;
 }
-const result: VerificationResult = { status: 'approved', reasons: [], document: { type: 'passport', quality: { sharp: true }, mrz: null }, faceMatch: { score: 0.71, threshold: 0.363, decision: 'pass' }, liveness: null };
+const result: VerificationResult = { status: 'approved', reasons: [], document: { type: 'passport', quality: { sharpness: 310, glare: 0.01, brightness: 180, rectified: true, acceptable: true, issues: [] }, mrz: null }, faceMatch: { score: 0.71, threshold: 0.363, decision: 'match' }, liveness: null };
 
 function setup(mode: 'server' | 'open' = 'server') {
   const sessions = memorySessions(), staging = memoryStaging(), jobs: DeliveryJob[] = [];

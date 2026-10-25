@@ -9,7 +9,7 @@ Guided identity capture for the browser, with server-side verification and deliv
 | [`apps/gateway`](./apps/gateway) | Cloudflare Worker: serves the playground and relays phone handoff; with `--env verify` it runs the capture API, the analysis container and signed delivery to your backend. |
 | [`apps/reference-receiver`](./apps/reference-receiver) | Stand-in for your CRM: verifies signed deliveries and keeps cases in D1 and R2. |
 | [`packages/contracts`](./packages/contracts) | Upload validation, the verification result and webhook signing, shared by all of the above. |
-| `services/analysis` | Python analysis service (MRZ/OCR, face match, liveness) run as a Cloudflare Container (in progress). |
+| [`services/analysis`](./services/analysis) | Python analysis service: MRZ/OCR (RapidOCR), face match (YuNet + SFace), passive liveness (MiniFASNet), run as a Cloudflare Container. |
 
 The browser checks guide the user; they are not a verification decision. The server-side flow is SDK → gateway → analysis → your backend: the gateway stages the upload in EU R2, the analysis service returns a verdict, and the case (media + verdict) is delivered to your webhook, signed, and then deleted from staging.
 

@@ -46,4 +46,6 @@ cd apps/gateway && npx wrangler dev --env verify --port 8797 --persist-to %TEMP%
 
 Then run `node apps/gateway/scripts/e2e-local.mjs`.
 
+With the real analysis service instead of the stub, run `docker build -t kyc-lens-analysis services/analysis && docker run --rm -p 127.0.0.1:8099:8080 -e ANALYSIS_SECRET=analysis-secret kyc-lens-analysis`. Generate samples with `python services/analysis/scripts/make_samples.py <dir>`, then run `node apps/gateway/scripts/e2e-analysis.mjs <dir>`. It checks the passport MRZ, a face match and a mismatch, and the liveness failure of a still video.
+
 On Windows, keep `--persist-to` short: local Durable Object, D1 and R2 state fails with `internal error` when the path is too long. Until the analysis image exists, local `wrangler dev --env verify` may try to build the container. In that case use a config copy without the `containers` entry, as the e2e run did.

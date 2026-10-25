@@ -49,6 +49,29 @@ jobs:
       - name: Install and inspect a fresh tarball consumer
         run: npm run check:consumer
 
+  analysis:
+    name: Analysis service
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: services/analysis
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Download and verify the pinned models
+        run: uv run python scripts/fetch_models.py
+      - name: Run tests
+        run: uv run pytest
+      - name: Build the container image
+        run: docker build -t kyc-lens-analysis .
+
   browser:
     name: Browser / ${{ matrix.browser }}
     runs-on: ubuntu-latest
