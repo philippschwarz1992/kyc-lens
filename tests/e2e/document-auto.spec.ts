@@ -49,7 +49,8 @@ async function installCamera(page: Page): Promise<void> {
     });
     const encode = HTMLCanvasElement.prototype.toBlob;
     HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
-      if (this.width === 1200 && this.height === 800) {
+      // Document photos are cropped to the guide, so match any large camera-derived canvas, not the 1200x800 frame.
+      if (this.width >= 400 && this.height >= 250 && this.width <= 1200 && this.height <= 800) {
         fixture.encodes++;
         if (fixture.corruptPhoto) {
           const context = this.getContext('2d')!;
