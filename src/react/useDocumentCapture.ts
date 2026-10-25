@@ -305,7 +305,7 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
             const result = holdRef.current.observe(document.hidden ? { reason: 'searching' } : detection,
               timestamp, now, geometry?.key ?? '');
             setFeedback(result.feedback); setProgress(result.progress);
-            holdTimer.current = setTimeout(resetHold, Math.max(0, 500 - (now - timestamp)));
+            holdTimer.current = setTimeout(resetHold, Math.max(0, 1000 - (now - timestamp)));
             if (result.capture && configuration.current.options.autoCapture !== false) automaticCapture.current();
           },
           onError: () => {

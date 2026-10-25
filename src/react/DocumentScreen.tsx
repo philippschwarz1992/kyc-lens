@@ -75,7 +75,8 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
       : isCamera ? s.documentCameraBody ?? 'Fit all four corners inside the frame. Avoid glare.'
         : isBack ? s.documentBackBody ?? 'Turn your document over. Make sure all four corners are visible.'
           : s.documentFrontBody ?? 'Place your document on a flat surface. Make sure all four corners are visible.';
-  const guideState = feedback === 'off' ? 'off' : feedback === 'ready' ? 'ready' : 'adjust';
+  // A found, clear document is green while a configured hold completes, not red.
+  const guideState = feedback === 'off' ? 'off' : feedback === 'ready' || feedback === 'hold-still' ? 'ready' : 'adjust';
   const automatic = !simulation && options.detection !== false && options.autoCapture !== false;
   // The shutter is automatic; a manual one appears only when live analysis cannot run.
   const manualShutter = !automatic || feedback === 'unavailable';
