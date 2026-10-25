@@ -10,9 +10,11 @@ import { gzipSync } from 'node:zlib';
 // Raise them deliberately, with the reason in the commit message.
 // dist/index.js: 70,000 B after the automatic document flow and MRZ check (66,432 B; the MRZ reader itself loads lazily).
 // dist/index.js: 74,500 B with the theme icon packs on top (71,107 B; the packs ship in the main entry).
+// dist/index.js: 78,500 B and dist/core/index.js: 2,750 B after the streamlined face capture (75,106 B and 2,604 B;
+// step progress, the verification and try-again screens, and the movement limit and neutral-pose checks in core).
 const budgets = {
-  'dist/index.js (gzip)': 74_500,
-  'dist/core/index.js (gzip)': 2_560,
+  'dist/index.js (gzip)': 78_500,
+  'dist/core/index.js (gzip)': 2_750,
   'npm pack tarball': 59_340_000,
 };
 
