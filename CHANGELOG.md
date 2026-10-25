@@ -24,6 +24,7 @@ This file records changes prepared for release. No version has been published ye
 - `kyc-lens-copy-assets --no-matching` skips the comparison worker, ONNX Runtime WASM, and YuNet/SFace models (about 53 MB) for hosts that pass `faceMatch={false}`; `--help` lists the options.
 - Browser tests run in Chrome, Firefox, and WebKit projects; WebKit skips specs that need a fake camera.
 - Bundle and tarball size budgets (`npm run check:size`), an npm name availability check (`npm run check:name`), and a release workflow that publishes with provenance (dry run by default for manual runs).
+- A blocked camera preview (autoplay off, for example iOS Low Power Mode) now asks the user to tap the screen instead of reporting denied camera permission.
 - `handoff` option: on desktops the intro screen shows a QR code that continues the capture on a phone, with a "use this device" fallback. The playground relays the phone's metadata-only summary back through a Cloudflare Durable Object, and its capture page has a theme switcher.
 
 Completion means `capture_complete`. This release does not implement identity verification, document authentication, or proof of liveness.

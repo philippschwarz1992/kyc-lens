@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { playPreview } from '../camera/playback.js';
 import type { AssetOptions, DocumentOptions, DocumentType, OutputOptions } from '../types.js';
 import { analyzeDocument, type DocumentDetectionReason } from '../core/document.js';
 import { createDocumentHold } from '../core/document-auto.js';
@@ -10,7 +11,7 @@ import { drawScaled, encodeCanvas } from '../camera/output.js';
 export type DocumentCameraStatus = 'idle' | 'requesting' | 'ready' | 'capturing';
 export type DocumentSide = 'front' | 'back';
 export type DocumentGuideFeedback = DocumentDetectionReason | 'hold-still' | 'unavailable' | 'off';
-export type DocumentCameraNotice = 'cameraSwitchFailed';
+export type DocumentCameraNotice = 'cameraSwitchFailed' | 'tapToStart';
 
 function captureError(message: string): Error {
   const error = new Error(message);
@@ -261,7 +262,8 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
         trackListeners.current.push(() => track.removeEventListener('ended', ended));
       }
       video.srcObject = stream;
-      await Promise.all([waitForFrame(video, controller.signal), video.play()]);
+      await playPreview(video, controller.signal, blocked => { if (mounted.current && generation.current === attempt) setNotice(blocked ? 'tapToStart' : null); });
+      await waitForFrame(video, controller.signal);
       if (!mounted.current || generation.current !== attempt) return;
       updateStatus('ready');
       if (settings.options.detection === false) { setFeedback('off'); return; }

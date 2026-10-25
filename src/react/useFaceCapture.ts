@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { playPreview } from '../camera/playback.js';
 import { ChallengeRunner } from '../core/challenges.js';
 import { startVideoRecording, type VideoRecording } from '../camera/recording.js';
 import { createSimulatedCamera } from '../camera/simulation.js';
@@ -48,6 +49,7 @@ export function useFaceCapture({
   const outputRef = useRef(output);
   outputRef.current = output;
   const [status, setStatus] = useState<CameraStatus>('idle');
+  const [needsTap, setNeedsTap] = useState(false);
   const [feedback, setFeedback] = useState<ChallengeFeedback | null>(null);
 
   const stop = useCallback(() => {
@@ -109,7 +111,7 @@ export function useFaceCapture({
     const controller = new AbortController(); controllerRef.current = controller;
     captureStarted.current = false;
     runnerRef.current = new ChallengeRunner(challenges, options.holdDurationMs ?? 650);
-    feedbackRef.current = null; setFeedback(null);
+    feedbackRef.current = null; setFeedback(null); setNeedsTap(false);
     const live = () => mounted.current && generation.current === attempt;
     // The movement timeout starts with tracking. Permission prompts are user-paced; startup is bounded by
     // the recorder's first-chunk timeout and the tracker's worker/model startup timeout instead.
@@ -141,7 +143,7 @@ export function useFaceCapture({
       const video = videoRef.current;
       if (!video) throw new Error('The camera view is unavailable. Please try again.');
       video.srcObject = stream;
-      await video.play();
+      await playPreview(video, controller.signal, blocked => { if (mounted.current && generation.current === attempt) setNeedsTap(blocked); });
       if (!mounted.current || generation.current !== attempt) return;
       if (options.recordVideo !== false) recorderRef.current = startVideoRecording(stream, error => fail(error, attempt));
       if (simulator) {
@@ -180,5 +182,5 @@ export function useFaceCapture({
     // Configuration changes remount the flow; mutable callbacks never restart a recording.
   }, [options.autoStart, start]);
 
-  return { videoRef, status, feedback, start, stop };
+  return { videoRef, status, feedback, start, stop, needsTap };
 }

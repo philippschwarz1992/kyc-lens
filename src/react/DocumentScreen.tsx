@@ -123,7 +123,7 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
     {stage !== 'select' ? <button type="button" className="kyc-back" aria-label={s.back ?? 'Back'} onClick={goBack}>←</button> : null}
     <div className="kyc-screen-heading">
       <h2 ref={headingRef} id={titleId} tabIndex={-1}>{title}</h2>
-      <p className="kyc-description" role={liveGuidance ? 'status' : undefined} aria-live={liveGuidance ? 'polite' : undefined} aria-atomic={liveGuidance ? true : undefined}>{liveGuidance ? notice ? s.documentCameraSwitchFailed ?? 'That camera could not be opened. Your previous camera is back on.' : guideHints[feedback] : body}</p>
+      <p className="kyc-description" role={liveGuidance ? 'status' : undefined} aria-live={liveGuidance ? 'polite' : undefined} aria-atomic={liveGuidance ? true : undefined}>{liveGuidance ? notice === 'cameraSwitchFailed' ? s.documentCameraSwitchFailed ?? 'That camera could not be opened. Your previous camera is back on.' : guideHints[feedback] : body}</p>
     </div>
     {stage === 'select' ? <div className="kyc-document-body">
       <Illustration kind="identity" />
@@ -146,7 +146,7 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
         {showTorch ? <button type="button" className={`kyc-document-camera-control ${torch.on ? 'is-active' : ''}`} aria-disabled={controlsBusy} aria-label={torch.on ? s.documentTorchOff ?? 'Turn off flashlight' : s.documentTorchOn ?? 'Turn on flashlight'} onClick={() => { if (!controlsBusy) void toggleTorch(); }}><Icon name="flash" size={19} /></button> : null}
         {showSwitch ? <button type="button" className="kyc-document-camera-control" aria-disabled={controlsBusy} aria-label={s.documentSwitchCamera ?? 'Switch camera'} onClick={() => { if (!controlsBusy) switchCamera(); }}><Icon name="switchCamera" size={20} /></button> : null}
       </div> : null}
-      {status === 'requesting' || status === 'capturing' ? <div className="kyc-document-status" role="status"><span className="kyc-spinner" /><span>{status === 'requesting' ? s.requesting ?? 'Opening your camera…' : s.capturing ?? 'Taking your photo…'}</span></div> : null}
+      {status === 'requesting' || status === 'capturing' ? <div className="kyc-document-status" role="status"><span className="kyc-spinner" /><span>{status === 'requesting' ? notice === 'tapToStart' ? s.tapToStartCamera : s.requesting ?? 'Opening your camera…' : s.capturing ?? 'Taking your photo…'}</span></div> : null}
     </div> : <div className="kyc-media kyc-document-preparation"><Illustration kind={isBack ? 'document-back' : 'document-front'} /></div>}
     <div className="kyc-actions">
       {stage === 'select' ?

@@ -64,4 +64,5 @@ export const french: KycStrings = {
   documentCameraSwitchFailed: 'Impossible d’ouvrir cette caméra. Votre caméra précédente est rétablie.',
   handoffTitle: 'Continuer sur votre téléphone', handoffBody: 'Scannez ce code avec l’appareil photo de votre téléphone pour y prendre les photos. Il donne généralement de meilleurs résultats.',
   handoffThisDevice: 'Utiliser cet appareil', handoffQrLabel: 'QR code pour continuer sur votre téléphone',
+  tapToStartCamera: 'Touchez l’écran pour démarrer la caméra.',
 };

@@ -13,6 +13,15 @@ interface AutomaticDocumentFixture {
 }
 
 /** Real moving camera pixels and the packaged analyzer; only faults are injected. */
+
+// WebKit can block autoplay of the canvas test stream; the SDK then asks for a tap, as on iOS Low Power Mode.
+async function clickOpenCamera(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Open camera', exact: true }).click();
+  const prompt = page.getByText('Tap the screen to start the camera.');
+  const takePhoto = page.getByRole('button', { name: 'Take photo', exact: true });
+  await expect.poll(async () => await prompt.isVisible() || await takePhoto.isEnabled({ timeout: 100 }).catch(() => false), { timeout: 15_000 }).toBe(true);
+  if (await prompt.isVisible()) await prompt.click();
+}
 async function installCamera(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const fixture: AutomaticDocumentFixture = { mode: 'good', duplicateTimestamps: false, corruptPhoto: false,
@@ -97,7 +106,7 @@ async function openCamera(page: Page, options: Record<string, unknown> = {}) {
     color: '#2563eb', simulation: false, upload: false, faceMatch: false, documentHoldDurationMs: 1200, ...options };
   await page.goto(`/?config=${encodeURIComponent(JSON.stringify(config))}`);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByRole('button', { name: 'Open camera', exact: true }).click();
+  await clickOpenCamera(page);
   await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeEnabled();
 }
 
@@ -118,7 +127,7 @@ test('automatic quality-gated photos retain full resolution and respect front/ba
   expect(await front.evaluate(image => [(image as HTMLImageElement).naturalWidth, (image as HTMLImageElement).naturalHeight])).toEqual([1200, 800]);
   expect(await encodes(page)).toBe(1);
   await page.getByRole('button', { name: 'Looks good', exact: true }).click();
-  await page.getByRole('button', { name: 'Open camera', exact: true }).click();
+  await clickOpenCamera(page);
   await expect(page.getByRole('img', { name: 'Photograph of the back of your document', exact: true })).toBeVisible({ timeout: 15_000 });
   expect(await encodes(page)).toBe(2);
   await expect.poll(() => page.evaluate(() => (window as unknown as { automaticDocumentFixture: AutomaticDocumentFixture })
@@ -175,7 +184,7 @@ test('Back during automatic encoding discards the late photo and the next attemp
   });
   await expect(page.getByRole('button', { name: 'Open camera', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Looks good', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Open camera', exact: true }).click();
+  await clickOpenCamera(page);
   await expect(page.getByRole('img', { name: 'Photograph of the front of your document', exact: true })).toBeVisible({ timeout: 15_000 });
   expect(await encodes(page)).toBe(2);
 });
@@ -198,4 +207,26 @@ test('an unavailable analyzer never auto-captures and the manual fallback remain
   await page.getByRole('button', { name: 'Take photo', exact: true }).click();
   await expect(page.getByRole('img', { name: 'Photograph of the front of your document', exact: true })).toBeVisible();
   expect(await encodes(page)).toBe(1);
+});
+
+test('blocked camera autoplay asks for a tap instead of reporting denied permission', async ({ page }) => {
+  await installCamera(page);
+  await page.addInitScript(() => {
+    // The first play() fails as it does in iOS Low Power Mode; later ones come from the tap.
+    const play = HTMLMediaElement.prototype.play;
+    let blocked = false;
+    HTMLMediaElement.prototype.play = function () {
+      if (!blocked && this.classList.contains('kyc-document-video')) { blocked = true; return Promise.reject(new DOMException('Autoplay blocked.', 'NotAllowedError')); }
+      return play.call(this);
+    };
+  });
+  const config = { intro: false, document: true, review: true, result: true, challenges: ['center'], locale: 'en', simulation: false, upload: false, faceMatch: false };
+  await page.goto(`/?config=${encodeURIComponent(JSON.stringify(config))}`);
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Open camera', exact: true }).click();
+  await expect(page.getByText('Tap the screen to start the camera.')).toBeVisible();
+  await expect(page.locator('.kyc-error-screen')).toHaveCount(0);
+  await page.getByText('Tap the screen to start the camera.').click();
+  await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeEnabled();
+  await expect(page.getByText('Tap the screen to start the camera.')).toHaveCount(0);
 });

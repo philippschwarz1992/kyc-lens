@@ -9,6 +9,15 @@ interface CameraFixture {
 }
 
 /** Synthetic cameras: each stream reports the requested device and optional torch support. */
+
+// WebKit can block autoplay of the canvas test stream; the SDK then asks for a tap, as on iOS Low Power Mode.
+async function clickOpenCamera(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Open camera', exact: true }).click();
+  const prompt = page.getByText('Tap the screen to start the camera.');
+  const takePhoto = page.getByRole('button', { name: 'Take photo', exact: true });
+  await expect.poll(async () => await prompt.isVisible() || await takePhoto.isEnabled({ timeout: 100 }).catch(() => false), { timeout: 15_000 }).toBe(true);
+  if (await prompt.isVisible()) await prompt.click();
+}
 async function installCameras(page: Page, devices: CameraFixture['devices'], torch = true): Promise<void> {
   await page.addInitScript(({ devices, torch }) => {
     const fixture: CameraFixture = { devices, requests: [], torchRequests: [], failDevices: [], torch };
@@ -47,7 +56,7 @@ async function openCamera(page: Page) {
     color: '#2563eb', simulation: false, upload: false, faceMatch: false, documentAutoCapture: false };
   await page.goto(`/?config=${encodeURIComponent(JSON.stringify(config))}`);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByRole('button', { name: 'Open camera', exact: true }).click();
+  await clickOpenCamera(page);
   await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeEnabled();
 }
 

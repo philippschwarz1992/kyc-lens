@@ -64,4 +64,5 @@ export const italian: KycStrings = {
   documentCameraSwitchFailed: 'Impossibile aprire quella fotocamera. È di nuovo attiva quella precedente.',
   handoffTitle: 'Continua sul telefono', handoffBody: 'Inquadra questo codice con la fotocamera del telefono per scattare lì le foto. Di solito il risultato è migliore.',
   handoffThisDevice: 'Usa questo dispositivo', handoffQrLabel: 'Codice QR per continuare sul telefono',
+  tapToStartCamera: 'Tocca lo schermo per avviare la fotocamera.',
 };

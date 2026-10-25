@@ -9,7 +9,7 @@ export function FaceScreen({ face, assets, challenges, simulation, output, strin
   face: FaceOptions; assets: AssetOptions; challenges: readonly FaceChallenge[]; simulation: boolean; output?: OutputOptions;
   strings: Record<string, string>; onCapture: (capture: CapturePayload) => void; onFailure: (error: Error) => void;
 }) {
-  const { videoRef, status, feedback, start } = useFaceCapture({ options: face, assets, challenges, simulation, output, onCapture, onFailure });
+  const { videoRef, status, feedback, start, needsTap } = useFaceCapture({ options: face, assets, challenges, simulation, output, onCapture, onFailure });
   const screenRef = useRef<HTMLDivElement>(null);
   useScreenTransition(screenRef, status === 'idle' ? 'prepare' : 'camera');
   const current = feedback?.challenge ?? challenges[0]!;
@@ -36,7 +36,7 @@ export function FaceScreen({ face, assets, challenges, simulation, output, strin
     <div className="kyc-face-body"><div className="kyc-camera-space"><div className={`kyc-camera-stage ${active ? 'is-active' : ''} ${status === 'idle' ? 'is-idle' : ''} ${simulation ? 'is-simulation' : ''}`} data-direction={direction} data-distance={distance}>
       <div className="kyc-camera-aperture">
         <video ref={videoRef} autoPlay muted playsInline className={`kyc-video ${mirrored ? 'is-mirrored' : ''}`} aria-label={s.secureCapture} />
-        {status === 'requesting' || status === 'loading' ? <div className="kyc-camera-loading"><span className="kyc-spinner" /><p role="status">{s[status]}</p></div> : null}
+        {status === 'requesting' || status === 'loading' ? <div className="kyc-camera-loading"><span className="kyc-spinner" /><p role="status">{needsTap ? s.tapToStartCamera : s[status]}</p></div> : null}
       </div>
       <div className={`kyc-face-guide ${feedback?.matched ? 'is-matched' : ''}`} data-direction={direction} data-distance={distance} aria-hidden="true">
         <svg className="kyc-guide-svg" viewBox="0 0 280 280" preserveAspectRatio="none">

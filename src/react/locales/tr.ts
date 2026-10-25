@@ -64,4 +64,5 @@ export const turkish: KycStrings = {
   documentCameraSwitchFailed: 'Bu kamera açılamadı. Önceki kameranız yeniden etkin.',
   handoffTitle: 'Telefonunuzda devam edin', handoffBody: 'Fotoğrafları telefonunuzda çekmek için bu kodu telefon kameranızla tarayın. Telefon kamerası genellikle daha iyi sonuç verir.',
   handoffThisDevice: 'Bu cihazı kullan', handoffQrLabel: 'Telefonunuzda devam etmek için QR kodu',
+  tapToStartCamera: 'Kamerayı başlatmak için ekrana dokunun.',
 };
