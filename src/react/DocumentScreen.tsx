@@ -33,7 +33,7 @@ export function DocumentScreen({ options, assets, simulation, strings: s, onCapt
   const isBack = stage.endsWith('back');
   const side = isBack ? 'back' : 'front';
   const preview = isReview ? isBack ? back : front : null;
-  const { videoRef, guideRef, feedback, progress, status, start, capture, stop } = useDocumentCapture({
+  const { videoRef, guideRef, feedback, progress, status, start, capture, stop, cameras, torch, notice, switchCamera, toggleTorch } = useDocumentCapture({
     options, assets, type: selected, side, simulation, onFailure,
     onCapture: photo => {
       if (stage === 'camera-back') { setBack(photo); setStage('review-back'); }
@@ -77,6 +77,9 @@ export function DocumentScreen({ options, assets, simulation, strings: s, onCapt
   const guideState = feedback === 'off' ? 'off' : feedback === 'ready' ? 'ready' : 'adjust';
   const automatic = !simulation && options.detection !== false && options.autoCapture !== false;
   const liveGuidance = isCamera && status === 'ready';
+  const showSwitch = isCamera && !simulation && options.cameraSwitch !== false && cameras.length > 1;
+  const showTorch = isCamera && !simulation && options.torch !== false && torch.available;
+  const controlsBusy = status !== 'ready';
   const guideHints = {
     searching: s.documentSearching ?? 'Keep all four corners inside the frame.',
     outside: s.documentOutside ?? 'Move the whole document inside the frame.',
@@ -119,7 +122,7 @@ export function DocumentScreen({ options, assets, simulation, strings: s, onCapt
     {stage !== 'select' ? <button type="button" className="kyc-back" aria-label={s.back ?? 'Back'} onClick={goBack}>←</button> : null}
     <div className="kyc-screen-heading">
       <h2 ref={headingRef} id={titleId} tabIndex={-1}>{title}</h2>
-      <p className="kyc-description" role={liveGuidance ? 'status' : undefined} aria-live={liveGuidance ? 'polite' : undefined} aria-atomic={liveGuidance ? true : undefined}>{liveGuidance ? guideHints[feedback] : body}</p>
+      <p className="kyc-description" role={liveGuidance ? 'status' : undefined} aria-live={liveGuidance ? 'polite' : undefined} aria-atomic={liveGuidance ? true : undefined}>{liveGuidance ? notice ? s.documentCameraSwitchFailed ?? 'That camera could not be opened. Your previous camera is back on.' : guideHints[feedback] : body}</p>
     </div>
     {stage === 'select' ? <div className="kyc-document-body">
       <Illustration kind="identity" />
@@ -137,6 +140,11 @@ export function DocumentScreen({ options, assets, simulation, strings: s, onCapt
       {simulation ? <div className="kyc-document-demo" aria-hidden="true"><Illustration kind={isBack ? 'document-back' : 'document-front'} /><span>DEMO</span></div> : null}
       <div ref={guideRef} className="kyc-document-guide" data-state={guideState} data-reason={feedback} data-document-type={selected} aria-hidden="true" />
       {automatic && feedback === 'hold-still' && progress > 0 ? <div className="kyc-document-auto-progress" role="progressbar" aria-label={s.documentAutoProgress ?? 'Automatic photo capture'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><span style={{ width: `${progress * 100}%` }} /></div> : null}
+      {showSwitch || showTorch ? <div className="kyc-document-camera-controls">
+        {/* aria-disabled keeps focus on the control while the next camera opens. */}
+        {showTorch ? <button type="button" className={`kyc-document-camera-control ${torch.on ? 'is-active' : ''}`} aria-disabled={controlsBusy} aria-label={torch.on ? s.documentTorchOff ?? 'Turn off flashlight' : s.documentTorchOn ?? 'Turn on flashlight'} onClick={() => { if (!controlsBusy) void toggleTorch(); }}><Icon name="flash" size={19} /></button> : null}
+        {showSwitch ? <button type="button" className="kyc-document-camera-control" aria-disabled={controlsBusy} aria-label={s.documentSwitchCamera ?? 'Switch camera'} onClick={() => { if (!controlsBusy) switchCamera(); }}><Icon name="switchCamera" size={20} /></button> : null}
+      </div> : null}
       {status === 'requesting' || status === 'capturing' ? <div className="kyc-document-status" role="status"><span className="kyc-spinner" /><span>{status === 'requesting' ? s.requesting ?? 'Opening your camera…' : s.capturing ?? 'Taking your photo…'}</span></div> : null}
     </div> : <div className="kyc-media kyc-document-preparation"><Illustration kind={isBack ? 'document-back' : 'document-front'} /></div>}
     <div className="kyc-actions">

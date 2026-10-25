@@ -7,6 +7,7 @@ This file records changes prepared for release. No version has been published ye
 - React capture flow with configurable intro, document, face, review, and result screens.
 - ID card and driving-license front/back photographs, and passport photo-page capture.
 - Local document framing and brightness, glare, sharpness, and detail guidance, with a manual shutter.
+- Document camera switching between available cameras with fallback to the previous camera, and a flashlight toggle on torch-capable cameras (`document.cameraSwitch`, `document.torch`).
 - Guided face movements using MediaPipe in a Web Worker, a final selfie, and automatic silent video recording by default.
 - Self-hosted model, WASM, and worker assets, a pinned model checksum, and the `kyc-lens-copy-assets` command.
 - Configurable challenges, camera constraints, English/German strings, and custom screen components.

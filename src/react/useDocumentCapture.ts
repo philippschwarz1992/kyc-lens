@@ -4,10 +4,12 @@ import { analyzeDocument, type DocumentDetectionReason } from '../core/document.
 import { createDocumentHold } from '../core/document-auto.js';
 import { createDocumentTracker } from '../camera/document-tracker.js';
 import { documentPreviewGeometry } from '../camera/document-preview.js';
+import { documentVideoConstraints, nextCamera, videoInputs, type DocumentCamera } from '../camera/document-devices.js';
 
 export type DocumentCameraStatus = 'idle' | 'requesting' | 'ready' | 'capturing';
 export type DocumentSide = 'front' | 'back';
 export type DocumentGuideFeedback = DocumentDetectionReason | 'hold-still' | 'unavailable' | 'off';
+export type DocumentCameraNotice = 'cameraSwitchFailed';
 
 function captureError(message: string): Error {
   const error = new Error(message);
@@ -175,6 +177,14 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
   const [status, setStatus] = useState<DocumentCameraStatus>('idle');
   const [feedback, setFeedback] = useState<DocumentGuideFeedback>('searching');
   const [progress, setProgress] = useState(0);
+  const [cameras, setCameras] = useState<DocumentCamera[]>([]);
+  const [torch, setTorch] = useState({ available: false, on: false });
+  const [notice, setNotice] = useState<DocumentCameraNotice | null>(null);
+  const camerasRef = useRef<DocumentCamera[]>([]);
+  const torchOn = useRef(false);
+  const chosenDevice = useRef<string | undefined>(undefined);
+  const activeDevice = useRef<string | undefined>(undefined);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const updateStatus = useCallback((next: DocumentCameraStatus) => {
     statusRef.current = next;
@@ -191,13 +201,19 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
     trackListeners.current.forEach(remove => remove()); trackListeners.current = [];
     streamRef.current?.getTracks().forEach(track => track.stop()); streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
-    if (mounted.current) { setFeedback('searching'); setProgress(0); }
+    torchOn.current = false;
+    if (mounted.current) { setFeedback('searching'); setProgress(0); setTorch({ available: false, on: false }); }
     updateStatus('idle');
   }, [updateStatus]);
 
+  const clearNotice = useCallback(() => {
+    clearTimeout(noticeTimer.current); noticeTimer.current = undefined;
+    if (mounted.current) setNotice(null);
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; stop(); };
+    return () => { mounted.current = false; clearTimeout(noticeTimer.current); stop(); };
   }, [stop]);
 
   const fail = useCallback((failure: unknown, attempt: number) => {
@@ -206,7 +222,8 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
     stop(); callbacks.current.onFailure(error);
   }, [stop]);
 
-  const start = useCallback(async () => {
+  /** Opens `requested` (or the configured default); on failure, `recover` reopens the previous device instead of failing. */
+  const launch = useCallback(async (requested?: string, recover?: { deviceId?: string; notify: boolean }): Promise<void> => {
     if (!mounted.current) return;
     stop();
     const attempt = generation.current;
@@ -219,14 +236,27 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
       if (!globalThis.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
         const error = new Error('cameraUnsupported'); error.name = 'UnsupportedCameraError'; throw error;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, ...settings.options.camera },
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: documentVideoConstraints(settings.options.camera, requested) });
       if (!mounted.current || generation.current !== attempt) { stream.getTracks().forEach(track => track.stop()); return; }
       streamRef.current = stream;
       const video = videoRef.current;
       if (!video) throw captureError('documentCameraUnavailable');
+      const [videoTrack] = stream.getVideoTracks();
+      activeDevice.current = videoTrack?.getSettings?.().deviceId || requested;
+      chosenDevice.current = requested;
+      const capabilities = videoTrack?.getCapabilities?.() as { torch?: boolean } | undefined;
+      if (settings.options.torch !== false && capabilities?.torch === true) setTorch({ available: true, on: false });
+      const devices = navigator.mediaDevices;
+      if (settings.options.cameraSwitch !== false && typeof devices.enumerateDevices === 'function') {
+        // Labels and ids are complete only after permission, so the list is read once a stream exists.
+        const refresh = () => void devices.enumerateDevices().then(list => {
+          if (!mounted.current || generation.current !== attempt) return;
+          camerasRef.current = videoInputs(list); setCameras(camerasRef.current);
+        }, () => {});
+        refresh();
+        devices.addEventListener?.('devicechange', refresh);
+        trackListeners.current.push(() => devices.removeEventListener?.('devicechange', refresh));
+      }
       for (const track of stream.getVideoTracks()) {
         const ended = () => fail(captureError('documentCameraUnavailable'), attempt);
         track.addEventListener('ended', ended);
@@ -280,8 +310,49 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
         // Guidance is optional: unsupported/blocked workers must not prevent photographs.
         if (currentAttempt()) { guidanceAvailable.current = false; setFeedback('unavailable'); }
       }
-    } catch (failure) { fail(failure, attempt); }
+    } catch (failure) {
+      if (recover && mounted.current && generation.current === attempt) {
+        if (recover.notify) {
+          clearTimeout(noticeTimer.current); setNotice('cameraSwitchFailed');
+          noticeTimer.current = setTimeout(() => { if (mounted.current) setNotice(null); }, 6000);
+        }
+        return launch(recover.deviceId);
+      }
+      fail(failure, attempt);
+    }
   }, [fail, stop, updateStatus]);
+
+  const start = useCallback(() => {
+    const preferred = chosenDevice.current;
+    // A previously chosen camera may have been unplugged; fall back to the configured default.
+    return launch(preferred, preferred ? { notify: false } : undefined);
+  }, [launch]);
+
+  /** Moves to the next camera; stopping the stream also resets the shutter hold, analysis and torch. */
+  const switchCamera = useCallback(() => {
+    if (!mounted.current || statusRef.current !== 'ready' || configuration.current.simulation) return;
+    const previous = activeDevice.current;
+    const next = nextCamera(camerasRef.current, previous);
+    if (!next || next === previous) return;
+    clearNotice();
+    void launch(next, { deviceId: previous, notify: true });
+  }, [clearNotice, launch]);
+
+  const toggleTorch = useCallback(async () => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!mounted.current || !track || statusRef.current !== 'ready') return;
+    const attempt = generation.current;
+    const next = !torchOn.current;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next } as MediaTrackConstraintSet] });
+      if (!mounted.current || generation.current !== attempt) return;
+      torchOn.current = next; setTorch({ available: true, on: next });
+    } catch {
+      // Torch support is advertised but not guaranteed; the photo flow continues without it.
+    }
+  }, []);
+
+  const close = useCallback(() => { clearNotice(); stop(); }, [clearNotice, stop]);
 
   const capture = useCallback(async (type: DocumentType, side: DocumentSide, automatic = false) => {
     if (!mounted.current || statusRef.current !== 'ready') return;
@@ -317,5 +388,5 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
     }
   };
 
-  return { videoRef, guideRef, feedback, progress, status, start, capture, stop };
+  return { videoRef, guideRef, feedback, progress, status, start, capture, stop: close, cameras, torch, notice, switchCamera, toggleTorch };
 }

@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
 import { initialTransition, transition } from 'xstate';
 import type { EventFrom, SnapshotFrom } from 'xstate';
 import { createHttpApi, KycHttpError } from '../api.js';
+import { validateDocumentCameraOptions } from '../camera/document-devices.js';
 import { DEFAULT_CHALLENGES, validateFaceOptions } from '../core/challenges.js';
 import { compareFaces } from '../matching/client.js';
 import { comparisonResult, DEFAULT_INCONCLUSIVE_MARGIN, DEFAULT_MATCH_THRESHOLD, validDecisionOptions } from '../matching/protocol.js';
@@ -45,6 +46,7 @@ export function KycFlow(props: KycFlowProps) {
     }
     if (props.document?.detection !== undefined && typeof props.document.detection !== 'boolean') throw new Error('document.detection must be true or false.');
     if (props.document?.autoCapture !== undefined && typeof props.document.autoCapture !== 'boolean') throw new Error('document.autoCapture must be true or false.');
+    validateDocumentCameraOptions(props.document);
     if (props.document?.holdDurationMs !== undefined && (!Number.isFinite(props.document.holdDurationMs) || props.document.holdDurationMs < 200 || props.document.holdDurationMs > 10_000)) throw new Error('document.holdDurationMs must be between 200 and 10000.');
     if (props.faceMatch !== false && props.faceMatch !== undefined) {
       if (!props.faceMatch || typeof props.faceMatch !== 'object' || Array.isArray(props.faceMatch)) throw new Error('faceMatch must be an options object or false.');

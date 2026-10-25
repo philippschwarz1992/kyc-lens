@@ -145,6 +145,12 @@
 .kyc-document-guide[data-state="ready"] { border-color: var(--kyc-color-success); }
 .kyc-document-auto-progress { position: absolute; bottom: 14px; left: 10%; right: 10%; height: 4px; overflow: hidden; border-radius: 4px; background: rgb(255 255 255 / 35%); }
 .kyc-document-auto-progress > span { display: block; height: 100%; background: var(--kyc-color-success); transition: width 100ms linear; }
+.kyc-document-camera-controls { position: absolute; top: 10px; right: 10px; z-index: 2; display: flex; gap: 8px; }
+.kyc-document-camera-control { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 1px solid rgb(255 255 255 / 28%); border-radius: 50%; background: color-mix(in srgb, var(--kyc-color-camera) 62%, transparent); color: #ffffff; transition: background calc(140ms * var(--kyc-motion-duration-scale)), transform calc(180ms * var(--kyc-motion-duration-scale)) var(--kyc-motion-press); }
+.kyc-document-camera-control:hover { background: color-mix(in srgb, var(--kyc-color-camera) 82%, transparent); }
+.kyc-document-camera-control:active:not([aria-disabled="true"]) { transform: scale(.94); }
+.kyc-document-camera-control.is-active { border-color: transparent; background: var(--kyc-color-primary); color: var(--kyc-color-on-primary); }
+.kyc-document-camera-control[aria-disabled="true"] { cursor: wait; opacity: .55; }
 .kyc-document-demo { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--kyc-color-surface); }
 .kyc-document-demo > span { position: absolute; bottom: 18px; font-family: var(--kyc-font-mono); font-size: 9px; letter-spacing: 1px; color: var(--kyc-color-muted); }
 .kyc-document-demo .kyc-illustration { width: 85%; height: 85%; }

@@ -63,6 +63,8 @@ export const english = {
   documentDark: 'Use brighter, even lighting.', documentGlare: 'Tilt slightly to avoid reflections.', documentBlur: 'Hold steady and let the camera focus.',
   documentHoldStill: 'Hold steady…', documentReady: 'Looks clear. Take your photo.', documentGuidanceUnavailable: 'Keep all four corners visible. Check the photo after capture.',
   documentAutoHoldStill: 'Hold steady… taking your photo automatically.', documentAutoReady: 'Taking your photo automatically…', documentAutoProgress: 'Automatic photo capture',
+  documentSwitchCamera: 'Switch camera', documentTorchOn: 'Turn on flashlight', documentTorchOff: 'Turn off flashlight',
+  documentCameraSwitchFailed: 'That camera could not be opened. Your previous camera is back on.',
 } satisfies Record<string, string>;
 
 export type KycStringKey = keyof typeof english;
@@ -128,6 +130,8 @@ const german: KycStrings = {
   documentDark: 'Sorgen Sie für helles, gleichmäßiges Licht.', documentGlare: 'Neigen Sie das Dokument leicht gegen Reflexionen.', documentBlur: 'Halten Sie ruhig und lassen Sie die Kamera scharfstellen.',
   documentHoldStill: 'Kurz ruhig halten…', documentReady: 'Gut erkennbar. Nehmen Sie das Foto auf.', documentGuidanceUnavailable: 'Alle vier Ecken müssen sichtbar sein. Prüfen Sie das Foto nach der Aufnahme.',
   documentAutoHoldStill: 'Ruhig halten… das Foto wird automatisch aufgenommen.', documentAutoReady: 'Das Foto wird automatisch aufgenommen…', documentAutoProgress: 'Automatische Fotoaufnahme',
+  documentSwitchCamera: 'Kamera wechseln', documentTorchOn: 'Taschenlampe einschalten', documentTorchOff: 'Taschenlampe ausschalten',
+  documentCameraSwitchFailed: 'Diese Kamera konnte nicht geöffnet werden. Die vorherige Kamera ist wieder aktiv.',
 };
 
 export const locales: Record<KycLocale, KycStrings> = { en: english, de: german, fr: french, es: spanish, it: italian, pl: polish, tr: turkish };
