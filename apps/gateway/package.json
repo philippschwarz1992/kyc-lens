@@ -8,7 +8,7 @@
     "dev": "wrangler dev --env verify",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "deploy": "npm run build -w @kyc-lens/playground && node scripts/prepare-deploy.mjs && wrangler deploy",
+    "deploy": "npm run build -w @kyc-lens/playground && node scripts/prepare-deploy.mjs && wrangler deploy --env=\"\"",
     "deploy:verify": "npm run build -w @kyc-lens/playground && node scripts/prepare-deploy.mjs && wrangler deploy --env verify"
   },
   "dependencies": {
