@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@sdk/*": [
+        "../../packages/sdk/src/*"
+      ]
+    }
+  },
+  "include": [
+    "*.ts",
+    "*.tsx",
+    "tests",
+    "e2e",
+    "scripts"
+  ]
+}

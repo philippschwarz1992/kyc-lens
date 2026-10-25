@@ -1,0 +1,10 @@
+{
+  "name": "@kyc-lens/gateway",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker: serves the playground, relays phone handoff and fronts the analysis backend.",
+  "scripts": {
+    "deploy": "npm run build -w @kyc-lens/playground && node scripts/prepare-deploy.mjs && npx wrangler@4 deploy"
+  }
+}
