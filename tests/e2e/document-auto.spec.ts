@@ -147,9 +147,11 @@ test('a clear document is photographed at once and both sides continue without a
   await expect(page.getByRole('button', { name: 'Looks good', exact: true })).toHaveCount(0);
   // The back camera opens by itself after the confirmation.
   await expect(heading(page, 'Photograph the back')).toBeVisible({ timeout: 5000 });
-  await expect(heading(page, 'Back captured')).toBeVisible({ timeout: 15_000 });
+  // The fictional card has no valid machine-readable zone: the back asks twice, then accepts the third photo.
+  await expect(page.getByText('Keep the lines of code at the bottom fully visible and sharp.')).toBeVisible({ timeout: 15_000 });
+  await expect(heading(page, 'Back captured')).toBeVisible({ timeout: 20_000 });
   const { encodes: count, sizes, streams } = await fixture(page);
-  expect(count).toBe(2);
+  expect(count).toBe(4);
   // Each photo is cropped to the guide (ID-card proportions plus margin) at the camera's native pixel density.
   for (const [width, height] of sizes) { expect(width).toBeLessThanOrEqual(1200); expect(height).toBeLessThan(800); expect(width / height).toBeCloseTo(1.58, 1); }
   expect(streams).toHaveLength(2);
@@ -166,7 +168,7 @@ test('the back camera refuses the same side again until the document is turned o
   await expect(page.getByText('This is the same side. Turn your document over.')).toBeVisible({ timeout: 15_000 });
   await expect(heading(page, 'Back captured')).toHaveCount(0);
   await changeFixture(page, { side: 'auto' });
-  await expect(heading(page, 'Back captured')).toBeVisible({ timeout: 15_000 });
+  await expect(heading(page, 'Back captured')).toBeVisible({ timeout: 25_000 });
 });
 
 test('the captured JPEG is checked again and unusable pixels return to the camera', async ({ page }) => {

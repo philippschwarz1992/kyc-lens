@@ -93,6 +93,11 @@ describe('HTTP adapter', () => {
     const passportForm = fetchMock.mock.calls[1]![1].body as FormData;
     expect(passportForm.has('documentFront')).toBe(true);
     expect(passportForm.has('documentBack')).toBe(false);
+
+    // The on-device zone summary travels as metadata; it carries no personal data.
+    const mrz = { format: 'TD3' as const, kind: 'passport' as const, valid: true };
+    await api.submitCapture({ id: 'zone-session' }, { ...payload, document: { type: 'passport', front: payload.document.front, mrz } }, signal);
+    expect(JSON.parse((fetchMock.mock.calls[2]![1].body as FormData).get('metadata') as string).document).toEqual({ type: 'passport', mrz });
     expect(JSON.parse(passportForm.get('metadata') as string).document).toEqual({ type: 'passport' });
   });
   it('rejects malformed sessions and surfaces a readable server error', async () => {

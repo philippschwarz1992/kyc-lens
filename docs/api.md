@@ -26,6 +26,7 @@ All flow props are optional. The default steps are `['intro', 'face', 'review', 
 | `document.detection` | `true` | Local guidance; `false` uses a neutral guide. |
 | `document.autoCapture` | `true` | Capture as soon as a clear document is inside the guide, then recheck the encoded photo. No manual shutter is shown unless live analysis is unavailable; `false` shows a manual shutter instead. |
 | `document.confirmPhotos` | `false` | `true` shows each automatically captured photo with Retake / Looks good. By default a photo that passed the quality recheck shows a short confirmation and the flow continues: to the back camera, or to the next step. Manual photos are always shown for review. |
+| `document.mrz` | `true` | Read the machine-readable zone on the device and verify its check digits. A passport photo page, and one side of an identity card, must carry a valid zone of the chosen type; a zone of the other type asks the user to choose again. After three unreadable photos the photo is accepted without a zone. `false` skips reading. |
 | `document.holdDurationMs` | `0` | 0–10,000 ms of consecutive steady, suitable frames before the automatic shutter; `0` captures on the first suitable frame. |
 | `document.cameraSwitch` | `true` | Show a Switch camera control when more than one camera is available; `false` hides it. |
 | `document.torch` | `true` | Show a flashlight toggle when the active camera reports torch support; `false` hides it. |
@@ -68,6 +69,7 @@ interface DocumentCapture {
   type: DocumentType;
   front: Blob;
   back?: Blob;
+  mrz?: { format: 'TD1' | 'TD2' | 'TD3'; kind: 'passport' | 'id-card' | 'visa' | 'other'; valid: boolean }; // Valid zone that matched the type; no personal data.
 }
 
 interface DocumentOptions {
@@ -76,6 +78,7 @@ interface DocumentOptions {
   detection?: boolean; // Defaults to true: local framing/quality guidance.
   autoCapture?: boolean; // Defaults to true, requires successful live analysis; hides the manual shutter.
   confirmPhotos?: boolean; // Defaults to false: checked automatic photos skip the review screen.
+  mrz?: boolean; // Defaults to true: on-device machine-readable zone check.
   holdDurationMs?: number; // Defaults to 0: capture on the first suitable frame.
   cameraSwitch?: boolean; // Defaults to true: Switch camera control when several cameras exist.
   torch?: boolean; // Defaults to true: flashlight toggle when the camera supports torch.

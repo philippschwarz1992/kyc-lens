@@ -17,6 +17,9 @@ Review the applicable model distribution terms before redistributing it;
 the checksum confirms its version, not its licensing terms. Model documentation:
 [Face Landmarker](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker).
 
+The machine-readable zone classifier (`src/mrz/model.ts`) is trained by `scripts/train-mrz.mjs` on renderings of the OCR-B outline fonts (CTAN `ocr-b-outline` by Zdeněk Wagner, from METAFONT sources by Norbert Schwarz; "you may freely use, modify, and/or distribute any of these files, without limitation"). The fonts themselves are not distributed. The OCR-B letterforms were designed by Adrian Frutiger and are standardized in ISO 1073-2.
+Upstream: [ocr-b-outline](https://ctan.org/pkg/ocr-b-outline), [ocr-b](https://ctan.org/pkg/ocr-b).
+
 XState is distributed under MIT. React and React DOM are peer dependencies
 distributed under MIT. Their licenses remain with their respective packages.
 

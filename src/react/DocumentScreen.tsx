@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createSteadyFeedback } from '../core/document-auto.js';
 import type { AssetOptions, DocumentCapture, DocumentOptions, DocumentType, OutputOptions } from '../types.js';
+import type { MrzSummary } from '../mrz/parse.js';
 import { Icon } from './Icons.js';
 import { Illustration, type IllustrationKind } from './Illustrations.js';
 import { useDocumentCapture, type DocumentGuideFeedback } from './useDocumentCapture.js';
@@ -54,6 +55,8 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
   const [stage, setStage] = useState<DocumentStage>('select');
   const [front, setFront] = useState<Blob | null>(null);
   const [back, setBack] = useState<Blob | null>(null);
+  const [frontZone, setFrontZone] = useState<MrzSummary | null>(null);
+  const [backZone, setBackZone] = useState<MrzSummary | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>();
   const completed = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -69,12 +72,13 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
   const preview = isReview ? isBack ? back : front : null;
   const sideArt = sideIllustration(selected, isBack);
   const { videoRef, guideRef, feedback: liveFeedback, progress, status, start, capture, stop, cameras, torch, notice, switchCamera, toggleTorch } = useDocumentCapture({
-    options, assets, type: selected, side, otherSide: stage === 'camera-back' ? front : null, simulation, output, onFailure,
-    onCapture: (photo, automatic) => {
+    options, assets, type: selected, side, otherSide: stage === 'camera-back' ? front : null,
+    otherSideZone: stage === 'camera-back' ? frontZone : null, simulation, output, onFailure,
+    onCapture: (photo, automatic, zone) => {
       // A photo that passed the automatic quality check needs no extra confirmation step.
       const confirmed = automatic && options.confirmPhotos !== true;
-      if (stage === 'camera-back') { setBack(photo); setStage(confirmed ? 'done-back' : 'review-back'); }
-      else if (stage === 'camera-front') { setFront(photo); setBack(null); setStage(confirmed ? 'done-front' : 'review-front'); }
+      if (stage === 'camera-back') { setBack(photo); setBackZone(zone); setStage(confirmed ? 'done-back' : 'review-back'); }
+      else if (stage === 'camera-front') { setFront(photo); setFrontZone(zone); setBack(null); setBackZone(null); setStage(confirmed ? 'done-front' : 'review-front'); }
     },
   });
   const feedback = useSteadyFeedback(liveFeedback, stage);
@@ -147,6 +151,9 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
     unavailable: s.documentGuidanceUnavailable ?? 'Keep all four corners visible. Check the photo after capture.',
     'turn-over': s.documentTurnOver ?? 'Now turn your document over.',
     'same-side': s.documentSameSide ?? 'This is the same side. Turn your document over.',
+    'zone-unreadable': s.documentZoneUnreadable ?? 'Keep the lines of code at the bottom fully visible and sharp.',
+    'looks-like-passport': s.documentLooksLikePassport ?? 'This looks like a passport. Go back and choose Passport.',
+    'looks-like-id-card': s.documentLooksLikeIdCard ?? 'This looks like an identity card. Go back and choose Identity card.',
     off: body,
   };
 
@@ -164,7 +171,8 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
     if (completed.current || (selected !== 'passport' && !backPhoto)) return;
     completed.current = true;
     stop();
-    onCapture({ type: selected, front: frontPhoto, ...(selected === 'passport' ? {} : { back: backPhoto! }) });
+    const zone = frontZone ?? (selected === 'passport' ? null : backZone);
+    onCapture({ type: selected, front: frontPhoto, ...(selected === 'passport' ? {} : { back: backPhoto! }), ...(zone ? { mrz: zone } : {}) });
   };
 
   const confirm = () => {
