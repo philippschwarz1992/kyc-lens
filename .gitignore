@@ -21,3 +21,4 @@ demo/public/kyc-assets/
 Thumbs.db
 .vscode/
 .idea/
+.claude/worktrees/
