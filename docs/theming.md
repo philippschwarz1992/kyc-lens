@@ -58,7 +58,7 @@ Themes are validated when they are defined. Ids use lowercase letters, digits an
 
 ## Icon packs
 
-A theme can swap the flow's icons by naming an icon pack. Two packs ship with the package: `classic` (the built-in thin-line drawings, used when a theme names no pack) and `halo` (rounded outlines with a soft tint, used by the `halo` theme). A theme inherits its base theme's pack, and `icons: 'classic'` switches back to the built-in drawings.
+A theme can swap the flow's icons by naming an icon pack. Six packs ship with the package: `classic` (the built-in thin-line drawings, used when a theme names no pack), `halo` (rounded outlines with a soft tint, used by the `halo` theme), `viewfinder` (thin monoline icons that match the Viewfinder illustrations), `tabletop` (flat tonal shapes with solid details), `signal` (bold solid pictograms with cut-out details) and `soft` (an ink outline over a pastel fill in the illustration color). A theme inherits its base theme's pack, and `icons: 'classic'` switches back to the built-in drawings.
 
 ```tsx
 import { KycFlow, registerIconPack, registerTheme } from 'kyc-lens-react';
