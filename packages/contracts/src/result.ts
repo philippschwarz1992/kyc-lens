@@ -40,11 +40,29 @@ export interface DocumentZoneRead {
   fields: MrzFields;
 }
 
+/**
+ * Data printed on the page, read by label (or by EU field number on driving licences). Text is folded as in the
+ * MRZ and dates are ISO. Personal data: for the customer backend only.
+ */
+export interface PrintedFields {
+  surname: string | null;
+  givenNames: string | null;
+  documentNumber: string | null;
+  nationality: string | null;
+  birthDate: string | null;
+  placeOfBirth: string | null;
+  sex: 'M' | 'F' | 'X' | null;
+  issueDate: string | null;
+  expiryDate: string | null;
+}
+export type CrossCheckedField = 'documentNumber' | 'surname' | 'givenNames' | 'birthDate' | 'expiryDate' | 'sex';
+
 export interface VerificationResult {
   status: VerificationStatus;
   /**
    * Machine-readable reasons, e.g. `mrz-invalid`, `mrz-not-found`, `document-expired`, `document-type-mismatch`,
-   * `document-quality-poor`, `document-face-not-found`, `face-mismatch`, `live-face-mismatch`, `liveness-failed`, `liveness-missing`.
+   * `document-quality-poor`, `document-face-not-found`, `face-mismatch`, `live-face-mismatch`, `liveness-failed`, `liveness-missing`,
+   * and for review `printed-data-mismatch` (printed data and a valid MRZ disagree) and `printed-expiry-passed`.
    */
   reasons: string[];
   document: {
@@ -52,6 +70,10 @@ export interface VerificationResult {
     type: 'id-card' | 'drivers-license' | 'passport' | null;
     quality: DocumentQuality;
     mrz: DocumentZoneRead | null;
+    /** Null when no labelled field was read. */
+    printedFields: PrintedFields | null;
+    /** Printed fields that disagree with a valid MRZ; empty when all agree or there is no valid MRZ. */
+    fieldMismatches: CrossCheckedField[];
     ocrText?: string | null;
   };
   /** Cosine similarity of the document portrait and the selfie. */
