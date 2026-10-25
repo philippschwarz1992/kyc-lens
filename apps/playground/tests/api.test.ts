@@ -71,6 +71,18 @@ describe('HTTP adapter', () => {
     expect(JSON.parse(form.get('metadata') as string)).toEqual({ challenges: [], capturedAt: payload.capturedAt, mode: 'camera', document: { type: 'passport' } });
     expect(fetchMock.mock.calls[0]![1].headers.get('Authorization')).toBe('Bearer capture-token');
   });
+  it('uses a backend-created session without calling the session endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ sessionId: 'server-made', status: 'processing' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const api = createHttpApi('/api/kyc', undefined, { session: { id: 'server-made', token: 'browser-token' } });
+    const signal = new AbortController().signal;
+    expect(await api.createSession(signal)).toEqual({ id: 'server-made', token: 'browser-token' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    await api.submitCapture({ id: 'server-made', token: 'browser-token' }, { selfie: new Blob(['s'], { type: 'image/jpeg' }), challenges: [], capturedAt: '2026-10-02T10:00:00.000Z', mode: 'camera' }, signal);
+    expect(fetchMock.mock.calls[0]![0]).toBe('/api/kyc/sessions/server-made/capture');
+    expect(fetchMock.mock.calls[0]![1].headers.get('Authorization')).toBe('Bearer browser-token');
+    expect(() => createHttpApi('/api/kyc', undefined, { session: { id: '' } })).toThrow(/session must be/);
+  });
   it('submits optional document sides as files and keeps binary media out of JSON metadata', async () => {
     const fetchMock = vi.fn().mockImplementation(async () => Response.json({ status: 'capture_complete' }));
     vi.stubGlobal('fetch', fetchMock);

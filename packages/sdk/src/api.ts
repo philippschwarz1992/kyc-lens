@@ -85,8 +85,10 @@ export function retryDelay(attempt: number, baseDelayMs: number, error: unknown,
 export function validateHttpApiOptions(options: unknown): void {
   if (options === undefined) return;
   if (!options || typeof options !== 'object' || Array.isArray(options)) throw new Error('upload must be an options object.');
-  const { retry, onProgress } = options as HttpApiOptions;
+  const { retry, onProgress, session } = options as HttpApiOptions;
   if (onProgress !== undefined && typeof onProgress !== 'function') throw new Error('upload.onProgress must be a function.');
+  if (session !== undefined && (!session || typeof session !== 'object' || typeof session.id !== 'string' || !session.id
+    || (session.token !== undefined && typeof session.token !== 'string'))) throw new Error('session must be { id: string, token?: string }.');
   if (retry === undefined) return;
   if (!retry || typeof retry !== 'object' || Array.isArray(retry)) throw new Error('upload.retry must be an options object.');
   if (retry.attempts !== undefined && (!Number.isInteger(retry.attempts) || retry.attempts < 0 || retry.attempts > 5)) throw new Error('upload.retry.attempts must be an integer between 0 and 5.');
@@ -111,6 +113,7 @@ export function createHttpApi(baseUrl: string, extraHeaders?: HeadersInit, optio
   };
   return {
     async createSession(signal) {
+      if (options.session) return { id: options.session.id, token: options.session.token };
       const headers = new Headers(extraHeaders);
       headers.set('Content-Type', 'application/json');
       const data = await withRetry(async () => checkedJson(await fetch(`${base}/sessions`, {

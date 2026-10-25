@@ -119,6 +119,18 @@ The playground's local upload API is disabled by default. When enabled, saving s
 
 The installed SDK does not write to a server's filesystem itself. Copy or adapt the receiver's storage behavior into your own backend if you want results saved by session ID. The development sample does not authenticate application users, implement independent PAD or approve anyone.
 
+## Server-side verification with the KYC Lens gateway
+
+The browser checks guide the user; they do not decide. For a verdict, run the gateway from this repository (`apps/gateway`, `--env verify`). Your backend creates the session, the browser uploads to it, the gateway's analysis service checks MRZ, face match and liveness, and the case is delivered to your webhook.
+
+```tsx
+// Your backend: POST https://<gateway>/api/kyc/sessions with Authorization: Bearer <API_KEY>, body {"reference":"crm-42"}
+// → { id, token }. Hand both to the page; keep the API key on the server.
+<KycFlow apiBaseUrl="https://<gateway>/api/kyc" session={{ id, token }} onComplete={...} />
+```
+
+The upload returns `{ status: 'processing' }`. The verdict never reaches the browser. Your webhook receives a signed multipart delivery: an `event` part with the verdict, then the media. Verify the signature before reading the body. See the [reference receiver](https://github.com/philippschwarz1992/kyc-lens/tree/main/apps/reference-receiver) and the [system guide](https://github.com/philippschwarz1992/kyc-lens/blob/main/docs/system.md).
+
 ## React, Vite and other hosts
 
 Ordinary React applications can import `KycFlow` and its stylesheet directly. Host the copied `/kyc-assets` directory as public files. The package does not depend on Next.js, a particular authentication provider, or a CSS framework.

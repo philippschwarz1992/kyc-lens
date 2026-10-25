@@ -61,7 +61,7 @@ export function KycFlow(props: KycFlowProps) {
       const timeout = props.faceMatch.timeoutMs ?? 45_000;
       if (!Number.isFinite(timeout) || timeout < 1_000 || timeout > 120_000) throw new Error('faceMatch.timeoutMs must be between 1000 and 120000.');
     }
-    validateOutputOptions(props.output); validateHttpApiOptions(props.upload); validateHandoffOptions(props.handoff);
+    validateOutputOptions(props.output); validateHttpApiOptions(props.upload); if (props.session !== undefined) validateHttpApiOptions({ session: props.session }); validateHandoffOptions(props.handoff);
     if (props.onEvent !== undefined && typeof props.onEvent !== 'function') throw new Error('onEvent must be a function.');
   }
   catch (error) { invalid = error instanceof Error ? error : new Error(String(error)); }
@@ -100,13 +100,18 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
   const retryKey = JSON.stringify(props.upload?.retry ?? null);
   const uploadEnabled = props.upload !== undefined;
   // Setting `upload` reports progress on the submitting screen; the host callback is read at call time.
-  const api = useMemo(() => props.api ?? (props.apiBaseUrl !== undefined ? createHttpApi(props.apiBaseUrl, props.headers, uploadEnabled ? {
-    retry: props.upload?.retry,
-    onProgress: (loaded, total) => {
-      if (total > 0) setUploadPercent(Math.min(100, Math.round(loaded / total * 100)));
-      try { latestCallbacks.current.onProgress?.(loaded, total); } catch { /* Host callbacks must not break uploads. */ }
-    },
-  } : {}) : undefined), [props.api, props.apiBaseUrl, props.headers, uploadEnabled, retryKey]);
+  const sessionId = props.session?.id, sessionToken = props.session?.token;
+  const api = useMemo(() => props.api ?? (props.apiBaseUrl !== undefined ? createHttpApi(props.apiBaseUrl, props.headers, {
+    ...(uploadEnabled ? {
+      retry: props.upload?.retry,
+      onProgress: (loaded: number, total: number) => {
+        if (total > 0) setUploadPercent(Math.min(100, Math.round(loaded / total * 100)));
+        try { latestCallbacks.current.onProgress?.(loaded, total); } catch { /* Host callbacks must not break uploads. */ }
+      },
+    } : {}),
+    // A backend-created session is used as is; the browser never creates one.
+    ...(sessionId !== undefined ? { session: { id: sessionId, token: sessionToken } } : {}),
+  }) : undefined), [props.api, props.apiBaseUrl, props.headers, uploadEnabled, retryKey, sessionId, sessionToken]);
   const fail = (stage: KycErrorStage, failure: Error) => {
     setError(failure); send({ type: 'FAILURE', stage }); events.error(stage, failure); latestCallbacks.current.onError?.(failure);
   };

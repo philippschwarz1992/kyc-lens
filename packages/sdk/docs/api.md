@@ -231,6 +231,8 @@ The optional third argument is `HttpApiOptions`:
 - `retry` enables retries for both requests: up to `attempts` (0–5, default 2) additional tries after network errors and 408, 429 or 5xx responses, with exponential backoff from `baseDelayMs` (default 500 ms) and jitter between half and the full delay. A `Retry-After` header in seconds takes precedence; every delay is capped at 30 seconds. Other 4xx responses are not retried. Aborting the signal cancels the request and any pending wait. Without `retry`, each request is sent once.
 - `onProgress(loaded, total)` reports capture upload bytes. When set, the capture upload uses `XMLHttpRequest` with the same headers, bearer token, same-origin cookie behavior, abort handling and `KycHttpError` semantics; without it, or where `XMLHttpRequest` is unavailable, `fetch` is used. Exceptions thrown by the callback are ignored.
 
+`session={{ id, token }}` uses a session your backend created, for example on the KYC Lens gateway with its API key: the adapter uploads to it and never calls `POST /sessions` from the browser. Create a new session for each flow.
+
 With `apiBaseUrl`, the `upload` prop passes these options to the built-in adapter. Setting `upload` also shows the upload percentage (`uploadProgress` string, `{percent}` placeholder) in the submitting screen's status message.
 
 `apiBaseUrl="/api/kyc"` uses these routes:

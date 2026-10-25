@@ -135,8 +135,10 @@ export interface HttpApiOptions {
   retry?: RetryOptions;
   /** Capture upload progress in bytes. Uses XMLHttpRequest when set. */
   onProgress?: (loaded: number, total: number) => void;
+  /** A session your backend created (for example on the KYC Lens gateway with its API key). The adapter uploads to it and never calls `POST /sessions`. */
+  session?: KycSession;
 }
-export type UploadOptions = HttpApiOptions;
+export type UploadOptions = Omit<HttpApiOptions, 'session'>;
 export type KycPhase = 'intro' | 'document' | 'face' | 'review' | 'submitting' | 'complete' | 'error' | 'cancelled';
 export type KycErrorStage = 'camera' | 'document' | 'submission';
 /** Privacy-safe analytics events. They never include media, URLs, tokens, scores or embeddings. */
@@ -204,6 +206,8 @@ export interface KycFlowProps {
   api?: KycApi;
   /** Headers for the built-in HTTP adapter (e.g. your host app's session auth). */
   headers?: HeadersInit;
+  /** A capture session your backend created; the built-in adapter uploads to it instead of creating one from the browser. */
+  session?: KycSession;
   /** Retry and progress options for the built-in HTTP adapter. */
   upload?: UploadOptions;
   /** Image encoding for selfie and document photos. */
