@@ -4,7 +4,7 @@ import { builtInThemes, defineTheme, getTheme, listThemes, registerTheme, resolv
 afterEach(() => { unregisterTheme('brand'); });
 
 describe('themes', () => {
-  it('ships four complete built-in themes with the same token shape', () => {
+  it('ships five complete built-in themes with the same token shape', () => {
     expect(Object.keys(builtInThemes)).toEqual(['classic', 'aurora', 'ledger', 'pebble', 'halo']);
     const names = Object.keys(themeVariables(builtInThemes.classic)).sort();
     for (const theme of Object.values(builtInThemes)) {

@@ -1,7 +1,18 @@
-import type { CSSProperties } from 'react';
+import { createContext, useContext } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import type { KycIconName, KycResolvedIconPack } from '../icons.js';
 
-export function Icon({ name, size = 20, className, style }: { name: 'arrow' | 'check' | 'camera' | 'sun' | 'face' | 'shield' | 'refresh' | 'close' | 'upload' | 'switchCamera' | 'flash' | 'back'; size?: number; className?: string; style?: CSSProperties }) {
-  const paths = {
+/** The theme's icon pack. KycFlow provides it; without a provider every icon uses the built-in drawing. */
+export const IconPackContext = createContext<KycResolvedIconPack | undefined>(undefined);
+
+export function Icon({ name, size = 20, className, style }: { name: KycIconName; size?: number; className?: string; style?: CSSProperties }) {
+  const pack = useContext(IconPackContext);
+  const glyph = pack?.icons[name];
+  if (glyph) return <svg width={size} height={size} viewBox={`0 0 ${pack.grid} ${pack.grid}`} fill="none" stroke="currentColor" strokeWidth={pack.strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className} style={style}>
+    {glyph.map(({ d, paint, opacity }, index) => <path key={index} d={d} opacity={opacity === 1 ? undefined : opacity} {...paint === 'stroke' ? {} : { stroke: 'none', fill: 'currentColor', style: paint === 'tint' ? { fill: 'var(--kyc-color-illustration)' } : undefined }} />)}
+  </svg>;
+  // Partial, so names added to iconNames before a built-in drawing exists still type-check.
+  const paths: Partial<Record<KycIconName, ReactNode>> = {
     arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
     back: <path d="m15 5-7 7 7 7" />,
     check: <path d="m5 12 4 4L19 6" />,

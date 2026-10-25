@@ -9,7 +9,7 @@ import { gzipSync } from 'node:zlib';
 // imported chunks (59,108 B, 2,330 B and 53,943,577 B).
 // Raise them deliberately, with the reason in the commit message.
 const budgets = {
-  'dist/index.js (gzip)': 65_000,
+  'dist/index.js (gzip)': 67_000,
   'dist/core/index.js (gzip)': 2_560,
   'npm pack tarball': 59_340_000,
 };

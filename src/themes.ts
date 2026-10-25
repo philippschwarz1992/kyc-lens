@@ -1,3 +1,5 @@
+import { defineIconPack } from './icons.js';
+import type { KycIconPack } from './icons.js';
 import type { KycTheme } from './types.js';
 
 /** Every visual decision of the capture flow. Values are CSS values unless noted. */
@@ -96,6 +98,8 @@ export interface KycThemeDefinition {
    * KYC Lens never loads them itself: include them in your page, or self-host the fonts.
    */
   fonts?: readonly string[];
+  /** Icon pack: a registered id such as `halo`, or an inline pack. Default: the built-in drawings. */
+  icons?: string | KycIconPack;
   tokens: KycThemeTokens;
 }
 
@@ -104,6 +108,8 @@ export interface KycThemeInput {
   name: string;
   description?: string;
   fonts?: readonly string[];
+  /** Icon pack id or inline pack. Default: the base theme's pack. */
+  icons?: string | KycIconPack;
   /** Base theme id or definition. Default: `classic`. */
   extends?: string | KycThemeDefinition;
   tokens?: KycThemeTokenOverrides;
@@ -201,6 +207,7 @@ const pebble: KycThemeDefinition = {
 const halo: KycThemeDefinition = {
   id: 'halo', name: 'Halo', description: 'Airy verification app: white cards on a misty lavender glow, navy type and soft brackets.',
   fonts: ['https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@600;700&display=swap'],
+  icons: 'halo',
   tokens: {
     colorScheme: 'light',
     color: {
@@ -268,10 +275,14 @@ export function defineTheme(input: KycThemeInput): KycThemeDefinition {
   const base = typeof input.extends === 'object' ? input.extends : getTheme(input.extends ?? 'classic');
   if (!base) throw new Error(`Unknown base theme "${String(input.extends)}".`);
   if (input.fonts !== undefined && (!Array.isArray(input.fonts) || input.fonts.some(url => typeof url !== 'string' || !/^https:\/\//.test(url)))) throw new Error('Theme fonts must be https stylesheet URLs.');
+  const icons = input.icons ?? base.icons;
+  // Pack ids are looked up when the flow renders, so a pack can be registered after the theme.
+  if (typeof icons === 'string' && !/^[a-z][a-z0-9-]{0,47}$/.test(icons)) throw new Error('Theme icons must be an icon pack id or an icon pack.');
   return {
     id: input.id, name: input.name.trim(),
     ...(input.description ? { description: String(input.description).slice(0, 240) } : {}),
     ...(input.fonts ?? base.fonts ? { fonts: [...(input.fonts ?? base.fonts ?? [])] } : {}),
+    ...(icons === undefined ? {} : { icons: typeof icons === 'string' ? icons : defineIconPack(icons) }),
     tokens: merge(base.tokens, input.tokens),
   };
 }

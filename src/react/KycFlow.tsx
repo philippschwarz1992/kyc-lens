@@ -10,6 +10,8 @@ import { validateOutputOptions } from '../camera/output.js';
 import { DEFAULT_CHALLENGES, validateFaceOptions } from '../core/challenges.js';
 import { compareFaces, prefetchMatchingAssets } from '../matching/client.js';
 import { comparisonResult, DEFAULT_INCONCLUSIVE_MARGIN, DEFAULT_MATCH_THRESHOLD, validDecisionOptions } from '../matching/protocol.js';
+import { resolveIconPack } from '../icons.js';
+import type { KycResolvedIconPack } from '../icons.js';
 import { resolveTheme, themeVariables } from '../themes.js';
 import type { KycThemeDefinition } from '../themes.js';
 import type { AssetOptions, CapturePayload, CaptureResult, DocumentCapture, DocumentOptions, FaceChallenge, FaceMatchOptions, FaceMatchResult, FaceOptions, KycErrorStage, KycFlowProps, KycScreenContext, KycSession, KycStep, OutputOptions } from '../types.js';
@@ -17,7 +19,7 @@ import { DocumentScreen } from './DocumentScreen.js';
 import { createEventReporter } from './events.js';
 import { FaceScreen } from './FaceScreen.js';
 import { createFlowMachine, DEFAULT_STEPS, validateFlowConfiguration } from './flow.js';
-import { Icon } from './Icons.js';
+import { Icon, IconPackContext } from './Icons.js';
 import { prefersHandoff, validateHandoffOptions } from './Handoff.js';
 import { IntroScreen, ResultScreen, ReviewScreen } from './Screens.js';
 import { getStrings } from './strings.js';
@@ -42,8 +44,10 @@ export function KycFlow(props: KycFlowProps) {
   const challenges = props.face?.challenges ?? DEFAULT_CHALLENGES;
   let invalid: Error | null = null;
   let theme: KycThemeDefinition | undefined;
+  let iconPack: KycResolvedIconPack | undefined;
   try {
     theme = resolveTheme(props.theme);
+    iconPack = resolveIconPack(theme.icons);
     validateFlowConfiguration(steps, challenges); validateFaceOptions(props.face);
     if (steps.includes('document') && props.document?.types) {
       const types = props.document.types;
@@ -67,10 +71,10 @@ export function KycFlow(props: KycFlowProps) {
   const configuration: Configuration = { steps: [...steps], challenges: [...challenges], document: { ...props.document }, face: { ...props.face }, faceMatch: props.faceMatch === false ? false : { ...props.faceMatch }, assets: { ...props.assets }, output: { ...props.output }, simulation: props.simulation === true };
   const sessionKey = JSON.stringify(configuration);
   // Theme changes restyle the running flow; they are not part of the session key.
-  return <FlowSession key={sessionKey} {...props} configuration={configuration} resolvedTheme={theme!} />;
+  return <FlowSession key={sessionKey} {...props} configuration={configuration} resolvedTheme={theme!} iconPack={iconPack!} />;
 }
 
-function FlowSession(props: KycFlowProps & { configuration: Configuration; resolvedTheme: KycThemeDefinition }) {
+function FlowSession(props: KycFlowProps & { configuration: Configuration; resolvedTheme: KycThemeDefinition; iconPack: KycResolvedIconPack }) {
   // The outer key resets changed settings; hold their references stable within this attempt.
   const [configuration] = useState(props.configuration);
   const { steps, document: documentOptions, face, faceMatch, assets, challenges, output, simulation } = configuration;
@@ -197,11 +201,11 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
   const handoffUrl = offerHandoff ? props.handoff?.url : undefined;
   const context: KycScreenContext = { next: () => send({ type: 'NEXT' }), cancel, retry, result: result ?? (capture ? { status: 'capture_complete', payload: capture } : undefined), selfieUrl, videoUrl, handoffUrl };
   const { Intro, Review, Result } = props.components ?? {};
-  const { resolvedTheme } = props;
+  const { resolvedTheme, iconPack } = props;
   const themeStyle = themeVariables(resolvedTheme) as CSSProperties;
   if (phase === 'complete' && !steps.includes('result')) return null;
 
-  return <section className={`kyc-kit ${props.className ?? ''}`} style={themeStyle} data-kyc-theme={resolvedTheme.id} data-kyc-scheme={resolvedTheme.tokens.colorScheme} data-kyc-ambient={resolvedTheme.tokens.motion.ambient ? '' : undefined} lang={props.locale ?? 'en'} aria-label={s.secureCapture}>
+  return <section className={`kyc-kit ${props.className ?? ''}`} style={themeStyle} data-kyc-theme={resolvedTheme.id} data-kyc-scheme={resolvedTheme.tokens.colorScheme} data-kyc-ambient={resolvedTheme.tokens.motion.ambient ? '' : undefined} data-kyc-icons={iconPack.id} lang={props.locale ?? 'en'} aria-label={s.secureCapture}><IconPackContext.Provider value={iconPack}>
     {simulation ? <aside className="kyc-simulation-banner" aria-label={s.simulationBody}>{s.simulation}</aside> : null}
     <div ref={contentRef} id={screenId} className="kyc-content" tabIndex={-1}>
       {phase === 'intro' ? Intro ? <Intro {...context} /> : <IntroScreen {...context} strings={s} hasDocument={steps.includes('document')} /> : null}
@@ -213,5 +217,5 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
       {phase === 'error' ? <div className="kyc-screen kyc-error-screen"><div className="kyc-screen-heading"><h2>{s.errorTitle}</h2><p className="kyc-description">{error?.name === 'FaceMatchError' ? s.matchingErrorBody : state.context.errorStage === 'submission' ? s.submissionErrorBody : s.cameraErrorBody}</p></div><div className="kyc-media kyc-error-media"><div className="kyc-error-icon"><Icon name="refresh" size={28} /></div><p className="kyc-error-detail" role="alert">{error ? readableError(error, s) : s.cameraErrorBody}</p></div><div className="kyc-actions"><button type="button" className="kyc-button kyc-button-primary" onClick={retry}>{s.retry}<Icon name="arrow" size={18} /></button></div></div> : null}
       {phase === 'cancelled' ? <div className="kyc-screen kyc-status-screen"><div className="kyc-screen-heading"><h2>{s.cancelledTitle}</h2><p className="kyc-description">{s.cancelledBody}</p></div><div className="kyc-media" /><div className="kyc-actions" /></div> : null}
     </div>
-  </section>;
+  </IconPackContext.Provider></section>;
 }

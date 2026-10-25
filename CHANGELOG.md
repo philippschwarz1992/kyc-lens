@@ -12,6 +12,7 @@ This file records changes prepared for release. No version has been published ye
 - Self-hosted model, WASM, and worker assets, a pinned model checksum, and the `kyc-lens-copy-assets` command.
 - Configurable challenges, camera constraints, English/German strings, and custom screen components.
 - Token-based theming with five built-in themes (Classic, Aurora, Ledger, Pebble, Halo), a theme registry for custom themes, and a playground theme studio with live preview and export.
+- Icon packs: themes name an icon pack (`icons`) that replaces any of the flow's icons with validated SVG path data, a registry for custom packs (`registerIconPack`, `defineIconPack`), and the built-in `halo` pack used by the Halo theme.
 - Local capture results, an optional HTTP adapter, and custom backend adapters.
 - `kyc-lens-react/element`: a `<kyc-lens>` custom element for non-React hosts, configured by attributes or a `config` property, with `kyc-complete`, `kyc-cancel` and `kyc-error` DOM events and camera release on removal.
 - `onEvent` analytics callback with privacy-safe step, retry, retake, error, completion and cancellation events (`KycEvent`).
