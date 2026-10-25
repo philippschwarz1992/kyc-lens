@@ -76,12 +76,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .demo-clipboard-error { padding: 0 20px 16px; }
 .demo-settings-note { color: #697386; font-size: 11px; line-height: 1.6; text-align: center; max-width: 400px; margin: 24px auto 0; }
 .demo-preview-page { grid-template-columns: minmax(0, 1fr); }
-/* The theme bar floats outside the capture frame, so the frame keeps the SDK's centered geometry. */
-.demo-preview-page { position: relative; }
-.demo-theme-bar { position: absolute; z-index: 2; top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; max-width: calc(100% - 32px); }
-@media (min-width: 900px) { .demo-theme-bar { top: 50%; left: 24px; flex-direction: column; transform: translateY(-50%); } }
-.demo-theme-bar button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid #e6e9ef; border-radius: 999px; background: #fff; color: #4e586a; font: 500 12px/1 inherit; white-space: nowrap; cursor: pointer; }
-.demo-theme-bar button.selected { border-color: #2563eb; color: #1d4ed8; box-shadow: 0 0 0 1px #2563eb; }
 .demo-handoff-done { padding: 28px 24px; border-radius: 24px; background: #fff; box-shadow: 0 20px 60px rgba(15, 23, 42, .12); }
 .demo-handoff-done h2 { margin: 0 0 8px; font-size: 20px; }
 .demo-handoff-done p { margin: 0 0 16px; color: #697386; font-size: 13px; line-height: 1.6; }
@@ -90,10 +84,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   :root { background: #fff; }
   .demo-preview-page { height: 100svh; height: 100dvh; padding: 0; background: #fff; }
   .demo-phone { max-width: none; }
-  /* The transparent top border reserves room for the theme bar inside the full-screen frame. */
-  .demo-phone > .kyc-kit { max-width: none; height: 100svh; height: 100dvh; min-height: 0; border: 0; border-top: 52px solid transparent; border-radius: 0; box-shadow: none; }
-  .demo-theme-bar { top: 0; left: 0; right: 0; transform: none; max-width: none; height: 52px; padding: 8px 12px; overflow-x: auto; }
-  .demo-handoff-done { border-radius: 0; min-height: 100dvh; padding-top: 72px; }
+  .demo-phone > .kyc-kit { max-width: none; height: 100svh; height: 100dvh; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+  .demo-theme-picker { top: 10px; right: 10px; }
+  .demo-handoff-done { border-radius: 0; min-height: 100dvh; }
   .demo-settings-header { padding: 16px 20px 0; }
   .demo-settings-main { padding: 22px 16px 28px; }
   .demo-settings-title { padding: 0 4px; }
@@ -206,4 +199,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .studio-fields { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { .studio-notice, .studio-fields { animation: none; } .studio-theme-list button { transition: none; } }
-.demo-theme-bar .demo-theme-swatch { flex: 0 0 16px; width: 16px; height: 16px; border-radius: 5px; }
+
+/* Floating theme picker: fixed to the viewport corner, outside the page layout. */
+.demo-theme-picker { position: fixed; z-index: 20; top: 16px; right: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.demo-theme-toggle { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 1px solid rgb(255 255 255 / 60%); border-radius: 999px; background: rgb(255 255 255 / 78%); box-shadow: 0 6px 20px rgb(15 23 42 / 18%); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; }
+.demo-theme-toggle .demo-theme-swatch { flex: none; width: 22px; height: 22px; border-radius: 999px; }
+.demo-theme-menu { display: flex; flex-direction: column; gap: 2px; min-width: 150px; padding: 6px; border-radius: 14px; background: rgb(255 255 255 / 94%); box-shadow: 0 12px 36px rgb(15 23 42 / 22%); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.demo-theme-menu button { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent; color: #1f2937; font: 500 13px/1 inherit; text-align: left; cursor: pointer; }
+.demo-theme-menu button:hover, .demo-theme-menu button:focus-visible { background: #f1f4f9; }
+.demo-theme-menu button.selected { color: #1d4ed8; background: #eef3ff; }
+.demo-theme-menu .demo-theme-swatch { flex: none; width: 20px; height: 20px; border-radius: 6px; }

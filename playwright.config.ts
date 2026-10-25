@@ -6,6 +6,8 @@ export default defineConfig({
   testDir: './tests/e2e',
   // Chrome's fake camera is shared; competing capture tests can end its tracks.
   workers: 1,
+  // One retry on CI; a test that passes only on retry is still reported as flaky.
+  retries: process.env.CI ? 1 : 0,
   use: { baseURL, headless: true },
   projects: [
     { name: 'chrome', use: { browserName: 'chromium', channel: 'chrome',

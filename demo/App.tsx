@@ -154,10 +154,22 @@ async function handoffRelayAvailable(): Promise<boolean> {
   catch { return false; }
 }
 
-function ThemeBar({ themes, value, onChange }: { themes: readonly KycThemeDefinition[]; value: string; onChange: (id: string) => void }) {
-  return <div className="demo-theme-bar" role="radiogroup" aria-label="Theme">{themes.map(theme => <button key={theme.id} type="button" role="radio" aria-checked={value === theme.id} className={value === theme.id ? 'selected' : ''} onClick={() => onChange(theme.id)}>
-    <span className="demo-theme-swatch" style={{ '--swatch-bg': theme.tokens.color.background, '--swatch-primary': theme.tokens.color.primary, '--swatch-accent': theme.tokens.color.accent } as CSSProperties} aria-hidden="true" />{theme.name}
-  </button>)}</div>;
+// A floating control: it never takes layout space from the capture frame.
+function ThemePicker({ themes, value, onChange }: { themes: readonly KycThemeDefinition[]; value: string; onChange: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const current = themes.find(theme => theme.id === value) ?? themes[0];
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: Event) => { if (event instanceof KeyboardEvent ? event.key === 'Escape' : !root.current?.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener('pointerdown', close); document.addEventListener('keydown', close);
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', close); };
+  }, [open]);
+  const swatch = (theme: KycThemeDefinition) => <span className="demo-theme-swatch" style={{ '--swatch-bg': theme.tokens.color.background, '--swatch-primary': theme.tokens.color.primary, '--swatch-accent': theme.tokens.color.accent } as CSSProperties} aria-hidden="true" />;
+  return <div ref={root} className="demo-theme-picker">
+    <button type="button" className="demo-theme-toggle" aria-haspopup="true" aria-expanded={open} aria-label={`Theme: ${current.name}`} onClick={() => setOpen(previous => !previous)}>{swatch(current)}</button>
+    {open ? <div className="demo-theme-menu" role="radiogroup" aria-label="Theme">{themes.map(theme => <button key={theme.id} type="button" role="radio" aria-checked={value === theme.id} className={value === theme.id ? 'selected' : ''} onClick={() => { onChange(theme.id); setOpen(false); }}>{swatch(theme)}{theme.name}</button>)}</div> : null}
+  </div>;
 }
 
 function PreviewPage() {
@@ -201,7 +213,7 @@ function PreviewPage() {
     if (phoneHandoff) void fetch(`/api/handoff/${phoneHandoff}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(summaryFor(capture)) }).catch(() => {});
   };
   return <main className="demo-preview-page" aria-label="Identity capture preview"><div className="demo-phone" data-testid="sdk-preview">
-    <ThemeBar themes={themes} value={theme.id} onChange={setThemeId} />
+    <ThemePicker themes={themes} value={theme.id} onChange={setThemeId} />
     {phoneSummary ? <section className="demo-handoff-done" aria-live="polite"><h2>Completed on your phone</h2><p>The phone sent its capture summary. Photos and video stay on the phone.</p><pre>{JSON.stringify(phoneSummary, null, 2)}</pre><a className="demo-primary-button" href={window.location.pathname + window.location.search}>Start again</a></section>
       : <KycFlow
       steps={getSteps(config)} face={{ challenges: config.challenges, trackingFps: 15 }}

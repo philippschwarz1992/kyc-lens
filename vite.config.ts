@@ -14,5 +14,8 @@ export default defineConfig({
     outDir: '../demo-dist', emptyOutDir: true,
     rollupOptions: { input: { main: fileURLToPath(new URL('./demo/index.html', import.meta.url)), element: fileURLToPath(new URL('./demo/element.html', import.meta.url)) } },
   },
+  // Pre-bundle packages that only workers or lazy screens import. Discovering them mid-session makes
+  // Vite re-optimize and reload the page, which drops an in-progress capture (seen on fresh CI caches).
+  optimizeDeps: { include: ['@mediapipe/tasks-vision', 'onnxruntime-web/wasm', 'uqr', 'xstate', 'react', 'react-dom/client'] },
   worker: { format: 'es' },
 });
