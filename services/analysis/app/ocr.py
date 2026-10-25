@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import threading
 import unicodedata
+from dataclasses import dataclass
 from typing import Iterable
 
 import cv2
@@ -26,11 +27,34 @@ def engine():
         return _engine
 
 
+@dataclass(frozen=True)
+class OcrLine:
+    text: str
+    score: float
+    # Axis-aligned bounds of the detected text box, in pixels of the image that was read.
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+    @property
+    def height(self) -> float:
+        return max(1.0, self.y1 - self.y0)
+
+
+def read_boxes(image: np.ndarray) -> list[OcrLine]:
+    """Text lines top to bottom, with the recognizer's confidence and where they are."""
+    result, _ = engine()(image, use_cls=False)
+    lines = []
+    for box, text, score in result or []:
+        xs, ys = [point[0] for point in box], [point[1] for point in box]
+        lines.append(OcrLine(text, float(score), min(xs), min(ys), max(xs), max(ys)))
+    return sorted(lines, key=lambda line: ((line.y0 + line.y1) / 2, line.x0))
+
+
 def read_lines(image: np.ndarray) -> list[tuple[str, float]]:
     """Text lines top to bottom, with the recognizer's confidence."""
-    result, _ = engine()(image, use_cls=False)
-    boxes = sorted(result or [], key=lambda item: (np.mean([point[1] for point in item[0]]), item[0][0][0]))
-    return [(text, float(score)) for _, text, score in boxes]
+    return [(line.text, line.score) for line in read_boxes(image)]
 
 
 def _width(image: np.ndarray, width: int) -> np.ndarray:
@@ -68,21 +92,21 @@ def read_mrz(document: np.ndarray, full_text: Iterable[tuple[str, float]] = ()) 
     return best
 
 
-def _fold(text: str) -> str:
-    """Upper case without diacritics, so FÜHRERSCHEIN and FUHRERSCHEIN compare equal."""
-    text = text.upper().replace("Ü", "UE").replace("Ä", "AE").replace("Ö", "OE")
+def fold(text: str) -> str:
+    """Upper case without diacritics, transliterated as in the MRZ: FÜHRERSCHEIN becomes FUEHRERSCHEIN."""
+    text = text.upper().replace("Ü", "UE").replace("Ä", "AE").replace("Ö", "OE").replace("ß", "SS").replace("ẞ", "SS")
     return "".join(char for char in unicodedata.normalize("NFKD", text) if not unicodedata.combining(char))
 
 
 _KEYWORDS: list[tuple[DocumentType, re.Pattern[str]]] = [
     ("passport", re.compile(r"PASSPORT|REISEPASS|PASSEPORT|PASAPORTE|PASSAPORTO")),
-    ("drivers-license", re.compile(r"F(UE|U)HRERSCHEIN|DRIVING\s*LICEN[CS]E|DRIVER'?S?\s*LICEN[CS]E|PERMIS\s*DE\s*CONDUIRE")),
+    ("drivers-license", re.compile(r"F(UE|U)?HRERSCHEIN|DRIVING\s*LICEN[CS]E|DRIVER'?S?\s*LICEN[CS]E|PERMIS\s*DE\s*CONDUIRE")),
     ("id-card", re.compile(r"PERSONALAUSWEIS|IDENTITY\s*CARD|CARTE\s*D'?\s*IDENTITE|IDENTITEITSKAART|DOCUMENTO\s*DE\s*IDENTIDAD")),
 ]
 
 
 def type_from_text(text: str) -> DocumentType | None:
     """The document type from printed keywords; the earliest keyword on the page wins."""
-    folded = _fold(text)
+    folded = fold(text)
     hits = [(match.start(), kind) for kind, pattern in _KEYWORDS if (match := pattern.search(folded))]
     return min(hits)[1] if hits else None
