@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { builtInThemes, defineTheme, KycFlow, themeCss } from '@sdk/index';
+import { builtInThemes, defineTheme, iconNames, KycFlow, listIconPacks, resolveIconPack, themeCss, themeVariables } from '@sdk/index';
 import type { KycThemeDefinition, KycThemeTokens } from '@sdk/index';
 import FaceWorkerUrl from '@sdk/camera/face.worker.ts?worker&url';
 import DocumentWorkerUrl from '@sdk/camera/document.worker.ts?worker&url';
 import MatchWorkerUrl from '@sdk/matching/match.worker.ts?worker&url';
+import { Icon, IconPackContext } from '@sdk/react/Icons';
 import { allThemes, isBuiltIn, loadThemes, saveThemes, tokenChanges, uniqueId, useThemeFonts } from './themeStore';
 import type { StoredTheme } from './themeStore';
 
@@ -152,7 +153,9 @@ function exportCode(theme: KycThemeDefinition, base: string): string {
   const baseTokens = (builtInThemes as Record<string, KycThemeDefinition>)[base]!.tokens;
   const tokens = JSON.stringify(tokenChanges(theme.tokens, baseTokens), null, 2).replace(/\n/g, '\n  ');
   const fonts = theme.fonts?.length ? `\n  fonts: ${JSON.stringify(theme.fonts)},` : '';
-  return `import { KycFlow, registerTheme } from 'kyc-lens-react';\nimport 'kyc-lens-react/styles.css';\n\nregisterTheme({\n  id: '${theme.id}',\n  name: ${JSON.stringify(theme.name)},\n  extends: '${base}',${fonts}\n  tokens: ${tokens},\n});\n\n<KycFlow theme="${theme.id}" />`;
+  const baseIcons = (builtInThemes as Record<string, KycThemeDefinition>)[base]!.icons;
+  const icons = theme.icons !== undefined && JSON.stringify(theme.icons) !== JSON.stringify(baseIcons) ? `\n  icons: ${JSON.stringify(theme.icons)},` : '';
+  return `import { KycFlow, registerTheme } from 'kyc-lens-react';\nimport 'kyc-lens-react/styles.css';\n\nregisterTheme({\n  id: '${theme.id}',\n  name: ${JSON.stringify(theme.name)},\n  extends: '${base}',${fonts}${icons}\n  tokens: ${tokens},\n});\n\n<KycFlow theme="${theme.id}" />`;
 }
 
 export function ThemeStudio() {
@@ -294,6 +297,22 @@ export function ThemeStudio() {
               try { const next = defineTheme({ ...theme, fonts, extends: base }); setSaved(previous => previous.map(item => item.theme.id === theme.id ? { ...item, theme: next } : item)); }
               catch (error) { setNotice(error instanceof Error ? error.message : String(error)); }
             }} /></div></div>
+        </details>
+        <details>
+          <summary>Icon pack</summary>
+          <div className="studio-fields"><div className="studio-field studio-field-select"><label htmlFor="studio-icons">Icons missing from a pack use the built-in drawing.</label>
+            <select id="studio-icons" disabled={!stored} value={typeof theme.icons === 'object' ? '__inline' : theme.icons ?? 'classic'} onChange={event => {
+              try { const next = defineTheme({ ...theme, icons: event.target.value, extends: base }); setSaved(previous => previous.map(item => item.theme.id === theme.id ? { ...item, theme: next } : item)); }
+              catch (error) { setNotice(error instanceof Error ? error.message : String(error)); }
+            }}>
+              {listIconPacks().map(pack => <option key={pack.id} value={pack.id}>{pack.name}</option>)}
+              {typeof theme.icons === 'object' ? <option value="__inline">{theme.icons.name} (inline)</option> : null}
+            </select></div>
+            <IconPackContext.Provider value={resolveIconPack(theme.icons)}>
+              <div className="studio-icon-grid" style={{ ...themeVariables(theme), color: theme.tokens.color.text, background: theme.tokens.color.background } as CSSProperties}>
+                {iconNames.map(name => <span key={name} title={name}><Icon name={name} size={22} /></span>)}
+              </div>
+            </IconPackContext.Provider></div>
         </details>
         <div className="studio-export">
           <div className="studio-export-head">

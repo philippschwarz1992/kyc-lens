@@ -4,7 +4,7 @@ import type { AssetOptions, DocumentOptions, DocumentType, OutputOptions } from 
 import type { MrzSummary } from '../mrz/parse.js';
 import type { MrzRead } from '../mrz/read.js';
 import { analyzeDocument, type DocumentDetectionReason } from '../core/document.js';
-import { createDocumentHold, sameDocumentSide } from '../core/document-auto.js';
+import { createDocumentHold, MAX_DOCUMENT_OBSERVATION_GAP_MS, sameDocumentSide } from '../core/document-auto.js';
 import { createDocumentTracker } from '../camera/document-tracker.js';
 import { documentCropRect, documentPreviewGeometry, type SourceRect } from '../camera/document-preview.js';
 import type { DocumentGuide } from '../core/document.js';
@@ -362,7 +362,7 @@ export function useDocumentCapture({ options, assets, type, side = 'front', othe
               timestamp, now, geometry?.key ?? '');
             const turning = now < turnOver.current.until;
             setFeedback(turning ? turnOver.current.reason : result.feedback); setProgress(turning ? 0 : result.progress);
-            holdTimer.current = setTimeout(resetHold, Math.max(0, 1000 - (now - timestamp)));
+            holdTimer.current = setTimeout(resetHold, Math.max(0, MAX_DOCUMENT_OBSERVATION_GAP_MS - (now - timestamp)));
             if (result.capture && !turning && configuration.current.options.autoCapture !== false) automaticCapture.current();
           },
           onError: () => {
@@ -437,6 +437,9 @@ export function useDocumentCapture({ options, assets, type, side = 'front', othe
       const { output } = configuration.current;
       const framed = !configuration.current.simulation && geometry && configuration.current.options.crop !== 'full'
         ? documentCropRect(geometry, video!.videoWidth, video!.videoHeight) : null;
+      // Freezing the preview on the photographed frame shows the shot was taken while it is checked.
+      const live = configuration.current.simulation ? null : video;
+      live?.pause();
       const photo = configuration.current.simulation ? await simulatedDocument(type, side, output) : await snapshot(video!, output, framed?.rect);
       if (!mounted.current || generation.current !== attempt) return;
       const readZone = configuration.current.options.mrz !== false;
@@ -448,6 +451,7 @@ export function useDocumentCapture({ options, assets, type, side = 'front', othe
         if (!mounted.current || generation.current !== attempt) return;
         const currentGeometry = video && guideRef.current ? documentPreviewGeometry(video, guideRef.current) : null;
         if (detection.reason !== 'ready' || geometry!.key !== currentGeometry?.key || document.hidden) {
+          void live?.play().catch(() => {});
           setFeedback(guidanceAvailable.current ? detection.reason === 'ready' ? 'searching' : detection.reason : 'unavailable');
           updateStatus('ready'); return;
         }

@@ -79,7 +79,7 @@ This example captures locally. Without `api` or `apiBaseUrl`, the SDK sends no c
 
 Document photos are taken automatically after a steady, clear hold and final-photo quality check, with a manual fallback and review for each required side. The face camera starts automatically on entering its screen, records silently during tracker initialization and the selected movements, then stops and takes a final centered selfie. After optional final review, the package compares the document portrait and selfie; the result is advisory. Camera permission is still controlled by the browser. Face clips are limited to 12 MiB and 90 seconds; the browser must support recording WebM or MP4.
 
-For a face-only flow, omit the `steps` prop; its default is `['intro', 'face', 'review', 'result']`. To delay the face camera until the user presses a button, set `face={{ autoStart: false }}`. For an explicitly still-only flow, set `face={{ recordVideo: false }}`.
+For a face-only flow, omit the `steps` prop; its default is `['intro', 'face', 'result']`. To delay the face camera until the user presses a button, set `face={{ autoStart: false }}`. For an explicitly still-only flow, set `face={{ recordVideo: false }}`.
 
 ## Connect your backend
 

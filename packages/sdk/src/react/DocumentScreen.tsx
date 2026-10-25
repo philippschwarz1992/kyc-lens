@@ -3,13 +3,42 @@ import { createSteadyFeedback } from '../core/document-auto.js';
 import type { AssetOptions, DocumentCapture, DocumentOptions, DocumentType, OutputOptions } from '../types.js';
 import type { MrzSummary } from '../mrz/parse.js';
 import { Icon } from './Icons.js';
-import { Illustration } from './Illustrations.js';
+import { Illustration, type IllustrationKind } from './Illustrations.js';
 import { useDocumentCapture, type DocumentGuideFeedback } from './useDocumentCapture.js';
-import { useScreenTransition } from './useScreenTransition.js';
+import { motionTokens, useBrowserLayoutEffect, useScreenTransition } from './useScreenTransition.js';
 
 type DocumentStage = 'select' | 'prepare-front' | 'camera-front' | 'review-front' | 'done-front'
   | 'prepare-back' | 'camera-back' | 'review-back' | 'done-back';
 const DEFAULT_DOCUMENT_TYPES: readonly DocumentType[] = ['id-card', 'drivers-license', 'passport'];
+const typeIcons = { 'id-card': 'idCard', 'drivers-license': 'license', passport: 'passport' } as const;
+
+function sideIllustration(type: DocumentType, back: boolean): IllustrationKind {
+  if (type === 'passport') return 'passport';
+  if (type === 'drivers-license') return back ? 'license-back' : 'license-front';
+  return back ? 'document-back' : 'document-front';
+}
+
+/** Glides the review photo out of the camera frame it was taken in, while the dark viewfinder fades away. */
+function revealPhoto(image: HTMLImageElement, from: DOMRect, done: () => void) {
+  const media = image.parentElement;
+  const motion = motionTokens(image);
+  const box = image.getBoundingClientRect();
+  const ratio = image.naturalWidth / image.naturalHeight;
+  if (!media || !motion || !box.width || !box.height || !ratio || !from.width || !from.height) { done(); return; }
+  // object-fit: contain centers the photo in its box, so the box centre is the photo's centre.
+  const width = Math.min(box.width, box.height * ratio);
+  const height = width / ratio;
+  const dx = from.left + from.width / 2 - (box.left + box.width / 2);
+  const dy = from.top + from.height / 2 - (box.top + box.height / 2);
+  const options = { duration: 480 * motion.scale, easing: motion.easing };
+  const flight = image.animate([
+    { transform: `translate(${dx}px, ${dy}px) scale(${from.width / width}, ${from.height / height})` },
+    { transform: 'none' },
+  ], options);
+  media.animate([{ backgroundColor: getComputedStyle(media).backgroundColor }, { backgroundColor: 'transparent' }], options);
+  flight.onfinish = done; flight.oncancel = done;
+}
+
 // Long enough to read the confirmation, also for someone who reads slowly.
 const DONE_MS = 2200;
 const ADJUSTMENTS: ReadonlySet<DocumentGuideFeedback> = new Set(['searching', 'outside', 'too-small', 'dark', 'glare', 'blur']);
@@ -50,6 +79,8 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
   const [frontZone, setFrontZone] = useState<MrzSummary | null>(null);
   const [backZone, setBackZone] = useState<MrzSummary | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>();
+  // Where the photographed document was on screen, so the review photo can start from there.
+  const [flight, setFlight] = useState<DOMRect | null>(null);
   const completed = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
@@ -62,12 +93,15 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
   const isBack = stage.endsWith('back');
   const side = isBack ? 'back' : 'front';
   const preview = isReview ? isBack ? back : front : null;
+  const sideArt = sideIllustration(selected, isBack);
   const { videoRef, guideRef, feedback: liveFeedback, progress, status, start, capture, stop, cameras, torch, notice, switchCamera, toggleTorch } = useDocumentCapture({
     options, assets, type: selected, side, otherSide: stage === 'camera-back' ? front : null,
     otherSideZone: stage === 'camera-back' ? frontZone : null, simulation, output, onFailure,
     onCapture: (photo, automatic, zone) => {
       // A photo that passed the automatic quality check needs no extra confirmation step.
       const confirmed = automatic && options.confirmPhotos !== true;
+      // Where the photographed document was on screen, so the review photo can start from there.
+      if (!confirmed) setFlight((options.crop === 'full' ? videoRef.current : guideRef.current)?.getBoundingClientRect() ?? null);
       if (stage === 'camera-back') { setBack(photo); setBackZone(zone); setStage(confirmed ? 'done-back' : 'review-back'); }
       else if (stage === 'camera-front') { setFront(photo); setFrontZone(zone); setBack(null); setBackZone(null); setStage(confirmed ? 'done-front' : 'review-front'); }
     },
@@ -76,7 +110,8 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
 
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
-  }, [stage]);
+    if (!isReview) setFlight(null);
+  }, [stage, isReview]);
 
   useEffect(() => {
     // Entering this stage follows the user's Open camera or Retake photo action.
@@ -95,7 +130,8 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
     return () => clearTimeout(timer);
   });
 
-  useEffect(() => {
+  // Before paint, so the first review frame already holds the photo instead of an empty box.
+  useBrowserLayoutEffect(() => {
     if (!preview) { setPreviewUrl(undefined); return; }
     const url = URL.createObjectURL(preview);
     setPreviewUrl(url);
@@ -122,7 +158,7 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
         : isBack ? s.documentBackBody ?? 'Turn your document over. Make sure all four corners are visible.'
           : s.documentFrontBody ?? 'Place your document on a flat surface. Make sure all four corners are visible.';
   // A found, clear document is green while a configured hold completes, not red.
-  const guideState = feedback === 'off' ? 'off' : feedback === 'ready' || feedback === 'hold-still' ? 'ready' : 'adjust';
+  const guideState = status === 'capturing' || feedback === 'ready' || feedback === 'hold-still' ? 'ready' : feedback === 'off' ? 'off' : 'adjust';
   const automatic = !simulation && options.detection !== false && options.autoCapture !== false;
   // The shutter is automatic; a manual one appears only when live analysis cannot run.
   const manualShutter = !automatic || feedback === 'unavailable';
@@ -189,17 +225,19 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
       <div className="kyc-document-type-list" role="radiogroup" aria-labelledby={titleId}>
         {types.map(type => <label key={type} className={`kyc-document-type-button ${selected === type ? 'is-selected' : ''}`}>
           <input className="kyc-visually-hidden" type="radio" name={radioName} value={type} checked={selected === type} onChange={() => setSelected(type)} />
+          <span className="kyc-document-type-icon" aria-hidden="true"><Icon name={typeIcons[type]} size={22} /></span>
           <span className="kyc-document-type-text"><strong className="kyc-document-type-name">{names[type]}</strong><span className="kyc-document-type-detail">{type === 'passport' ? s.documentPhotoPage ?? 'Photo page' : s.documentFrontAndBack ?? 'Front and back'}</span></span>
           <span className="kyc-document-type-radio" aria-hidden="true">{selected === type ? <Icon name="check" size={14} /> : null}</span>
         </label>)}
       </div>
     </div> : isDone ? <div className="kyc-media kyc-document-done" aria-hidden="true">
       <span className="kyc-document-done-mark"><Icon name="check" size={46} /></span>
-    </div> : isReview ? <div className="kyc-media kyc-document-preview">
-      {previewUrl ? <img src={previewUrl} alt={isBack ? s.documentBackAlt ?? 'Photograph of the back of your document' : s.documentFrontAlt ?? 'Photograph of the front of your document'} /> : null}
-    </div> : isCamera ? <div className={`kyc-media kyc-document-camera ${simulation ? 'is-simulation' : ''}`}>
+    </div> : isReview ? <div className={`kyc-media kyc-document-preview ${flight ? 'is-from-camera' : ''}`} data-kyc-motion={flight ? 'own' : undefined}>
+      {previewUrl ? <img src={previewUrl} alt={isBack ? s.documentBackAlt ?? 'Photograph of the back of your document' : s.documentFrontAlt ?? 'Photograph of the front of your document'}
+        onLoad={event => { if (flight) revealPhoto(event.currentTarget, flight, () => setFlight(null)); }} onError={() => setFlight(null)} /> : null}
+    </div> : isCamera ? <div className={`kyc-media kyc-document-camera ${simulation ? 'is-simulation' : ''}`} data-status={status}>
       <video ref={videoRef} className="kyc-document-video" autoPlay muted playsInline aria-label={title} />
-      {simulation ? <div className="kyc-document-demo" aria-hidden="true"><Illustration kind={isBack ? 'document-back' : 'document-front'} /><span>DEMO</span></div> : null}
+      {simulation ? <div className="kyc-document-demo" aria-hidden="true"><Illustration kind={sideArt} /><span>DEMO</span></div> : null}
       <div ref={guideRef} className="kyc-document-guide" data-state={guideState} data-reason={liveFeedback} data-document-type={selected} aria-hidden="true" />
       {automatic && feedback === 'hold-still' && progress > 0 ? <div className="kyc-document-auto-progress" role="progressbar" aria-label={s.documentAutoProgress ?? 'Automatic photo capture'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><span style={{ width: `${progress * 100}%` }} /></div> : null}
       {showSwitch || showTorch ? <div className="kyc-document-camera-controls">
@@ -207,8 +245,10 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
         {showTorch ? <button type="button" className={`kyc-document-camera-control ${torch.on ? 'is-active' : ''}`} aria-disabled={controlsBusy} aria-label={torch.on ? s.documentTorchOff ?? 'Turn off flashlight' : s.documentTorchOn ?? 'Turn on flashlight'} onClick={() => { if (!controlsBusy) void toggleTorch(); }}><Icon name="flash" size={19} /></button> : null}
         {showSwitch ? <button type="button" className="kyc-document-camera-control" aria-disabled={controlsBusy} aria-label={s.documentSwitchCamera ?? 'Switch camera'} onClick={() => { if (!controlsBusy) switchCamera(); }}><Icon name="switchCamera" size={20} /></button> : null}
       </div> : null}
-      {status === 'requesting' || status === 'capturing' ? <div className="kyc-document-status" role="status"><span className="kyc-spinner" /><span>{status === 'requesting' ? notice === 'tapToStart' ? s.tapToStartCamera : s.requesting ?? 'Opening your camera…' : s.capturing ?? 'Taking your photo…'}</span></div> : null}
-    </div> : <div className="kyc-media kyc-document-preparation"><Illustration kind={isBack ? 'document-back' : 'document-front'} /></div>}
+      {status === 'requesting' ? <div className="kyc-document-status" role="status"><span className="kyc-spinner" /><span>{notice === 'tapToStart' ? s.tapToStartCamera : s.requesting ?? 'Opening your camera…'}</span></div>
+        // The frozen frame stays visible while the photo is checked; only a small label reports it.
+        : status === 'capturing' ? <div className="kyc-document-capturing" role="status"><span className="kyc-spinner" /><span>{s.documentCapturing ?? 'Taking your photo…'}</span></div> : null}
+    </div> : <div className="kyc-media kyc-document-preparation"><Illustration kind={sideArt} /></div>}
     <div className="kyc-actions">
       {stage === 'select' ?
         <button type="button" className="kyc-button kyc-button-primary" disabled={!types.includes(selected)} onClick={() => { setFront(null); setBack(null); setStage('prepare-front'); }}>{s.documentContinue ?? 'Continue'}<Icon name="arrow" size={18} /></button>

@@ -117,6 +117,8 @@ For a working development-only example of this contract, see [apps/playground/se
 
 The playground's local upload API is disabled by default. When enabled, saving starts only at submission after final review; recording and retakes do not create saved folders. The receiver commits each validated result as a complete folder and returns the same receipt for an identical retry; a changed capture is rejected. Sessions remain in memory and expire, but saved folders survive until manually deleted. Disabled upload keeps captures in the browser and creates no result folder.
 
+For a production starting point, see [examples/production-receiver.ts](../examples/production-receiver.ts). It uses only the Fetch API and binds each session to the customer your `authenticate` callback returns. It stores a SHA-256 hash of the bearer token, never the token. A capture for another customer's session gets a 404. Uploads are capped at 24 MiB while streaming, and media signatures are checked. Identical retries are idempotent. Files are written through your `putObject` under `customers/<customerId>/kyc/<sessionId>/<digest>/`, and `onCaptureStored` hands you the receipt to attach to the customer record. You supply the database, private object storage, retention and deletion.
+
 The installed SDK does not write to a server's filesystem itself. Copy or adapt the receiver's storage behavior into your own backend if you want results saved by session ID. The development sample does not authenticate application users, implement independent PAD or approve anyone.
 
 ## Server-side verification with the KYC Lens gateway

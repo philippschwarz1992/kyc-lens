@@ -9,8 +9,9 @@ import { gzipSync } from 'node:zlib';
 // imported chunks (59,108 B, 2,330 B and 53,943,577 B).
 // Raise them deliberately, with the reason in the commit message.
 // dist/index.js: 70,000 B after the automatic document flow and MRZ check (66,432 B; the MRZ reader itself loads lazily).
+// dist/index.js: 74,500 B with the theme icon packs on top (71,107 B; the packs ship in the main entry).
 const budgets = {
-  'dist/index.js (gzip)': 70_000,
+  'dist/index.js (gzip)': 74_500,
   'dist/core/index.js (gzip)': 2_560,
   'npm pack tarball': 59_340_000,
 };

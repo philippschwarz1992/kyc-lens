@@ -10,11 +10,11 @@ import 'kyc-lens-react/styles.css';
 
 ## Configuration and defaults
 
-All flow props are optional. The default steps are `['intro', 'face', 'review', 'result']`; document capture is enabled by including `'document'`. Steps must be unique and ordered `intro`, `document`, `face`, `review`, `result`, with `face` present.
+All flow props are optional. The default steps are `['intro', 'face', 'result']`, so the capture is submitted without a final review screen; add `'review'` to show one; document capture is enabled by including `'document'`. Steps must be unique and ordered `intro`, `document`, `face`, `review`, `result`, with `face` present.
 
 | Setting | Default | Allowed values / behavior |
 | --- | --- | --- |
-| `face.challenges` | `['center', 'turn-left', 'turn-right', 'closer', 'further']` | 1–20 supported entries; repeats are allowed. |
+| `face.challenges` | `['center', 'turn-left', 'turn-right', 'closer']` | At most one `center` step and `MAX_MOVEMENTS` (3) other movements; repeated movements are allowed. Longer lists throw before camera access. |
 | `face.holdDurationMs` | `650` | 100–10,000 ms for a matching pose hold. |
 | `face.timeoutMs` | `90_000` | 1,000–600,000 ms for the attempt, starting before camera permission, preview playback, encoder startup and tracker initialization. Increasing it does not extend the recorder's separate 90-second limit. |
 | `face.trackingFps` | `12` | Target inference rate, 3–30 fps. Actual performance depends on the device. |
@@ -34,6 +34,7 @@ All flow props are optional. The default steps are `['intro', 'face', 'review', 
 | `faceMatch.threshold` | `0.363` | Cosine threshold in [-1, 1], requiring calibration on the target population. |
 | `faceMatch.inconclusiveMargin` | `0.03` | 0–0.25; threshold ± margin must stay within [-1, 1]. |
 | `faceMatch.timeoutMs` | `45_000` | 1,000–120,000 ms, including model loading and inference. |
+| `faceMatch.requireMatch` | `true` | A `no_match` or `inconclusive` comparison shows a try-again screen that restarts the flow; the capture is neither uploaded nor completed. `false` completes with the comparison result instead. Simulation always continues. |
 | `assets.baseUrl` | `/kyc-assets` | Public URL for the self-hosted assets. |
 | `output.imageType` | `image/jpeg` | `image/jpeg` or `image/webp` for the selfie and document photos. Browsers that cannot encode WebP (Safari) fall back to JPEG; check `Blob.type`. |
 | `output.quality` | `0.92` selfie, `0.95` documents | Encoder quality, 0.5–1. |
@@ -286,7 +287,7 @@ Copy package assets with `npx kyc-lens-copy-assets ./public/kyc-assets` and serv
 
 ## Local face comparison
 
-With a document present, `KycFlow` compares its front/photo-page portrait with the accepted selfie after review and before optional upload. Use `faceMatch={false}` to disable it. Simulation skips inference and returns `inconclusive` with reason `simulation`. Operational failures show a recoverable error and retain the photos for retry. Quality or ambiguous-face outcomes complete with an inconclusive result.
+With a document present, `KycFlow` compares its front/photo-page portrait with the accepted selfie after review and before optional upload. Use `faceMatch={false}` to disable it. Simulation skips inference and returns `inconclusive` with reason `simulation`. Operational failures show a recoverable error and retain the photos for retry. By default a `no_match` or `inconclusive` outcome, including quality or ambiguous-face reasons, shows a try-again screen and restarts the flow without uploading; set `faceMatch.requireMatch: false` to complete with that result instead. This check runs in the browser and only guides the user: your backend must not treat a received capture as a verified match.
 
 ```ts
 import { compareFaces } from 'kyc-lens-react';
@@ -322,15 +323,17 @@ Keep callbacks inexpensive, and use `onError` to show a useful host error state.
 
 ```ts
 type KycEvent =
-  | { type: 'step'; step: 'intro' | 'document' | 'face' | 'review' | 'submitting' | 'complete' | 'error' | 'cancelled'; elapsedMs: number }
+  | { type: 'step'; step: 'intro' | 'document' | 'face' | 'review' | 'submitting' | 'rejected' | 'complete' | 'error' | 'cancelled'; elapsedMs: number }
   | { type: 'retry'; from: 'camera' | 'document' | 'submission' }
   | { type: 'retake' }
   | { type: 'error'; stage: 'camera' | 'document' | 'submission'; code: string }
+  | { type: 'rejected'; faceMatchStatus: 'no_match' | 'inconclusive' }
+  | { type: 'restart' }
   | { type: 'complete'; durationMs: number; faceMatchStatus?: 'match' | 'no_match' | 'inconclusive' | 'unavailable' }
   | { type: 'cancel'; step: KycPhase };
 ```
 
-`step` fires once per phase change; `elapsedMs` and `durationMs` are measured with `performance.now()` from when the flow mounted (or was reset by a configuration change). `error.code` is a stable identifier: a built-in string key such as `documentCaptureFailed` or `faceComparisonUnavailable`, `http_<status>` for `KycHttpError`, the error name for DOM errors such as `NotAllowedError`, or `unknown`. `cancel` precedes the `cancelled` step and `complete` follows the `complete` step.
+`step` fires once per phase change; `elapsedMs` and `durationMs` are measured with `performance.now()` from when the flow mounted (or was reset by a configuration change). `error.code` is a stable identifier: a built-in string key such as `documentCaptureFailed` or `faceComparisonUnavailable`, `http_<status>` for `KycHttpError`, the error name for DOM errors such as `NotAllowedError`, or `unknown`. `cancel` precedes the `cancelled` step and `complete` follows the `complete` step. `rejected` precedes the `rejected` step when `faceMatch.requireMatch` stops a capture, and `restart` fires when the user starts over from it.
 
 Simulation is off unless explicitly enabled by `simulation={true}`. It runs the movement sequence automatically using synthetic observations and, with video enabled, a watermarked animated canvas recording. It is a testing convenience and does not check a real face. The demo URL parameter only configures the playground; the installed SDK does not read URL parameters itself.
 
@@ -347,7 +350,7 @@ const copy: Partial<KycStrings> = { start: 'Commencer le selfie' };
 
 `KycStrings` maps every `KycStringKey` to a string, so misspelled override keys fail type checking.
 
-The framework-independent challenge runner is exported from `kyc-lens-react/core` along with `DEFAULT_CHALLENGES`, `MAX_OBSERVATION_GAP_MS`, `validateChallenges`, `validateFaceOptions`, `isCenteredFace`, `isNeutralFace` and observation/evidence types. These utilities describe local geometry guidance; they do not verify liveness or identity. `DEFAULT_CHALLENGES` is also exported from the main package.
+The framework-independent challenge runner is exported from `kyc-lens-react/core` along with `DEFAULT_CHALLENGES`, `MAX_MOVEMENTS`, `MAX_OBSERVATION_GAP_MS`, `validateChallenges`, `validateFaceOptions`, `isCenteredFace`, `isNeutralFace` and observation/evidence types. These utilities describe local geometry guidance; they do not verify liveness or identity. `DEFAULT_CHALLENGES` and `MAX_MOVEMENTS` are also exported from the main package.
 
 ```ts
 import { ChallengeRunner } from 'kyc-lens-react/core';

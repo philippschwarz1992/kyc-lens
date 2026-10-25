@@ -109,6 +109,30 @@ describe('ChallengeRunner', () => {
     expect(runner.update(neutral(500)).completed).toBe(true);
   });
 
+  it('moves straight on from a neutral pose between movements and holds only the final selfie', () => {
+    const d = driver(new ChallengeRunner(['center', 'turn-left', 'turn-right'], 300));
+    expect(d.hold().hint).toBe('turn-left');
+    expect(d.hold({ yaw: 32 }).evidence).toHaveLength(2);
+    expect(d.frame()).toMatchObject({ hint: 'turn-right', matched: false });
+    expect(d.hold({ yaw: -32 }).evidence).toHaveLength(3);
+    expect(d.frame()).toMatchObject({ hint: 'hold-still', matched: true, completed: false });
+    d.frame(); d.frame();
+    expect(d.frame().completed).toBe(true);
+  });
+
+  it('counts a quick move straight past the baseline distance as returning to it', () => {
+    const d = driver(new ChallengeRunner(['closer', 'further'], 300));
+    d.hold();
+    expect(d.hold({ relativeSize: 0.65 }).evidence).toHaveLength(1);
+    expect(d.frame({ relativeSize: 0.65 }).hint).toBe('move-further');
+    expect(d.frame({ relativeSize: 0.22 })).toMatchObject({ hint: 'move-further', guideDirection: 'further' });
+    expect(d.hold({ relativeSize: 0.22 }).evidence).toHaveLength(2);
+    // Repeating a movement still needs the opposite side of the baseline first.
+    const repeat = driver(new ChallengeRunner(['closer', 'closer'], 300));
+    repeat.hold(); repeat.hold({ relativeSize: 0.65 });
+    expect(repeat.hold({ relativeSize: 0.7 }).evidence).toHaveLength(1);
+  });
+
   it('requires returning to neutral between repeated movements', () => {
     const d = driver(new ChallengeRunner(['turn-left', 'turn-left'], 300));
     d.hold(); d.hold({ yaw: 32 });
@@ -145,12 +169,13 @@ describe('ChallengeRunner', () => {
     d.hold();
     expect(d.hold({ relativeSize: 0.65, yaw: 32 }).evidence).toHaveLength(0);
     expect(d.hold({ relativeSize: 0.65 }).evidence[0]?.challenge).toBe('closer');
-    expect(d.hold({ relativeSize: 0.65 }).hint).toBe('neutral-pose');
+    expect(d.hold({ relativeSize: 0.65 }).hint).toBe('move-further');
     d.hold();
     expect(d.hold({ relativeSize: 0.4 }).evidence).toHaveLength(1);
     expect(d.hold({ relativeSize: 0.22 }).evidence[1]?.challenge).toBe('further');
-    expect(d.hold({ relativeSize: 0.22 }).completed).toBe(false);
-    expect(d.hold().completed).toBe(true);
+    // The final selfie pose must face the camera but may stay at the new distance.
+    expect(d.hold({ relativeSize: 0.22, yaw: 32 }).completed).toBe(false);
+    expect(d.hold({ relativeSize: 0.22 }).completed).toBe(true);
   });
 
   it('keeps the distance guide aligned with baseline, movement holds, and recentering', () => {
@@ -160,16 +185,15 @@ describe('ChallengeRunner', () => {
 
     expect(d.frame({ relativeSize: 0.5 })).toMatchObject({ hint: 'hold-still', guideDirection: 'closer', matched: true });
     expect(d.frame({ relativeSize: 0.5 }).progress).toBeGreaterThan(0);
-    expect(d.hold({ relativeSize: 0.5 })).toMatchObject({ hint: 'neutral-pose', guideDirection: 'center', challenge: 'further' });
+    expect(d.hold({ relativeSize: 0.5 })).toMatchObject({ hint: 'move-further', guideDirection: 'further', challenge: 'further' });
 
-    // The next challenge is already "further", but the user must first return
-    // to the original distance and hold there with a neutral guide.
-    expect(d.frame()).toMatchObject({ hint: 'hold-still', guideDirection: 'center', challenge: 'further' });
-    expect(d.frame()).toMatchObject({ hint: 'hold-still', guideDirection: 'center', matched: true });
-    expect(d.hold()).toMatchObject({ hint: 'move-further', guideDirection: 'further' });
+    // The user must first return to the original distance, but passing through it is enough.
+    expect(d.frame({ relativeSize: 0.5 })).toMatchObject({ hint: 'move-further', guideDirection: 'further', challenge: 'further', matched: false });
+    expect(d.frame()).toMatchObject({ hint: 'move-further', guideDirection: 'further', matched: false });
     expect(d.frame({ relativeSize: 0.3 })).toMatchObject({ hint: 'hold-still', guideDirection: 'further', matched: true });
     expect(d.frame({ relativeSize: 0.3 }).progress).toBeGreaterThan(0);
-    expect(d.hold({ relativeSize: 0.3 })).toMatchObject({ hint: 'neutral-pose', guideDirection: 'center', completed: false });
+    // The final selfie hold starts right away at the new distance.
+    expect(d.hold({ relativeSize: 0.3 })).toMatchObject({ hint: 'hold-still', guideDirection: 'center', completed: false });
 
     const completed = d.hold();
     expect(completed).toMatchObject({ hint: 'complete', guideDirection: 'center', completed: true });
@@ -207,7 +231,10 @@ describe('ChallengeRunner', () => {
   });
 
   it('validates configurations before camera startup', () => {
-    expect(() => validateChallenges([])).toThrow(/between 1 and 20/);
+    expect(() => validateChallenges([])).toThrow(/at least one/);
+    expect(() => validateChallenges(['turn-left', 'turn-right', 'closer', 'further'])).toThrow(/at most 3/);
+    expect(() => validateChallenges(['center', 'turn-left', 'center'])).toThrow(/one center/);
+    expect(validateChallenges(['center', 'turn-left', 'turn-right', 'closer'])).toHaveLength(4);
     expect(() => validateChallenges(['unsupported'] as never)).toThrow(/Unsupported/);
     expect(() => validateFaceOptions({ trackingFps: 0 })).toThrow(/trackingFps/);
     expect(() => validateFaceOptions({ holdDurationMs: NaN })).toThrow(/holdDurationMs/);

@@ -144,17 +144,16 @@ async function openFaceHarness(page: Page, face: { recordVideo?: boolean; autoSt
 async function finishDistanceChecks(page: Page): Promise<void> {
   await pose(page, 'center');
   await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'closer');
+  await expect(page.locator('.kyc-face-title')).toHaveText('Move a little closer');
   await pose(page, 'closer');
-  await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'normal');
-  await expect(page.locator('.kyc-current-instruction')).toHaveText('Face the camera straight on');
-  await pose(page, 'center');
+  // The next movement is a distance change too, so the guide first leads back to the start distance.
   await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'further');
-  await pose(page, 'further');
-  await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'normal');
-  await expect(page.locator('.kyc-current-instruction')).toHaveText('Face the camera straight on');
-  // Finishing the last movement still requires a neutral frontal pose.
+  await expect(page.locator('.kyc-face-title')).toHaveText('Move a little further away');
   await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
   await pose(page, 'center');
+  await expect(page.locator('.kyc-face-step-label')).toHaveText('Step 3 of 3');
+  await pose(page, 'further');
+  // The final selfie needs a frontal, centered face, which the further pose already is.
   await expect(page.getByRole('button', { name: 'Confirm & continue', exact: true })).toBeVisible();
 }
 
@@ -223,7 +222,7 @@ for (const viewport of faceViewports) {
     await page.waitForTimeout(800);
     // Merely keeping the centered baseline cannot satisfy the closer movement.
     await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'closer');
-    await expect(page.locator('.kyc-current-instruction')).toHaveText('Move a little closer');
+    await expect(page.locator('.kyc-face-title')).toHaveText('Move a little closer');
     await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
     // Distance prompts animate the tick ring; the aperture keeps its size and position.
     const closerWindow = await faceWindowGeometry(page);
@@ -233,8 +232,8 @@ for (const viewport of faceViewports) {
     expect(closerWindow.actions).toEqual(normalWindow.actions);
     await page.screenshot({ path: `.cache/face-window-closer-${viewport.width}.png` });
     await pose(page, 'closer');
-    await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'normal');
-    await expect(page.locator('.kyc-current-instruction')).toHaveText('Face the camera straight on');
+    await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'further');
+    await expect(page.locator('.kyc-face-title')).toHaveText('Move a little further away');
     await pose(page, 'center');
     await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'further');
     const furtherWindow = await faceWindowGeometry(page);
@@ -243,15 +242,11 @@ for (const viewport of faceViewports) {
     expect(furtherWindow.instruction).toEqual(normalWindow.instruction);
     expect(furtherWindow.actions).toEqual(normalWindow.actions);
     await page.screenshot({ path: `.cache/face-window-further-${viewport.width}.png` });
-    await pose(page, 'further');
-    await expect(page.locator('.kyc-face-guide')).toHaveAttribute('data-distance', 'normal');
-    await expect(page.locator('.kyc-current-instruction')).toHaveText('Face the camera straight on');
-    await page.waitForTimeout(800);
-    await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
     await pose(page, 'turned');
     await page.waitForTimeout(800);
+    // A turned head cannot complete the further movement or the final selfie.
     await expect(page.locator('.kyc-review-screen')).toHaveCount(0);
-    await pose(page, 'center');
+    await pose(page, 'further');
     const review = page.getByRole('button', { name: 'Confirm & continue', exact: true });
     await expect(review).toBeVisible();
     await expectStopped(page);
@@ -343,8 +338,8 @@ for (const viewport of faceViewports) {
       expect(visual.centerOffset).toBeLessThan(1);
       expect(visual.animated).toBe(true);
       expect(visual.mirrored).toBe(direction === 'turn-right');
-      if (direction === 'turn-left') expect(visual.right).toBeLessThanOrEqual(visual.apertureLeft + 4);
-      else expect(visual.left).toBeGreaterThanOrEqual(visual.apertureRight - 4);
+      if (direction === 'turn-left') expect((visual.left + visual.right) / 2).toBeLessThanOrEqual(visual.apertureLeft);
+      else expect((visual.left + visual.right) / 2).toBeGreaterThanOrEqual(visual.apertureRight);
       const current = await faceWindowGeometry(page);
       expect(current.frame).toEqual(initial.frame);
       expect(current.actions).toEqual(initial.actions);

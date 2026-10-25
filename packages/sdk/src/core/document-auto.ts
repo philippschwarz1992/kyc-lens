@@ -6,6 +6,9 @@ export interface DocumentHoldState {
   capture: boolean;
 }
 
+/** Longest gap between document observations, so handheld jitter and slower phone analysis keep the hold. */
+export const MAX_DOCUMENT_OBSERVATION_GAP_MS = 1000;
+
 /**
  * A shutter advances only on fresh, consecutive observations of the same stationary outline.
  * With no hold (the default) the first fresh, clear observation captures at once.
@@ -29,7 +32,7 @@ export function createDocumentHold(holdDurationMs = 0) {
   return {
     reset,
     observe(detection: DocumentDetection, timestamp: number, now: number, geometryKey: string): DocumentHoldState {
-      if (!Number.isFinite(timestamp) || !Number.isFinite(now) || timestamp > now + 1 || now - timestamp > 1000
+      if (!Number.isFinite(timestamp) || !Number.isFinite(now) || timestamp > now + 1 || now - timestamp > MAX_DOCUMENT_OBSERVATION_GAP_MS
         || timestamp <= lastObservation || !geometryKey) {
         reset(); return { feedback: 'searching', progress: 0, capture: false };
       }
@@ -40,7 +43,7 @@ export function createDocumentHold(holdDurationMs = 0) {
       const moved = anchor?.some((point, index) => Math.hypot(point.x - detection.corners![index]!.x,
         point.y - detection.corners![index]!.y) > 0.04);
       // Handheld jitter and slower phone analysis must not restart the hold; real repositioning does.
-      if (!anchor || key !== geometryKey || timestamp - previous > 1000 || moved) {
+      if (!anchor || key !== geometryKey || timestamp - previous > MAX_DOCUMENT_OBSERVATION_GAP_MS || moved) {
         started = timestamp; frames = 0; anchor = detection.corners.map(point => ({ ...point })); key = geometryKey;
       }
       previous = timestamp; frames++;

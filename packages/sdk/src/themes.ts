@@ -1,3 +1,5 @@
+import { defineIconPack } from './icons.js';
+import type { KycIconPack } from './icons.js';
 import type { KycTheme } from './types.js';
 
 /** Every visual decision of the capture flow. Values are CSS values unless noted. */
@@ -96,6 +98,8 @@ export interface KycThemeDefinition {
    * KYC Lens never loads them itself: include them in your page, or self-host the fonts.
    */
   fonts?: readonly string[];
+  /** Icon pack: a registered id such as `halo`, or an inline pack. Default: the built-in drawings. */
+  icons?: string | KycIconPack;
   tokens: KycThemeTokens;
 }
 
@@ -104,6 +108,8 @@ export interface KycThemeInput {
   name: string;
   description?: string;
   fonts?: readonly string[];
+  /** Icon pack id or inline pack. Default: the base theme's pack. */
+  icons?: string | KycIconPack;
   /** Base theme id or definition. Default: `classic`. */
   extends?: string | KycThemeDefinition;
   tokens?: KycThemeTokenOverrides;
@@ -198,8 +204,33 @@ const pebble: KycThemeDefinition = {
   },
 };
 
+const halo: KycThemeDefinition = {
+  id: 'halo', name: 'Halo', description: 'Airy verification app: white cards on a misty lavender glow, navy type and soft brackets.',
+  fonts: ['https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@600;700&display=swap'],
+  icons: 'halo',
+  tokens: {
+    colorScheme: 'light',
+    color: {
+      primary: '#141b41', onPrimary: '#ffffff', background: '#ffffff', surface: '#f3f4fb', selected: '#f3f1ff',
+      text: '#141b41', muted: '#646a82', line: '#eceef5', lineStrong: '#d9dcea',
+      accent: '#8b7cf6', accentText: '#6a5ae0', success: '#3fbf87', danger: '#ef6f6a',
+      noticeText: '#8f3d34', noticeSurface: '#fff2f0', camera: '#1c1e2c', cameraOverlay: 'rgb(18 20 38 / 40%)',
+      illustration: '#8b7cf6', paper: '#ffffff', focus: '#6a5ae0',
+    },
+    font: { body: '"Inter", "Segoe UI", system-ui, sans-serif', heading: '"Inter Tight", "Inter", system-ui, sans-serif', mono: systemMono },
+    type: { headingSize: '28px', headingWeight: '700', headingTracking: '-0.9px', bodySize: '14px', buttonWeight: '600' },
+    shape: { radius: '34px', control: '14px', media: '28px' },
+    elevation: {
+      card: '0 0 0 12px rgb(255 255 255 / 55%), 0 30px 80px -30px rgb(84 92 160 / 28%)',
+      button: '0 10px 24px -10px rgb(20 27 65 / 45%)',
+    },
+    backdrop: 'radial-gradient(50% 26% at 45% 40%, rgb(167 139 250 / 20%), transparent 70%), radial-gradient(34% 22% at 68% 48%, rgb(244 114 182 / 14%), transparent 70%)',
+    motion: { easing: 'cubic-bezier(0.22, 1, 0.36, 1)', press: 'cubic-bezier(0.22, 1, 0.36, 1)', durationScale: 1, entrance: 'rise', ambient: false },
+  },
+};
+
 /** Themes that ship with KYC Lens. `classic` is the default. */
-export const builtInThemes = { classic, aurora, ledger, pebble } as const;
+export const builtInThemes = { classic, aurora, ledger, pebble, halo } as const;
 export type KycBuiltInThemeId = keyof typeof builtInThemes;
 
 const registry = new Map<string, KycThemeDefinition>(Object.values(builtInThemes).map(theme => [theme.id, theme]));
@@ -244,10 +275,14 @@ export function defineTheme(input: KycThemeInput): KycThemeDefinition {
   const base = typeof input.extends === 'object' ? input.extends : getTheme(input.extends ?? 'classic');
   if (!base) throw new Error(`Unknown base theme "${String(input.extends)}".`);
   if (input.fonts !== undefined && (!Array.isArray(input.fonts) || input.fonts.some(url => typeof url !== 'string' || !/^https:\/\//.test(url)))) throw new Error('Theme fonts must be https stylesheet URLs.');
+  const icons = input.icons ?? base.icons;
+  // Pack ids are looked up when the flow renders, so a pack can be registered after the theme.
+  if (typeof icons === 'string' && !/^[a-z][a-z0-9-]{0,47}$/.test(icons)) throw new Error('Theme icons must be an icon pack id or an icon pack.');
   return {
     id: input.id, name: input.name.trim(),
     ...(input.description ? { description: String(input.description).slice(0, 240) } : {}),
     ...(input.fonts ?? base.fonts ? { fonts: [...(input.fonts ?? base.fonts ?? [])] } : {}),
+    ...(icons === undefined ? {} : { icons: typeof icons === 'string' ? icons : defineIconPack(icons) }),
     tokens: merge(base.tokens, input.tokens),
   };
 }

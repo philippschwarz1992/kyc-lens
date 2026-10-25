@@ -23,7 +23,7 @@ Document detection, face tracking and document-to-selfie comparison run inside t
 | Face media | Automatic silent video plus a final selfie; configurable still-only mode |
 | Local face comparison | YuNet portrait detection and SFace embeddings in a separate browser worker; explicit match, no match, inconclusive or unavailable result |
 | Configurable flow | Optional intro, document, review, and result screens; required face screen |
-| Customization | Four built-in themes (Classic, Aurora, Ledger, Pebble), your own token-based themes, built-in English, German, French, Spanish, Italian, Polish, and Turkish copy, typed custom strings, and intro/review/result components |
+| Customization | Five built-in themes (Classic, Aurora, Ledger, Pebble, Halo), your own token-based themes, built-in English, German, French, Spanish, Italian, Polish, and Turkish copy, typed custom strings, and intro/review/result components |
 | Backend integration | Local Blob payloads, a multipart HTTP adapter, or your own API functions |
 | Bundled assets | Face/document/comparison workers, WASM, pinned models, checksums and license notices |
 | Developer playground | Settings, a visual theme studio, camera-free simulation, generated integration code, and metadata summaries |
@@ -112,7 +112,7 @@ export function IdentityCapture() {
 
 This example captures and compares locally. The completion callback receives `result.payload`: a selfie `Blob`, an optional face video `Blob`, optional document `Blob`s, challenge evidence, a capture timestamp and capture mode. `result.faceMatch` contains the comparison status, reason and optional cosine score. It is not a probability or approval. Connect your own submission flow or supply `apiBaseUrl` as described below. Keep media, scores and session tokens out of logs and analytics.
 
-The default SDK flow is `['intro', 'face', 'review', 'result']`. Include `'document'` explicitly to collect document photos. ID cards and driving licenses require front and back; passports use the photo page only.
+The default SDK flow is `['intro', 'face', 'result']`; add `'review'` for a final review screen before submission. Include `'document'` explicitly to collect document photos. ID cards and driving licenses require front and back; passports use the photo page only.
 
 For Next.js, render `KycFlow` in a Client Component and import the stylesheet in your root layout. See the [integration guide](./docs/integration.md).
 
@@ -136,7 +136,7 @@ For Next.js, render `KycFlow` in a Client Component and import the stylesheet in
 | Option | Behavior |
 | --- | --- |
 | `steps` | Choose unique screens in the order `intro`, `document`, `face`, `review`, `result`; always include `face` |
-| `face.challenges` | 1–20 ordered movements; repeated movements are allowed |
+| `face.challenges` | Ordered movements: at most one `center` step and `MAX_MOVEMENTS` (3) others; repeated movements are allowed |
 | `face.autoStart` | Defaults to `true`; use `false` to show a camera-start button |
 | `face.recordVideo` | Defaults to `true`; use `false` for still-only capture |
 | `face.holdDurationMs` | Pose hold duration, 100–10,000 ms; default 650 ms |
