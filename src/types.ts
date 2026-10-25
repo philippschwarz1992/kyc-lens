@@ -178,7 +178,7 @@ export interface KycFlowProps {
   /** Local document/selfie comparison. Enabled when document capture is present; false disables it. */
   faceMatch?: FaceMatchOptions | false;
   assets?: AssetOptions;
-  /** A registered theme id (`classic`, `aurora`, `ledger`, `pebble` or your own), a `defineTheme()` result, or quick overrides. */
+  /** A registered theme id (`classic`, `aurora`, `ledger`, `pebble`, `halo` or your own), a `defineTheme()` result, or quick overrides. */
   theme?: string | KycTheme | KycThemeDefinition;
   /** Built-in English, German, French, Spanish, Italian, Polish, and Turkish; also sets the `lang` attribute. */
   locale?: 'en' | 'de' | 'fr' | 'es' | 'it' | 'pl' | 'tr';

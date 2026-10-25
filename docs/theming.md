@@ -1,6 +1,6 @@
 # Theming
 
-KYC Lens styles every screen from one set of design tokens. A theme is a complete set of token values. Four themes ship with the package, and you can define as many of your own as you need.
+KYC Lens styles every screen from one set of design tokens. A theme is a complete set of token values. Five themes ship with the package, and you can define as many of your own as you need.
 
 | Theme | Look |
 | --- | --- |
@@ -8,6 +8,7 @@ KYC Lens styles every screen from one set of design tokens. A theme is a complet
 | `aurora` | Dark premium neobank: midnight glass with a slowly drifting teal-to-violet glow. |
 | `ledger` | Swiss editorial: warm paper, serif headings, square corners and a deep emerald accent. |
 | `pebble` | Soft fintech: lavender, chunky rounded shapes and springy motion. |
+| `halo` | Airy verification app: white cards on a misty lavender glow, navy type and soft brackets. |
 
 ## Use a theme
 

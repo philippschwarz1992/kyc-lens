@@ -37,7 +37,7 @@ The module is safe to import during server rendering. It does not touch `HTMLEle
 | --- | --- | --- |
 | `steps` | `steps` | Comma-separated list, for example `intro,face,review,result`. |
 | `locale` | `locale` | `en` or `de`. |
-| `theme` | `theme` | A registered theme id, such as `classic`, `aurora`, `ledger`, `pebble` or one you registered with `registerTheme()`. |
+| `theme` | `theme` | A registered theme id, such as `classic`, `aurora`, `ledger`, `pebble`, `halo` or one you registered with `registerTheme()`. |
 | `assets-base-url` | `assets.baseUrl` | Where you host the copied assets. Defaults to `/kyc-assets`. |
 | `api-base-url` | `apiBaseUrl` | Base URL for the built-in HTTP adapter. |
 | `simulation` | `simulation` | HTML boolean attribute: present means on, whatever its value. Remove it to turn simulation off. Demo use only. |

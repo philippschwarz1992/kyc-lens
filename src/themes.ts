@@ -198,8 +198,32 @@ const pebble: KycThemeDefinition = {
   },
 };
 
+const halo: KycThemeDefinition = {
+  id: 'halo', name: 'Halo', description: 'Airy verification app: white cards on a misty lavender glow, navy type and soft brackets.',
+  fonts: ['https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@600;700&display=swap'],
+  tokens: {
+    colorScheme: 'light',
+    color: {
+      primary: '#141b41', onPrimary: '#ffffff', background: '#ffffff', surface: '#f3f4fb', selected: '#f3f1ff',
+      text: '#141b41', muted: '#646a82', line: '#eceef5', lineStrong: '#d9dcea',
+      accent: '#8b7cf6', accentText: '#6a5ae0', success: '#3fbf87', danger: '#ef6f6a',
+      noticeText: '#8f3d34', noticeSurface: '#fff2f0', camera: '#1c1e2c', cameraOverlay: 'rgb(18 20 38 / 40%)',
+      illustration: '#8b7cf6', paper: '#ffffff', focus: '#6a5ae0',
+    },
+    font: { body: '"Inter", "Segoe UI", system-ui, sans-serif', heading: '"Inter Tight", "Inter", system-ui, sans-serif', mono: systemMono },
+    type: { headingSize: '28px', headingWeight: '700', headingTracking: '-0.9px', bodySize: '14px', buttonWeight: '600' },
+    shape: { radius: '34px', control: '14px', media: '28px' },
+    elevation: {
+      card: '0 0 0 12px rgb(255 255 255 / 55%), 0 30px 80px -30px rgb(84 92 160 / 28%)',
+      button: '0 10px 24px -10px rgb(20 27 65 / 45%)',
+    },
+    backdrop: 'radial-gradient(50% 26% at 45% 40%, rgb(167 139 250 / 20%), transparent 70%), radial-gradient(34% 22% at 68% 48%, rgb(244 114 182 / 14%), transparent 70%)',
+    motion: { easing: 'cubic-bezier(0.22, 1, 0.36, 1)', press: 'cubic-bezier(0.22, 1, 0.36, 1)', durationScale: 1, entrance: 'rise', ambient: false },
+  },
+};
+
 /** Themes that ship with KYC Lens. `classic` is the default. */
-export const builtInThemes = { classic, aurora, ledger, pebble } as const;
+export const builtInThemes = { classic, aurora, ledger, pebble, halo } as const;
 export type KycBuiltInThemeId = keyof typeof builtInThemes;
 
 const registry = new Map<string, KycThemeDefinition>(Object.values(builtInThemes).map(theme => [theme.id, theme]));
