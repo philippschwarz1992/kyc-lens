@@ -4,9 +4,9 @@ Cloudflare Worker in front of KYC Lens.
 
 - **Default environment** (`kyc-lens-demo`): serves the playground, relays phone handoff, serves the SFace model from R2.
 - **`verify` environment** (`kyc-lens-verify`): adds server-side verification:
-  1. The customer backend creates a session with its API key: `POST /api/kyc/sessions`, `Authorization: Bearer <API_KEY>`, optional `{ "reference": "crm-42" }`. It passes `{ id, token }` to the browser.
+  1. The customer backend creates a session with its API key: `POST /api/kyc/sessions`, `Authorization: Bearer <API_KEY>`, optional `{ "reference": "user-123", "applicant": { "givenNames": "Anna", "surname": "Müller", "birthDate": "1974-08-12" } }`. It passes `{ id, token }` to the browser. The applicant data stays on the server; see [the system guide](../../docs/system.md#session-request).
   2. The SDK uploads the capture: `POST /api/kyc/sessions/:id/capture` with the session token. The checks are the same as the playground receiver's (`@kyc-lens/contracts`). The files are staged in R2 (EU) and a delivery job is queued.
-  3. The queue consumer sends the files to the analysis container (`services/analysis`, `POST /analyze`). It then posts the case to `WEBHOOK_URL` as multipart, signed with `X-KYC-Signature`, and deletes the staged copy.
+  3. The queue consumer sends the files, and the applicant data when there is any, to the analysis container (`services/analysis`, `POST /analyze`). It then posts the case to `WEBHOOK_URL` as multipart, signed with `X-KYC-Signature`, and deletes the staged copy.
   4. `GET /api/kyc/sessions/:id` reports `pending_capture | processing | delivered | failed`, never the verdict.
 
 Analysis failures are retried 3 times. After that the case is delivered without a verdict (`analysisError`) for manual review. Webhook failures are retried with backoff from 10 s to 15 min, up to 10 attempts. The session is then marked `failed`, and the staged files stay until the bucket's lifecycle rule removes them.

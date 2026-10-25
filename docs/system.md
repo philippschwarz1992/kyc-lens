@@ -20,7 +20,43 @@ Your backend (webhook) ◀── signed multipart: event + media ── Queue co
 - The **SDK** guides the capture and checks quality on the device. Its checks, including `document.mrz` and the local face comparison, are capture aids, not a decision.
 - The **gateway** (`apps/gateway`, `--env verify`) owns sessions, upload validation (`packages/contracts`), staging, retries and signed delivery. Status responses never include the verdict.
 - The **analysis service** (`services/analysis`) returns the verdict: `approved`, `review` or `rejected`, with reasons, MRZ fields, face-match and liveness scores. It runs without persistence and never writes media to disk or logs.
+- **Your backend** creates the session with your own `reference` (for example your user id) and, optionally, the `applicant` data you already hold. The analysis service compares that data with the document, and the case comes back with both.
 - **Your backend** receives each case once and stores it. `apps/reference-receiver` is a working example to copy or replace.
+
+## Session request
+
+`POST /api/kyc/sessions` with `Authorization: Bearer <API_KEY>`:
+
+```json
+{
+  "reference": "user-123",
+  "applicant": { "givenNames": "Anna Maria", "surname": "Müller", "birthDate": "1974-08-12" }
+}
+```
+
+Both are optional. `reference` is 1–128 letters, digits or `._:-` and comes back unchanged in the webhook. `applicant` takes any of `givenNames`, `surname` and `birthDate` (`YYYY-MM-DD`). It is never shown to the browser or in the session status, and only your backend may send it (in `open` mode a browser request with `applicant` is refused).
+
+The answer is `{ id, token, expiresAt }`; pass `{ id, token }` to the SDK as its `session`.
+
+## Applicant check
+
+With applicant data, `analysis.applicantCheck` says field by field what the document holds:
+
+```json
+{
+  "result": "mismatch",
+  "fields": {
+    "givenNames": { "expected": "ANNA MARIA", "document": "ANNA MARIA", "source": "mrz", "result": "match" },
+    "surname":    { "expected": "MUELLER",    "document": "MUELLER",    "source": "mrz", "result": "match" },
+    "birthDate":  { "expected": "1974-08-12", "document": "1975-08-12", "source": "mrz", "result": "mismatch" }
+  }
+}
+```
+
+- `result`: `match` (every field agrees), `mismatch` (at least one disagrees) or `incomplete` (none disagrees, but one could not be read). A mismatch adds the reason `applicant-data-mismatch`, an incomplete check `applicant-data-not-read`; both send the case to `review`, so your backend decides.
+- `source`: `mrz` for a valid machine-readable zone, `printed` for the printed page. A field matches when either agrees.
+- Names are compared on their letters, upper case without diacritics: Müller matches MUELLER and MULLER, Anna-Maria matches ANNA MARIA. A first given name alone (Anna) matches ANNA MARIA. A name the zone truncated only has to start yours.
+- The full document data stays in `analysis.document.mrz.fields` and `analysis.document.printedFields`.
 
 ## Webhook contract
 
@@ -28,7 +64,7 @@ Your backend (webhook) ◀── signed multipart: event + media ── Queue co
 
 | Part | Content |
 |---|---|
-| `event` | JSON `VerificationEvent`: `type: "verification.completed"`, `sessionId`, your `reference`, `receivedAt`, capture `metadata`, `analysis` (the `VerificationResult`, or `null` with `analysisError` when analysis was unavailable) and `files` |
+| `event` | JSON `VerificationEvent`: `type: "verification.completed"`, `sessionId`, your `reference` and `applicant`, `receivedAt`, capture `metadata`, `analysis` (the `VerificationResult`, or `null` with `analysisError` when analysis was unavailable) and `files` |
 | `selfie`, `documentFront`, `documentBack`, `faceVideo` | The media, as listed in `event.files` |
 
 Headers:

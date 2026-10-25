@@ -1,4 +1,4 @@
-import { CaptureError, MAX_BODY_BYTES, parseCapture, sha256Hex } from '@kyc-lens/contracts';
+import { CaptureError, MAX_BODY_BYTES, parseCapture, sha256Hex, validateApplicant } from '@kyc-lens/contracts';
 import { HttpError, json } from './http.js';
 import type { SessionRecord, SessionStore } from './sessions.js';
 import { captureKey, stagingPrefix, type StagedCapture, type Staging } from './staging.js';
@@ -66,15 +66,19 @@ async function createSession(request: Request, deps: ApiDeps): Promise<Response>
     if (origin && origin !== new URL(request.url).origin) throw new HttpError(403, 'Cross-origin requests are not allowed.');
   }
   const text = await request.text();
-  if (text.length > 1024) throw new HttpError(413, 'Session request too large.');
+  if (text.length > 2048) throw new HttpError(413, 'Session request too large.');
   let body: unknown = {};
   if (text.trim()) { try { body = JSON.parse(text); } catch { throw new HttpError(400, 'Session request must be JSON.'); } }
   if (typeof body !== 'object' || body === null || Array.isArray(body)) throw new HttpError(400, 'Session request must be a JSON object.');
-  const { reference } = body as { reference?: unknown };
+  const { reference, applicant: rawApplicant, ...rest } = body as { reference?: unknown; applicant?: unknown };
+  if (Object.keys(rest).length) throw new HttpError(400, 'A session request takes only reference and applicant.');
   if (reference !== undefined && (typeof reference !== 'string' || !/^[\w.:-]{1,128}$/.test(reference))) throw new HttpError(400, 'reference must be 1-128 letters, digits or ._:-');
+  // The comparison is only worth something when the data comes from the customer backend, not from the browser.
+  if (rawApplicant !== undefined && deps.config.sessionMode === 'open' && !isServer(request, deps.config)) throw new HttpError(403, 'Only your backend can send applicant data.');
+  const applicant = rawApplicant === undefined ? undefined : validateApplicant(rawApplicant, deps.now());
   const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
   const now = deps.now();
-  const record: SessionRecord = { id: crypto.randomUUID(), tokenHash: await sha256Hex(encoder.encode(token)), status: 'pending_capture', createdAt: now, expiresAt: now + deps.config.sessionTtlMs, ...(reference ? { reference } : {}) };
+  const record: SessionRecord = { id: crypto.randomUUID(), tokenHash: await sha256Hex(encoder.encode(token)), status: 'pending_capture', createdAt: now, expiresAt: now + deps.config.sessionTtlMs, ...(reference ? { reference } : {}), ...(applicant ? { applicant } : {}) };
   await deps.sessions.create(record);
   return json({ id: record.id, token, expiresAt: new Date(record.expiresAt).toISOString() }, 201);
 }
@@ -97,7 +101,7 @@ async function submitCapture(request: Request, deps: ApiDeps, record: SessionRec
   // A retry of the same upload (lost response) gets the same answer and is not delivered twice.
   if (claim.result === 'duplicate') return json(statusBody(claim.record));
   try {
-    const staged: StagedCapture = { sessionId: record.id, receivedAt, metadata: capture.metadata, files: [], ...(record.reference ? { reference: record.reference } : {}) };
+    const staged: StagedCapture = { sessionId: record.id, receivedAt, metadata: capture.metadata, files: [], ...(record.reference ? { reference: record.reference } : {}), ...(record.applicant ? { applicant: record.applicant } : {}) };
     for (const file of capture.files) {
       const key = `${stagingPrefix(record.id)}${file.filename}`;
       await deps.staging.put(key, file.bytes, file.type);

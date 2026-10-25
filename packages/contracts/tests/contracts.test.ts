@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CaptureError, parseCapture, signDelivery, verifyDelivery } from '../src/index.js';
+import { CaptureError, parseCapture, signDelivery, validateApplicant, verifyDelivery } from '../src/index.js';
 
 const jpeg = (size = 32) => { const bytes = new Uint8Array(size); bytes.set([255, 216, 255]); bytes.set([255, 217], size - 2); return bytes; };
 const metadata = (document?: object) => JSON.stringify({ challenges: [{ challenge: 'center', completedAt: 1, durationMs: 650 }], capturedAt: new Date().toISOString(), mode: 'camera', ...(document ? { document } : {}) });
@@ -47,5 +47,19 @@ describe('signed delivery', () => {
     expect(await verifyDelivery('secret', header, body, 1_700_000_000 + 301)).toBe(false);
     expect(await verifyDelivery('secret', null, body)).toBe(false);
     expect(await verifyDelivery('secret', 't=abc,v1=00', body)).toBe(false);
+  });
+});
+
+describe('applicant data', () => {
+  it('accepts names with diacritics, hyphens and apostrophes and tidies whitespace', () => {
+    expect(validateApplicant({ givenNames: '  Zoë  Anne-Marie ', surname: "O'Brien-Müller", birthDate: '1974-08-12' }))
+      .toEqual({ givenNames: 'Zoë Anne-Marie', surname: "O'Brien-Müller", birthDate: '1974-08-12' });
+  });
+
+  it.each([
+    [{}], [null], [['Anna']], [{ email: 'a@b.c' }], [{ surname: '' }], [{ surname: 42 }], [{ surname: 'R2-D2' }],
+    [{ surname: 'x'.repeat(101) }], [{ birthDate: '1974-02-30' }], [{ birthDate: '12.08.1974' }], [{ birthDate: '2999-01-01' }],
+  ])('refuses %j', value => {
+    expect(() => validateApplicant(value)).toThrow(CaptureError);
   });
 });

@@ -1,9 +1,10 @@
-import type { CaptureField, CaptureMetadata } from '@kyc-lens/contracts';
+import type { Applicant, CaptureField, CaptureMetadata } from '@kyc-lens/contracts';
 
 /** What the gateway keeps between upload and delivery, under `sessions/<id>/` in the staging bucket. */
 export interface StagedCapture {
   sessionId: string;
   reference?: string;
+  applicant?: Applicant;
   receivedAt: string;
   metadata: CaptureMetadata;
   files: Array<{ field: CaptureField; filename: string; type: string; sizeBytes: number; key: string }>;

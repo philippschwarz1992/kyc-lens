@@ -48,6 +48,7 @@ export async function deliver(sessionId: string, attempt: number, deps: Delivery
     try {
       const form = await mediaForm(deps.staging, staged);
       form.append('metadata', JSON.stringify(staged.metadata));
+      if (staged.applicant) form.append('applicant', JSON.stringify(staged.applicant));
       const result = await deps.analyze(form);
       if (!isVerificationResult(result)) throw new Error('Analysis returned an unexpected shape.');
       cached = { analysis: result };
@@ -61,7 +62,7 @@ export async function deliver(sessionId: string, attempt: number, deps: Delivery
   const event: VerificationEvent = {
     type: 'verification.completed', sessionId, receivedAt: staged.receivedAt, metadata: staged.metadata,
     analysis: cached.analysis, ...(cached.analysisError ? { analysisError: cached.analysisError } : {}),
-    ...(staged.reference ? { reference: staged.reference } : {}),
+    ...(staged.reference ? { reference: staged.reference } : {}), ...(staged.applicant ? { applicant: staged.applicant } : {}),
     files: staged.files.map(({ field, filename, type, sizeBytes }) => ({ field, filename, type, sizeBytes })),
   };
   const form = new FormData();

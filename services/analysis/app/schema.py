@@ -33,6 +33,15 @@ class Metadata(BaseModel):
     document: DocumentMetadata | None = None
 
 
+class Applicant(BaseModel):
+    """The `applicant` field: what the customer's backend already knows about the person, to compare with the document."""
+    model_config = ConfigDict(extra="forbid")
+
+    givenNames: str | None = Field(default=None, min_length=1, max_length=100)
+    surname: str | None = Field(default=None, min_length=1, max_length=100)
+    birthDate: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
 # --- Response -----------------------------------------------------------------------------------------------------
 
 class Quality(BaseModel):
@@ -113,6 +122,20 @@ class Liveness(BaseModel):
     framesSampled: int
 
 
+class ApplicantFieldCheck(BaseModel):
+    expected: str = Field(description="The applicant's value, names folded as in the MRZ (Müller becomes MUELLER).")
+    document: str | None = Field(description="The document's value, null when neither the zone nor the page gave one.")
+    source: Literal["mrz", "printed"] | None = Field(description="Where the document value was read: a valid zone or the printed page.")
+    result: Literal["match", "mismatch", "not-read"]
+
+
+class ApplicantCheck(BaseModel):
+    result: Literal["match", "mismatch", "incomplete"] = Field(
+        description="`mismatch` when any field disagrees, `incomplete` when none does but one was not read.")
+    fields: dict[Literal["givenNames", "surname", "birthDate"], ApplicantFieldCheck] = Field(
+        description="One entry per field the applicant data held.")
+
+
 class VerificationResult(BaseModel):
     status: Literal["approved", "review", "rejected"]
     reasons: list[str]
@@ -120,3 +143,4 @@ class VerificationResult(BaseModel):
     faceMatch: FaceMatch | None = Field(description="The document portrait against the selfie.")
     liveFaceMatch: LiveFaceMatch | None = Field(description="The document portrait against the face video.")
     liveness: Liveness | None
+    applicantCheck: ApplicantCheck | None = Field(default=None, description="The applicant data against the document; null without applicant data.")
