@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AssetOptions, CapturePayload, FaceChallenge, FaceOptions } from '../types.js';
 import { Icon } from './Icons.js';
 import { Illustration } from './Illustrations.js';
@@ -17,6 +17,14 @@ export function FaceScreen({ face, assets, challenges, simulation, strings: s, o
   const active = status === 'tracking' || status === 'capturing';
   const hint = feedback?.hint ?? 'center-face';
   const instruction = status === 'capturing' ? face.recordVideo === false ? s.capturing : s.finishingVideo : s[hint] ?? s[current];
+  // Hints can change several times per second; announce only a hint that stayed stable.
+  const spoken = active ? instruction ?? '' : '';
+  const [announcement, setAnnouncement] = useState('');
+  useEffect(() => {
+    if (!spoken) { setAnnouncement(''); return; }
+    const timer = setTimeout(() => setAnnouncement(spoken), 700);
+    return () => clearTimeout(timer);
+  }, [spoken]);
   const direction = feedback?.guideDirection ?? 'center';
   const distance = direction === 'closer' || direction === 'further' ? direction : 'normal';
   const showDirection = active && ['turn-left', 'turn-right', 'look-up', 'look-down'].includes(direction);
@@ -42,7 +50,8 @@ export function FaceScreen({ face, assets, challenges, simulation, strings: s, o
       </div>
       {status === 'idle' ? <div className="kyc-camera-placeholder"><Illustration kind="selfie" /></div> : null}
     </div></div>
-    <p className={`kyc-current-instruction ${active ? 'is-active' : ''}`} role={active ? 'status' : undefined}>{active ? instruction : '\u00a0'}</p>
+    <p className={`kyc-current-instruction ${active ? 'is-active' : ''}`} aria-hidden={active ? undefined : true}>{active ? instruction : '\u00a0'}</p>
+    <p className="kyc-visually-hidden kyc-instruction-announcement" role="status">{announcement}</p>
     {active ? <div className="kyc-visually-hidden" role="progressbar" aria-label={s.faceProgress} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)} /> : null}</div>
     <div className="kyc-actions">
       {status === 'idle' && face.autoStart === false ? <button type="button" className="kyc-button kyc-button-primary" onClick={() => void start()}>{simulation ? s.simulationStart : s.startCamera}</button> : active && (face.recordVideo === false || status === 'capturing') ? <span className="kyc-auto-capture-note">{face.recordVideo === false ? s.automaticCapture : s.finishingVideo}</span> : null}

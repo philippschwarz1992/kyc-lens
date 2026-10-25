@@ -3,7 +3,8 @@ import type { WorkerRequest, WorkerResponse } from './protocol.js';
 import { coverViewport, mapFaceToViewport } from './viewport.js';
 
 export interface FaceTrackerOptions {
-  video: HTMLVideoElement;
+  /** Sampling starts on worker readiness when given; otherwise call start(video) after initialization. */
+  video?: HTMLVideoElement;
   assets?: AssetOptions;
   trackingFps?: number;
   /** Evaluate geometry in a centered object-fit:cover preview; otherwise return native coordinates. */
@@ -14,8 +15,14 @@ export interface FaceTrackerOptions {
   onError: (error: Error) => void;
 }
 
+export interface FaceTracker {
+  /** Begins frame sampling. Initialization can therefore overlap camera permission and recorder startup. */
+  start(video: HTMLVideoElement): void;
+  stop(): void;
+}
+
 /** Resolves after the dedicated CPU worker and local model are ready. Camera ownership stays with the host. */
-export async function createFaceTracker(options: FaceTrackerOptions): Promise<{ stop(): void }> {
+export async function createFaceTracker(options: FaceTrackerOptions): Promise<FaceTracker> {
   if (typeof Worker === 'undefined' || typeof createImageBitmap === 'undefined') throw new Error('This browser does not support worker-based face tracking.');
   if (options.signal?.aborted) throw new DOMException('Face tracking was cancelled.', 'AbortError');
   const fps = options.trackingFps ?? 12;
@@ -25,6 +32,7 @@ export async function createFaceTracker(options: FaceTrackerOptions): Promise<{ 
   const worker = new Worker(resolveAsset(options.assets?.workerUrl ?? `${base}/face-worker.js`), { type: 'module', name: 'kyc-face-tracker' });
   let stopped = false;
   let ready = false;
+  let video = options.video;
   let rafId = 0;
   let busy = false;
   let lastVideoTime = -1;
@@ -66,8 +74,7 @@ export async function createFaceTracker(options: FaceTrackerOptions): Promise<{ 
   const sample = (timestamp: number): void => {
     if (stopped) return;
     rafId = requestAnimationFrame(sample);
-    const { video } = options;
-    if (busy || timestamp - lastFrameTimestamp < 1000 / fps || video.readyState < 2 || video.videoWidth === 0 || video.currentTime === lastVideoTime) return;
+    if (!video || busy || timestamp - lastFrameTimestamp < 1000 / fps || video.readyState < 2 || video.videoWidth === 0 || video.currentTime === lastVideoTime) return;
     busy = true;
     lastVideoTime = video.currentTime;
     lastFrameTimestamp = timestamp;
@@ -97,7 +104,7 @@ export async function createFaceTracker(options: FaceTrackerOptions): Promise<{ 
       if (ready) return;
       ready = true;
       clearTimeout(startupTimer);
-      rafId = requestAnimationFrame(sample);
+      if (video) rafId = requestAnimationFrame(sample);
       resolveStartup();
     } else if (response.type === 'error') {
       fail(new Error(response.message));
@@ -121,5 +128,10 @@ export async function createFaceTracker(options: FaceTrackerOptions): Promise<{ 
     if (!stopped) worker.postMessage(request);
   } catch (error) { fail(error instanceof Error ? error : new Error(String(error))); }
   await startup;
-  return { stop };
+  const start = (next: HTMLVideoElement): void => {
+    if (stopped || video === next && rafId) return;
+    cancelAnimationFrame(rafId);
+    video = next; rafId = requestAnimationFrame(sample);
+  };
+  return { start, stop };
 }

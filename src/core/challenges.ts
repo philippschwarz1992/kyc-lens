@@ -20,7 +20,7 @@ export function validateChallenges(challenges: readonly FaceChallenge[]): FaceCh
 
 export function validateFaceOptions(options: FaceOptions = {}): void {
   if (options.challenges !== undefined) validateChallenges(options.challenges);
-  for (const key of ['autoStart', 'recordVideo'] as const) {
+  for (const key of ['autoStart', 'recordVideo', 'haptics'] as const) {
     if (options[key] !== undefined && typeof options[key] !== 'boolean') throw new Error(`face.${key} must be true or false.`);
   }
   if (options.holdDurationMs !== undefined && (!Number.isFinite(options.holdDurationMs) || options.holdDurationMs < 100 || options.holdDurationMs > 10_000)) {

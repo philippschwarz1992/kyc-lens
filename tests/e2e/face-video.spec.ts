@@ -114,7 +114,7 @@ async function expectStopped(page: Page): Promise<void> {
   expect(await page.evaluate(() => (window as unknown as { faceVideoFixture: FaceVideoFixture }).faceVideoFixture.workers.map(worker => worker.frames))).toEqual(frames);
 }
 
-async function openFaceHarness(page: Page, face: { recordVideo?: boolean; autoStart?: boolean } = {}): Promise<void> {
+async function openFaceHarness(page: Page, face: { recordVideo?: boolean; autoStart?: boolean; timeoutMs?: number } = {}): Promise<void> {
   const workspace = process.cwd().replaceAll('\\', '/');
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -438,6 +438,21 @@ test('automatic camera permission resolving after unmount releases the late stre
   await expectStopped(page);
   expect(await page.evaluate(() => (window as unknown as { faceCompletions: unknown[] }).faceCompletions)).toEqual([]);
   await expect(page.locator('.kyc-kit')).toHaveCount(0);
+});
+
+test('tracker loads during the permission prompt and the face timeout starts only with tracking', async ({ page }) => {
+  await installFaceVideoCamera(page, true);
+  await openFaceHarness(page, { timeoutMs: 1_000 });
+  await expect.poll(() => page.evaluate(() => (window as unknown as { faceVideoFixture: FaceVideoFixture }).faceVideoFixture.permissionResolvers.length)).toBe(1);
+  // The worker initializes before permission is granted, but nothing is sampled until recording is ready.
+  await expect.poll(() => page.evaluate(() => (window as unknown as { faceVideoFixture: FaceVideoFixture }).faceVideoFixture.workers.map(worker => worker.frames))).toEqual([0]);
+  await page.waitForTimeout(1_500);
+  await expect(page.locator('.kyc-error-screen')).toHaveCount(0);
+  await page.evaluate(() => (window as unknown as { faceVideoFixture: FaceVideoFixture }).faceVideoFixture.permissionResolvers.forEach(resolve => resolve()));
+  await expect(page.locator('.kyc-current-instruction')).toHaveText('Bring your face into the circle');
+  expect(await page.evaluate(() => (window as unknown as { faceVideoFixture: FaceVideoFixture }).faceVideoFixture.recorders[0]?.chunks.length)).toBeGreaterThan(0);
+  await expect(page.locator('.kyc-error-screen')).toBeVisible({ timeout: 5_000 });
+  await expectStopped(page);
 });
 
 test('recordVideo false explicitly keeps automatic landmark checks with a still-photo payload', async ({ page }) => {

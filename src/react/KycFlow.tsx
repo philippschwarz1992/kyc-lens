@@ -6,7 +6,7 @@ import { initialTransition, transition } from 'xstate';
 import type { EventFrom, SnapshotFrom } from 'xstate';
 import { createHttpApi, KycHttpError } from '../api.js';
 import { DEFAULT_CHALLENGES, validateFaceOptions } from '../core/challenges.js';
-import { compareFaces } from '../matching/client.js';
+import { compareFaces, prefetchMatchingAssets } from '../matching/client.js';
 import { comparisonResult, DEFAULT_INCONCLUSIVE_MARGIN, DEFAULT_MATCH_THRESHOLD, validDecisionOptions } from '../matching/protocol.js';
 import { resolveTheme, themeVariables } from '../themes.js';
 import type { KycThemeDefinition } from '../themes.js';
@@ -79,6 +79,7 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
   const [comparing, setComparing] = useState(false);
   const sessionRef = useRef<KycSession | null>(null);
   const requestRef = useRef<AbortController | null>(null);
+  const prefetchRef = useRef<(() => void) | null>(null);
   const completionDelivered = useRef(false);
   const cancellationDelivered = useRef(false);
   const latestCallbacks = useRef({ onComplete: props.onComplete, onCancel: props.onCancel, onError: props.onError });
@@ -100,6 +101,13 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
     setSelfieUrl(url); setVideoUrl(clipUrl);
     return () => { URL.revokeObjectURL(url); if (clipUrl) URL.revokeObjectURL(clipUrl); };
   }, [capture]);
+
+  // Warm the comparison assets during the face step; cancelled on cancel or unmount.
+  useEffect(() => {
+    if (phase === 'cancelled') { prefetchRef.current?.(); prefetchRef.current = null; }
+    else if (phase === 'face' && documentCapture && faceMatch !== false && !simulation && !prefetchRef.current) prefetchRef.current = prefetchMatchingAssets(assets);
+  }, [phase, documentCapture, faceMatch, assets, simulation]);
+  useEffect(() => () => { prefetchRef.current?.(); prefetchRef.current = null; }, []);
 
   useEffect(() => {
     if (phase !== 'submitting' || !capture) return;
