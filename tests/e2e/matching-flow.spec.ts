@@ -11,7 +11,7 @@ async function install(page: Page, mode: ComparisonFixture['mode']) {
   await page.addInitScript(mode => {
     const fixture: ComparisonFixture = { mode, jobs: [], streams: [] };
     (window as unknown as { comparisonFixture: ComparisonFixture }).comparisonFixture = fixture;
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => {
+    Object.defineProperty(MediaDevices.prototype, 'getUserMedia', { configurable: true, value: async () => {
       const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 480;
       const context = canvas.getContext('2d')!;
       let frame = 0;

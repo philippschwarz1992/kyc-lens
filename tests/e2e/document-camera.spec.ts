@@ -22,12 +22,12 @@ async function installCameras(page: Page, devices: CameraFixture['devices'], tor
   await page.addInitScript(({ devices, torch }) => {
     const fixture: CameraFixture = { devices, requests: [], torchRequests: [], failDevices: [], torch };
     (window as unknown as { cameraFixture: CameraFixture }).cameraFixture = fixture;
-    Object.defineProperty(navigator.mediaDevices, 'enumerateDevices', {
+    Object.defineProperty(MediaDevices.prototype, 'enumerateDevices', {
       configurable: true,
       value: async () => [{ kind: 'audioinput', deviceId: 'mic', label: 'Microphone', groupId: 'a' },
         ...fixture.devices.map(camera => ({ kind: 'videoinput', groupId: camera.deviceId, ...camera }))],
     });
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+    Object.defineProperty(MediaDevices.prototype, 'getUserMedia', {
       configurable: true,
       value: async (constraints: MediaStreamConstraints) => {
         const video = constraints.video as MediaTrackConstraints;

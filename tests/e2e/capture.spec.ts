@@ -256,7 +256,7 @@ test('real worker initializes with local assets, runs on fake camera frames and 
 
 test('camera denial stays in real mode and gives a recoverable message', async ({ page }) => {
   await page.addInitScript(() => {
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: () => Promise.reject(new DOMException('Denied', 'NotAllowedError')), configurable: true });
+    Object.defineProperty(MediaDevices.prototype, 'getUserMedia', { value: () => Promise.reject(new DOMException('Denied', 'NotAllowedError')), configurable: true });
   });
   await page.goto('/?document=0');
   await page.getByRole('button', { name: 'Start face capture', exact: true }).click();
@@ -560,7 +560,7 @@ test('passport capture requires a single photo page before the selfie', async ({
 test('leaving document camera during permission stops a late stream without advancing the screen', async ({ page }) => {
   await page.addInitScript(() => {
     const state = window as unknown as { resolveCamera?: (stream: MediaStream) => void };
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+    Object.defineProperty(MediaDevices.prototype, 'getUserMedia', {
       value: () => new Promise<MediaStream>(resolve => { state.resolveCamera = resolve; }), configurable: true,
     });
   });

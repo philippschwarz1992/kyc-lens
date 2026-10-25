@@ -28,13 +28,17 @@ async function installDocumentCamera(page: Page): Promise<void> {
         return worker;
       },
     });
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+    Object.defineProperty(MediaDevices.prototype, 'getUserMedia', {
       configurable: true,
       value: async () => {
         const canvas = document.createElement('canvas');
         canvas.width = 1200;
         canvas.height = 800;
         const context = canvas.getContext('2d')!;
+        // Playwright's WebKit accepts canvas filters without applying them; probe one pixel to find out.
+        const probe = document.createElement('canvas').getContext('2d')!;
+        probe.fillStyle = '#fff'; probe.fillRect(0, 0, 1, 1); probe.filter = 'brightness(0)'; probe.drawImage(probe.canvas, 0, 0);
+        const filtersWork = probe.getImageData(0, 0, 1, 1).data[0] < 128;
         const original = document.createElement('canvas');
         original.width = canvas.width;
         original.height = canvas.height;
@@ -80,7 +84,13 @@ async function installDocumentCamera(page: Page): Promise<void> {
             }
           }
           context.filter = camera.mode === 'blur' ? 'blur(18px)' : camera.mode === 'dark' ? 'brightness(0.25)' : 'none';
-          context.drawImage(original, 0, 0);
+          if (!filtersWork && camera.mode === 'blur') {
+            // Without canvas filters, blur by downscaling and smoothing back up.
+            const small = document.createElement('canvas'); small.width = original.width / 24; small.height = original.height / 24;
+            small.getContext('2d')!.drawImage(original, 0, 0, small.width, small.height);
+            context.imageSmoothingEnabled = true; context.drawImage(small, 0, 0, original.width, original.height);
+          } else context.drawImage(original, 0, 0);
+          if (!filtersWork && camera.mode === 'dark') { context.fillStyle = 'rgb(0 0 0 / 75%)'; context.fillRect(0, 0, original.width, original.height); }
           context.filter = 'none';
           requestAnimationFrame(draw);
         };

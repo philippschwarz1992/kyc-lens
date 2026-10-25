@@ -62,7 +62,7 @@ async function installCamera(page: Page): Promise<void> {
       }
       encode.call(this, callback, type, quality);
     };
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+    Object.defineProperty(MediaDevices.prototype, 'getUserMedia', {
       configurable: true,
       value: async () => {
         const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = 800;

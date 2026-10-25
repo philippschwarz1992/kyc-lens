@@ -19,7 +19,7 @@ async function installFaceVideoCamera(page: Page, deferPermission = false): Prom
   await page.addInitScript(deferred => {
     const fixture: FaceVideoFixture = { pose: 'no-face', streams: [], workers: [], recorders: [], cameraRequests: 0, permissionResolvers: [] };
     (window as unknown as { faceVideoFixture: FaceVideoFixture }).faceVideoFixture = fixture;
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+    Object.defineProperty(MediaDevices.prototype, 'getUserMedia', {
       configurable: true,
       value: async (constraints: MediaStreamConstraints) => {
         if (constraints.audio) throw new Error('Face capture must not request a microphone.');
