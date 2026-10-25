@@ -74,7 +74,8 @@
     "check:package": "node scripts/check-package.mjs",
     "check:size": "node scripts/check-size.mjs",
     "check:name": "node scripts/check-npm-name.mjs",
-    "prepack": "npm run setup && npm run build"
+    "prepack": "npm run setup && npm run build",
+    "deploy:cloudflare": "node scripts/copy-assets.mjs demo/public/kyc-assets && vite build && node -e \"require('fs').writeFileSync('demo-dist/.assetsignore','kyc-assets/matching/face_recognition_sface_2021dec.onnx\n')\" && cd cloudflare && npx wrangler@4 deploy"
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",
