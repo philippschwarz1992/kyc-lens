@@ -23,7 +23,7 @@ Document detection, face tracking and document-to-selfie comparison run inside t
 | Face media | Automatic silent video plus a final selfie; configurable still-only mode |
 | Local face comparison | YuNet portrait detection and SFace embeddings in a separate browser worker; explicit match, no match, inconclusive or unavailable result |
 | Configurable flow | Optional intro, document, review, and result screens; required face screen |
-| Customization | Four built-in themes (Classic, Aurora, Ledger, Pebble), your own token-based themes, English/German strings, custom copy, and intro/review/result components |
+| Customization | Four built-in themes (Classic, Aurora, Ledger, Pebble), your own token-based themes, built-in English, German, French, Spanish, Italian, Polish, and Turkish copy, typed custom strings, and intro/review/result components |
 | Backend integration | Local Blob payloads, a multipart HTTP adapter, or your own API functions |
 | Bundled assets | Face/document/comparison workers, WASM, pinned models, checksums and license notices |
 | Developer playground | Settings, a visual theme studio, camera-free simulation, generated integration code, and metadata summaries |
@@ -136,7 +136,8 @@ For Next.js, render `KycFlow` in a Client Component and import the stylesheet in
 | `faceMatch` | Enabled when a document is present; `false` disables comparison; options set threshold, inconclusive margin and timeout |
 | `face.camera`, `document.camera` | Override browser camera constraints |
 | `theme` | A theme id such as `"aurora"`, a `defineTheme()` result, or quick color/radius/font overrides. See [theming](./docs/theming.md) |
-| `strings`, `components` | Customize text and selected screen components |
+| `locale` | Built-in copy and `lang` attribute: `en` (default), `de`, `fr`, `es`, `it`, `pl`, or `tr` |
+| `strings`, `components` | Override individual copy keys (typed as `Partial<KycStrings>`) and selected screen components |
 | `apiBaseUrl`, `headers`, `api` | Connect a backend or provide a custom adapter |
 | `onComplete`, `onCancel`, `onError` | Receive completion, cancellation, and errors |
 | `simulation` | Explicit opt-in to the camera-free demo driver |

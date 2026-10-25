@@ -15,5 +15,6 @@ This file records changes prepared for release. No version has been published ye
 - Development playground with separate settings, explicit synthetic simulation, and a temporary sample upload receiver.
 - TypeScript interfaces, unit and browser test suites, integration and architecture documentation, and MIT licensing for project code.
 - Open-source contribution and security guidance, GitHub issue and pull request templates, and a verification workflow.
+- Built-in French, Spanish, Italian, Polish, and Turkish copy alongside English and German, typed `KycStrings`/`KycStringKey` exports, `Partial<KycStrings>` overrides, and the `KYC Lens` brand string.
 
 Completion means `capture_complete`. This release does not implement identity verification, document authentication, or proof of liveness.
