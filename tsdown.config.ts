@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsdown';
 
 export default defineConfig({
-  entry: { index: 'src/index.ts', 'core/index': 'src/core/index.ts', 'face-worker': 'src/camera/face.worker.ts', 'document-worker': 'src/camera/document.worker.ts', 'match-worker': 'src/matching/match.worker.ts' },
+  entry: { index: 'src/index.ts', 'core/index': 'src/core/index.ts', element: 'src/element.ts', 'face-worker': 'src/camera/face.worker.ts', 'document-worker': 'src/camera/document.worker.ts', 'match-worker': 'src/matching/match.worker.ts' },
   format: 'esm',
   target: 'es2022',
   platform: 'browser',

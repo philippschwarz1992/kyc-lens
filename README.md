@@ -177,6 +177,7 @@ See [troubleshooting](./docs/troubleshooting.md) for denied cameras, missing ass
 
 - [Getting started](./docs/getting-started.md) — local demo, installation, and first capture
 - [Integration guide](./docs/integration.md) — React, Next.js, backend adapters, and deployment
+- [Web component](./docs/web-component.md) — the `<kyc-lens>` custom element for non-React hosts
 - [API reference](./docs/api.md) — props, types, payloads, and core utilities
 - [Architecture](./docs/architecture.md) — workers, capture lifecycle, privacy boundaries, and limitations
 - [Troubleshooting](./docs/troubleshooting.md) — common setup and runtime problems
