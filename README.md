@@ -15,7 +15,7 @@ The browser checks guide the user; they are not a verification decision. The ser
 
 ## Develop
 
-Use Node.js 22.12 or newer. On Windows, `start-demo.cmd` runs the same steps.
+Use Node.js 22.18 or newer (the playground loads shared TypeScript with Node's type stripping). On Windows, `start-demo.cmd` runs the same steps.
 
 ```sh
 npm ci

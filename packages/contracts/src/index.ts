@@ -1,3 +1,3 @@
-export * from './capture.js';
-export * from './result.js';
-export * from './webhook.js';
+export * from './capture.ts';
+export * from './result.ts';
+export * from './webhook.ts';

@@ -4,7 +4,7 @@ Contributions to the capture flow, accessibility, browser compatibility, tests, 
 
 ## Set up the project
 
-Use Node.js 22.12 or newer and npm. CI checks Node.js 22 and 24.
+Use Node.js 22.18 or newer and npm. CI checks Node.js 22 and 24.
 
 ```sh
 npm ci

@@ -30,8 +30,10 @@ export interface ParsedCapture {
   digest: string;
 }
 
+// Plain fields, no parameter properties: Node loads this file with type stripping (the playground's Vite config imports it).
 export class CaptureError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
+  readonly status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);

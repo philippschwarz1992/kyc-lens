@@ -1,6 +1,6 @@
-import type { CaptureField, CaptureMetadata } from './capture.js';
-import { sha256Hex } from './capture.js';
-import type { VerificationResult } from './result.js';
+import type { CaptureField, CaptureMetadata } from './capture.ts';
+import { sha256Hex } from './capture.ts';
+import type { VerificationResult } from './result.ts';
 
 /**
  * Delivery to the customer's backend: one multipart POST per session.

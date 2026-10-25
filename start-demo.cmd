@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 where node >nul 2>nul
 if errorlevel 1 (
-  echo Node.js is missing. Install Node.js 22.12 or later, then run this file again.
+  echo Node.js is missing. Install Node.js 22.18 or later, then run this file again.
   pause
   exit /b 1
 )
@@ -14,9 +14,9 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-node -e "const v=process.versions.node.split('.').map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=12)?0:1)"
+node -e "const v=process.versions.node.split('.').map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=18)?0:1)"
 if errorlevel 1 (
-  echo This project needs Node.js 22.12 or later. Please update Node.js.
+  echo This project needs Node.js 22.18 or later. Please update Node.js.
   pause
   exit /b 1
 )
