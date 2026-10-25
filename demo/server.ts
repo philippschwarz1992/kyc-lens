@@ -270,7 +270,8 @@ export function demoApiPlugin({ storageDir = resolve(process.cwd(), 'results') }
         catch { json(response, 400, { error: 'Invalid request path.' }); return; }
         const privateRoot = storageDir.replace(/\\/g, '/').toLowerCase();
         const fsPath = /^\/@fs\/(.*)$/i.exec(pathname);
-        const fsTarget = fsPath ? resolve(fsPath[1]).replace(/\\/g, '/').toLowerCase() : undefined;
+        // Vite's /@fs/ prefix carries an absolute path; POSIX paths lose their leading slash to it.
+        const fsTarget = fsPath ? resolve(/^[a-z]:/i.test(fsPath[1]) ? fsPath[1] : `/${fsPath[1]}`).replace(/\\/g, '/').toLowerCase() : undefined;
         if (/^\/results(?:\/|$)/i.test(pathname) || (fsTarget && (fsTarget === privateRoot || fsTarget.startsWith(`${privateRoot}/`)))) {
           json(response, 403, { error: 'Saved captures are private local files.' });
           return;

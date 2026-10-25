@@ -175,7 +175,8 @@ async function faceWindowGeometry(page: Page, scale: number) {
   // together. Scaling only an overlay would leave the video bounds unchanged.
   for (const key of ['x', 'y', 'width', 'height'] as const) {
     expect(Math.abs(geometry.aperture[key] - geometry.video[key])).toBeLessThan(0.5);
-    expect(Math.abs(geometry.aperture[key] - geometry.ring[key])).toBeLessThan(0.5);
+    // Firefox rounds the SVG ring box to a different subpixel than the aperture.
+    expect(Math.abs(geometry.aperture[key] - geometry.ring[key])).toBeLessThan(1);
   }
   expect(geometry.noScroll).toBe(true);
   expect(geometry.stage.x).toBeGreaterThanOrEqual(geometry.frame.x);

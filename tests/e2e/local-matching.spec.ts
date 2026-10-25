@@ -45,6 +45,8 @@ test('packaged YuNet and SFace compare real image pixels using only same-origin 
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
+    // The playground's theme picker loads Google Fonts; they are unrelated to the matching assets.
+    if (/^https:\/\/fonts\.(googleapis|gstatic)\.com$/.test(url.origin)) { await route.abort(); return; }
     if (url.protocol.startsWith('http') && url.origin !== `http://127.0.0.1:${process.env.E2E_PORT || 5173}`) { external.push(url.href); await route.abort(); return; }
     if (request.method() === 'POST') posts.push(url.pathname);
     requested.push(url.pathname);
@@ -107,7 +109,8 @@ test('external assets are rejected before fetch and active comparison aborts cle
   expect(aborted).toBe('AbortError');
 });
 
-test('runtime redirects are rejected before contacting another origin', async ({ page }) => {
+test('runtime redirects are rejected before contacting another origin', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'Playwright WebKit cannot fulfill a route with a redirect status.');
   await prepare(page);
   const external: string[] = [];
   await page.route('https://third-party.invalid/**', async route => { external.push(route.request().url()); await route.abort(); });
