@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { AssetOptions, DocumentCapture, DocumentOptions, DocumentType } from '../types.js';
+import type { AssetOptions, DocumentCapture, DocumentOptions, DocumentType, OutputOptions } from '../types.js';
 import { Icon } from './Icons.js';
 import { Illustration } from './Illustrations.js';
 import { useDocumentCapture } from './useDocumentCapture.js';
@@ -8,10 +8,11 @@ import { useScreenTransition } from './useScreenTransition.js';
 type DocumentStage = 'select' | 'prepare-front' | 'camera-front' | 'review-front' | 'prepare-back' | 'camera-back' | 'review-back';
 const DEFAULT_DOCUMENT_TYPES: readonly DocumentType[] = ['id-card', 'drivers-license', 'passport'];
 
-export function DocumentScreen({ options, assets, simulation, strings: s, onCapture, onFailure }: {
+export function DocumentScreen({ options, assets, simulation, output, strings: s, onCapture, onFailure }: {
   options: DocumentOptions;
   assets: AssetOptions;
   simulation: boolean;
+  output?: OutputOptions;
   strings: Record<string, string>;
   onCapture: (capture: DocumentCapture) => void;
   onFailure: (error: Error) => void;
@@ -34,7 +35,7 @@ export function DocumentScreen({ options, assets, simulation, strings: s, onCapt
   const side = isBack ? 'back' : 'front';
   const preview = isReview ? isBack ? back : front : null;
   const { videoRef, guideRef, feedback, progress, status, start, capture, stop, cameras, torch, notice, switchCamera, toggleTorch } = useDocumentCapture({
-    options, assets, type: selected, side, simulation, onFailure,
+    options, assets, type: selected, side, simulation, output, onFailure,
     onCapture: photo => {
       if (stage === 'camera-back') { setBack(photo); setStage('review-back'); }
       else if (stage === 'camera-front') { setFront(photo); setBack(null); setStage('review-front'); }

@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import type { ViteDevServer } from 'vite';
-import { createHttpApi } from '../src/api';
+import { createHttpApi, imageExtension, retryDelay } from '../src/api';
 import { demoApiPlugin } from '../demo/server';
 
 vi.mock('node:fs/promises', async () => {
@@ -105,6 +105,171 @@ describe('HTTP adapter', () => {
   });
 });
 
+const photoPayload = (type: string) => ({
+  selfie: new Blob(['selfie'], { type }), challenges: [], capturedAt: '2026-10-02T10:00:00.000Z', mode: 'camera' as const,
+  document: { type: 'id-card' as const, front: new Blob(['front'], { type }), back: new Blob(['back'], { type }) },
+});
+
+describe('HTTP adapter image formats', () => {
+  it.each([
+    ['image/webp', 'webp'], ['image/jpeg', 'jpg'], ['image/png', 'png'], ['', 'jpg'],
+  ])('names %s photos with the matching extension', async (type, extension) => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ status: 'capture_complete' }));
+    vi.stubGlobal('fetch', fetchMock);
+    await createHttpApi('/api/kyc').submitCapture({ id: 'session' }, photoPayload(type), new AbortController().signal);
+    const form = fetchMock.mock.calls[0]![1].body as FormData;
+    expect((form.get('selfie') as File).name).toBe(`selfie.${extension}`);
+    expect((form.get('documentFront') as File).name).toBe(`document-front.${extension}`);
+    expect((form.get('documentBack') as File).name).toBe(`document-back.${extension}`);
+  });
+  it('maps MIME types with parameters to file extensions', () => {
+    expect(imageExtension(new Blob([], { type: 'IMAGE/WEBP; q=1' }))).toBe('webp');
+  });
+});
+
+describe('HTTP adapter retry', () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const failing = (status: number, headers: Record<string, string> = {}) => Response.json({ error: `Status ${status}.` }, { status, headers });
+
+  it('validates retry and progress options', () => {
+    expect(() => createHttpApi('/api', undefined, { retry: { attempts: 6 } })).toThrow('upload.retry.attempts must be an integer between 0 and 5.');
+    expect(() => createHttpApi('/api', undefined, { retry: { attempts: 1.5 } })).toThrow(/attempts/);
+    expect(() => createHttpApi('/api', undefined, { retry: { baseDelayMs: -1 } })).toThrow(/baseDelayMs/);
+    expect(() => createHttpApi('/api', undefined, { onProgress: 'yes' as never })).toThrow(/onProgress/);
+    expect(() => createHttpApi('/api', undefined, { retry: { attempts: 0, baseDelayMs: 0 } })).not.toThrow();
+  });
+
+  it('does not retry unless retry options are provided', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(failing(503));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(createHttpApi('/api').createSession(new AbortController().signal)).rejects.toMatchObject({ status: 503 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('backs off exponentially for 5xx and network failures, then succeeds', async () => {
+    vi.useFakeTimers(); vi.spyOn(Math, 'random').mockReturnValue(1);
+    const fetchMock = vi.fn().mockResolvedValueOnce(failing(503)).mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce(Response.json({ id: 'session' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = createHttpApi('/api', undefined, { retry: { baseDelayMs: 100 } }).createSession(new AbortController().signal);
+    await vi.advanceTimersByTimeAsync(99); expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1); expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(199); expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1); expect(fetchMock).toHaveBeenCalledTimes(3);
+    await expect(result).resolves.toEqual({ id: 'session', token: undefined });
+  });
+
+  it('applies jitter between half and the full exponential delay', () => {
+    expect(retryDelay(0, 100, new TypeError('x'), () => 0)).toBe(50);
+    expect(retryDelay(2, 100, new TypeError('x'), () => 1)).toBe(400);
+    expect(retryDelay(10, 1000, new TypeError('x'), () => 1)).toBe(30_000);
+  });
+
+  it('respects Retry-After seconds with a cap and stops after the configured attempts', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValueOnce(failing(429, { 'Retry-After': '120' })).mockResolvedValueOnce(failing(500));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = createHttpApi('/api', undefined, { retry: { attempts: 1 } }).submitCapture({ id: 's' }, photoPayload('image/jpeg'), new AbortController().signal);
+    const settled = expect(result).rejects.toMatchObject({ name: 'KycHttpError', status: 500, message: 'Status 500.' });
+    await vi.advanceTimersByTimeAsync(29_999); expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1); expect(fetchMock).toHaveBeenCalledTimes(2);
+    await settled;
+  });
+
+  it.each([400, 401, 404, 409, 413])('never retries a %s response', async status => {
+    const fetchMock = vi.fn().mockResolvedValue(failing(status));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(createHttpApi('/api', undefined, { retry: { attempts: 5, baseDelayMs: 0 } }).createSession(new AbortController().signal)).rejects.toMatchObject({ status });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries 408 and stops waiting as soon as the request is aborted', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue(failing(408));
+    vi.stubGlobal('fetch', fetchMock);
+    const controller = new AbortController();
+    const result = createHttpApi('/api', undefined, { retry: { baseDelayMs: 5_000 } }).createSession(controller.signal);
+    const settled = expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.advanceTimersByTimeAsync(10); controller.abort();
+    await settled;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+class MockXhr {
+  static instances: MockXhr[] = [];
+  upload: { onprogress: ((event: { lengthComputable: boolean; loaded: number; total: number }) => void) | null } = { onprogress: null };
+  onload: (() => void) | null = null; onerror: (() => void) | null = null; ontimeout: (() => void) | null = null; onabort: (() => void) | null = null;
+  method = ''; url = ''; body: unknown; withCredentials = true; aborted = false;
+  status = 0; responseText = ''; requestHeaders: Record<string, string> = {}; responseHeaders: Record<string, string> = {};
+  constructor() { MockXhr.instances.push(this); }
+  open(method: string, url: string) { this.method = method; this.url = url; }
+  setRequestHeader(name: string, value: string) { this.requestHeaders[name.toLowerCase()] = value; }
+  getResponseHeader(name: string) { return this.responseHeaders[name.toLowerCase()] ?? null; }
+  send(body: unknown) { this.body = body; }
+  abort() { this.aborted = true; this.onabort?.(); }
+  respond(status: number, text: string, headers: Record<string, string> = {}) { this.status = status; this.responseText = text; this.responseHeaders = headers; this.onload?.(); }
+}
+
+describe('HTTP adapter upload progress', () => {
+  afterEach(() => { MockXhr.instances = []; vi.useRealTimers(); });
+
+  it('uploads with XMLHttpRequest, reports progress and keeps auth and header semantics', async () => {
+    vi.stubGlobal('XMLHttpRequest', MockXhr);
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    const progress: Array<[number, number]> = [];
+    const api = createHttpApi('/api/kyc/', { 'X-App': 'host-app', 'Content-Type': 'application/json' }, { onProgress: (loaded, total) => { progress.push([loaded, total]); if (loaded === 0) throw new Error('host bug'); } });
+    const result = api.submitCapture({ id: 'id/one', token: 'capture-token' }, photoPayload('image/webp'), new AbortController().signal);
+    const xhr = MockXhr.instances[0]!;
+    expect([xhr.method, xhr.url, xhr.withCredentials]).toEqual(['POST', '/api/kyc/sessions/id%2Fone/capture', false]);
+    expect(xhr.requestHeaders).toEqual({ authorization: 'Bearer capture-token', 'x-app': 'host-app' });
+    expect(((xhr.body as FormData).get('selfie') as File).name).toBe('selfie.webp');
+    xhr.upload.onprogress?.({ lengthComputable: true, loaded: 0, total: 200 });
+    xhr.upload.onprogress?.({ lengthComputable: false, loaded: 10, total: 0 });
+    xhr.upload.onprogress?.({ lengthComputable: true, loaded: 200, total: 200 });
+    xhr.respond(200, JSON.stringify({ status: 'capture_complete' }));
+    await expect(result).resolves.toEqual({ status: 'capture_complete' });
+    expect(progress).toEqual([[0, 200], [200, 200]]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('turns JSON error bodies into KycHttpError and retries 5xx with a fresh request', async () => {
+    vi.useFakeTimers(); vi.stubGlobal('XMLHttpRequest', MockXhr);
+    const api = createHttpApi('/api', undefined, { onProgress: () => {}, retry: { attempts: 1, baseDelayMs: 10 } });
+    const result = api.submitCapture({ id: 's' }, photoPayload('image/jpeg'), new AbortController().signal);
+    const settled = expect(result).rejects.toMatchObject({ name: 'KycHttpError', status: 401, message: 'Session expired.' });
+    MockXhr.instances[0]!.respond(502, 'Bad gateway');
+    await vi.advanceTimersByTimeAsync(10);
+    expect(MockXhr.instances).toHaveLength(2);
+    MockXhr.instances[1]!.respond(401, JSON.stringify({ error: 'Session expired.' }));
+    await settled;
+  });
+
+  it('treats XHR network failures as retryable and aborts the request with the signal', async () => {
+    vi.useFakeTimers(); vi.stubGlobal('XMLHttpRequest', MockXhr);
+    const controller = new AbortController();
+    const api = createHttpApi('/api', undefined, { onProgress: () => {}, retry: { attempts: 2, baseDelayMs: 10 } });
+    const result = api.submitCapture({ id: 's' }, photoPayload('image/jpeg'), controller.signal);
+    const settled = expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    MockXhr.instances[0]!.onerror?.();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(MockXhr.instances).toHaveLength(2);
+    controller.abort();
+    await settled;
+    expect(MockXhr.instances[1]!.aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(MockXhr.instances).toHaveLength(2);
+  });
+
+  it('falls back to fetch where XMLHttpRequest is unavailable', async () => {
+    vi.stubGlobal('XMLHttpRequest', undefined);
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(createHttpApi('/api', undefined, { onProgress: () => {} }).submitCapture({ id: 's' }, photoPayload('image/jpeg'), new AbortController().signal)).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 interface ReceiverResponse { status: number; body: Record<string, any> }
 
 function isolatedStorage() {
@@ -179,6 +344,29 @@ describe('local capture receiver video contract', () => {
     const receipt = await receive(`/api/kyc/sessions/${session.id}`, { method: 'GET', token: session.token });
     expect(receipt.body.video).toEqual(first.body.video);
     expect(JSON.stringify(receipt.body)).not.toMatch(/base64|contents|token|approved/);
+  });
+
+  it('accepts WebP photos only with a matching RIFF/WEBP signature', async () => {
+    const webp = (form = 'WEBP', chunk = 'VP8L') => {
+      const bytes = new Uint8Array(22);
+      bytes.set(Buffer.from('RIFF'), 0); new DataView(bytes.buffer).setUint32(4, bytes.length - 8, true);
+      bytes.set(Buffer.from(form), 8); bytes.set(Buffer.from(chunk), 12); bytes.set([1, 0, 0, 0, 0x2f], 16);
+      return bytes;
+    };
+    const formWith = (selfie: Blob) => { const form = captureForm(); form.set('selfie', selfie, 'selfie.webp'); return form; };
+    const receive = localReceiver();
+    const session = (await receive('/api/kyc/sessions')).body;
+    const path = `/api/kyc/sessions/${session.id}/capture`;
+    for (const forged of [new Blob([webp('WAVE')], { type: 'image/webp' }), new Blob([webp('WEBP', 'JUNK')], { type: 'image/webp' }), new Blob([webp().subarray(0, 21)], { type: 'image/webp' }), new Blob([webp()], { type: 'image/jpeg' })]) {
+      const rejected = await receive(path, { body: formWith(forged), token: session.token });
+      expect(rejected.status).toBe(400);
+      expect(rejected.body.error).toContain('JPEG, PNG or WebP');
+    }
+    const accepted = await receive(path, { body: formWith(new Blob([webp()], { type: 'image/webp' })), token: session.token });
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.files.selfie).toBe('selfie.webp');
+    expect(accepted.body.image).toEqual({ type: 'image/webp', sizeBytes: 22 });
+    expect(await fs.readFile(join(receive.storageDir, session.id, 'selfie.webp'))).toEqual(Buffer.from(webp()));
   });
 
   it('accepts legacy photo-only captures and authenticates before accepting media', async () => {

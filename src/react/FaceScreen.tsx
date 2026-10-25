@@ -1,15 +1,15 @@
 import { useRef } from 'react';
-import type { AssetOptions, CapturePayload, FaceChallenge, FaceOptions } from '../types.js';
+import type { AssetOptions, CapturePayload, FaceChallenge, FaceOptions, OutputOptions } from '../types.js';
 import { Icon } from './Icons.js';
 import { Illustration } from './Illustrations.js';
 import { useFaceCapture } from './useFaceCapture.js';
 import { useScreenTransition } from './useScreenTransition.js';
 
-export function FaceScreen({ face, assets, challenges, simulation, strings: s, onCapture, onFailure }: {
-  face: FaceOptions; assets: AssetOptions; challenges: readonly FaceChallenge[]; simulation: boolean;
+export function FaceScreen({ face, assets, challenges, simulation, output, strings: s, onCapture, onFailure }: {
+  face: FaceOptions; assets: AssetOptions; challenges: readonly FaceChallenge[]; simulation: boolean; output?: OutputOptions;
   strings: Record<string, string>; onCapture: (capture: CapturePayload) => void; onFailure: (error: Error) => void;
 }) {
-  const { videoRef, status, feedback, start } = useFaceCapture({ options: face, assets, challenges, simulation, onCapture, onFailure });
+  const { videoRef, status, feedback, start } = useFaceCapture({ options: face, assets, challenges, simulation, output, onCapture, onFailure });
   const screenRef = useRef<HTMLDivElement>(null);
   useScreenTransition(screenRef, status === 'idle' ? 'prepare' : 'camera');
   const current = feedback?.challenge ?? challenges[0]!;

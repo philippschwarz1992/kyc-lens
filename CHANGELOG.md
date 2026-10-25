@@ -14,6 +14,9 @@ This file records changes prepared for release. No version has been published ye
 - Token-based theming with four built-in themes (Classic, Aurora, Ledger, Pebble), a theme registry for custom themes, and a playground theme studio with live preview and export.
 - Local capture results, an optional HTTP adapter, and custom backend adapters.
 - `kyc-lens-react/element`: a `<kyc-lens>` custom element for non-React hosts, configured by attributes or a `config` property, with `kyc-complete`, `kyc-cancel` and `kyc-error` DOM events and camera release on removal.
+- `onEvent` analytics callback with privacy-safe step, retry, retake, error, completion and cancellation events (`KycEvent`).
+- `output` options for selfie and document photos: JPEG or WebP (with JPEG fallback), encoder quality and a maximum dimension.
+- HTTP adapter upload progress via `XMLHttpRequest`, opt-in exponential-backoff retries honoring `Retry-After`, and an `upload` prop that shows the upload percentage.
 - Development playground with separate settings, explicit synthetic simulation, and a temporary sample upload receiver.
 - TypeScript interfaces, unit and browser test suites, integration and architecture documentation, and MIT licensing for project code.
 - Open-source contribution and security guidance, GitHub issue and pull request templates, and a verification workflow.

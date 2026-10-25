@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AssetOptions, DocumentOptions, DocumentType } from '../types.js';
+import type { AssetOptions, DocumentOptions, DocumentType, OutputOptions } from '../types.js';
 import { analyzeDocument, type DocumentDetectionReason } from '../core/document.js';
 import { createDocumentHold } from '../core/document-auto.js';
 import { createDocumentTracker } from '../camera/document-tracker.js';
 import { documentPreviewGeometry } from '../camera/document-preview.js';
 import { documentVideoConstraints, nextCamera, videoInputs, type DocumentCamera } from '../camera/document-devices.js';
+import { drawScaled, encodeCanvas } from '../camera/output.js';
 
 export type DocumentCameraStatus = 'idle' | 'requesting' | 'ready' | 'capturing';
 export type DocumentSide = 'front' | 'back';
@@ -17,35 +18,29 @@ function captureError(message: string): Error {
   return error;
 }
 
-function encodePhoto(canvas: HTMLCanvasElement): Promise<Blob> {
+function encodePhoto(canvas: HTMLCanvasElement, output?: OutputOptions): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(captureError('documentCaptureFailed')), 5000);
-    try {
-      canvas.toBlob(blob => {
-        clearTimeout(timer);
-        if (blob) resolve(blob);
-        else reject(captureError('documentCaptureFailed'));
-      }, 'image/jpeg', 0.95);
-    } catch (error) { clearTimeout(timer); reject(error); }
+    encodeCanvas(canvas, output, 0.95).then(blob => {
+      clearTimeout(timer);
+      if (blob) resolve(blob);
+      else reject(captureError('documentCaptureFailed'));
+    }, error => { clearTimeout(timer); reject(error); });
   });
 }
 
-async function snapshot(video: HTMLVideoElement): Promise<Blob> {
+async function snapshot(video: HTMLVideoElement, output?: OutputOptions): Promise<Blob> {
   if (!video.videoWidth || !video.videoHeight || video.readyState < 2) return Promise.reject(captureError('documentCameraUnavailable'));
-  const canvas = document.createElement('canvas');
-  // Preserve the entire camera image at its native resolution; the guide is only visual.
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const context = canvas.getContext('2d');
-  if (!context) return Promise.reject(captureError('documentCaptureFailed'));
-  context.drawImage(video, 0, 0);
-  return encodePhoto(canvas);
+  // Preserve the entire camera image at native resolution unless output.maxDimension limits it; the guide is only visual.
+  const canvas = drawScaled(video, video.videoWidth, video.videoHeight, output);
+  if (!canvas) return Promise.reject(captureError('documentCaptureFailed'));
+  return encodePhoto(canvas, output);
 }
 
 type PreviewGeometry = NonNullable<ReturnType<typeof documentPreviewGeometry>>;
 
-/** Decode and assess the delivered JPEG, using the same visible crop and document interior as the guide. */
-async function checkPhoto(photo: Blob, geometry: PreviewGeometry, type: DocumentType) {
+/** Decode and assess the delivered photo, using the same visible crop and document interior as the guide. */
+async function checkPhoto(photo: Blob, geometry: PreviewGeometry, type: DocumentType, sourceWidth: number, sourceHeight: number) {
   const bitmap = await new Promise<ImageBitmap>((resolve, reject) => {
     let expired = false;
     const timer = setTimeout(() => { expired = true; reject(captureError('documentCaptureFailed')); }, 5000);
@@ -60,17 +55,19 @@ async function checkPhoto(photo: Blob, geometry: PreviewGeometry, type: Document
   try {
     const canvas = document.createElement('canvas');
     const { crop } = geometry;
+    // The crop is in camera pixels; a downscaled photo maps it proportionally.
+    const sx = bitmap.width / sourceWidth, sy = bitmap.height / sourceHeight;
     canvas.width = crop.sampleWidth;
     canvas.height = crop.sampleHeight;
     const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context) throw captureError('documentCaptureFailed');
-    context.drawImage(bitmap, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, crop.x * sx, crop.y * sy, crop.width * sx, crop.height * sy, 0, 0, canvas.width, canvas.height);
     return analyzeDocument({ data: context.getImageData(0, 0, canvas.width, canvas.height).data,
       width: canvas.width, height: canvas.height, guide: geometry.guide, type });
   } finally { bitmap.close(); }
 }
 
-function simulatedDocument(type: DocumentType, side: DocumentSide): Promise<Blob> {
+function simulatedDocument(type: DocumentType, side: DocumentSide, output?: OutputOptions): Promise<Blob> {
   const canvas = document.createElement('canvas');
   canvas.width = 1600;
   canvas.height = 1000;
@@ -118,7 +115,7 @@ function simulatedDocument(type: DocumentType, side: DocumentSide): Promise<Blob
   context.font = 'bold 34px sans-serif';
   context.textAlign = 'center';
   context.fillText('DEMO ONLY · NOT AN IDENTITY DOCUMENT', 800, 840);
-  return encodePhoto(canvas);
+  return encodePhoto(canvas, output);
 }
 
 function waitForFrame(video: HTMLVideoElement, signal: AbortSignal): Promise<void> {
@@ -148,12 +145,13 @@ function waitForFrame(video: HTMLVideoElement, signal: AbortSignal): Promise<voi
 }
 
 /** Rear-camera photographs with a quality-gated automatic shutter and manual fallback. */
-export function useDocumentCapture({ options, assets, type, side = 'front', simulation, onCapture, onFailure }: {
+export function useDocumentCapture({ options, assets, type, side = 'front', simulation, output, onCapture, onFailure }: {
   options: DocumentOptions;
   assets: AssetOptions;
   type: DocumentType;
   side?: DocumentSide;
   simulation: boolean;
+  output?: OutputOptions;
   onCapture: (photo: Blob) => void;
   onFailure: (error: Error) => void;
 }) {
@@ -170,9 +168,9 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
   const generation = useRef(0);
   const mounted = useRef(true);
   const statusRef = useRef<DocumentCameraStatus>('idle');
-  const configuration = useRef({ options, assets, type, side, simulation });
+  const configuration = useRef({ options, assets, type, side, simulation, output });
   const callbacks = useRef({ onCapture, onFailure });
-  configuration.current = { options, assets, type, side, simulation };
+  configuration.current = { options, assets, type, side, simulation, output };
   callbacks.current = { onCapture, onFailure };
   const [status, setStatus] = useState<DocumentCameraStatus>('idle');
   const [feedback, setFeedback] = useState<DocumentGuideFeedback>('searching');
@@ -366,10 +364,11 @@ export function useDocumentCapture({ options, assets, type, side = 'front', simu
       if (automatic && (!geometry || document.hidden)) {
         setFeedback('searching'); updateStatus('ready'); return;
       }
-      const photo = configuration.current.simulation ? await simulatedDocument(type, side) : await snapshot(video!);
+      const { output } = configuration.current;
+      const photo = configuration.current.simulation ? await simulatedDocument(type, side, output) : await snapshot(video!, output);
       if (!mounted.current || generation.current !== attempt) return;
       if (automatic) {
-        const detection = await checkPhoto(photo, geometry!, type);
+        const detection = await checkPhoto(photo, geometry!, type, video!.videoWidth, video!.videoHeight);
         if (!mounted.current || generation.current !== attempt) return;
         const currentGeometry = video && guideRef.current ? documentPreviewGeometry(video, guideRef.current) : null;
         if (detection.reason !== 'ready' || geometry!.key !== currentGeometry?.key || document.hidden) {

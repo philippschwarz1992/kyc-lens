@@ -98,6 +98,37 @@ export interface KycTheme {
   fontFamily?: string;
 }
 export interface KycSession { id: string; token?: string; }
+/** Encoding for the selfie and document photos. Browsers without WebP encoding fall back to JPEG. */
+export interface OutputOptions {
+  /** Default: image/jpeg. */
+  imageType?: 'image/jpeg' | 'image/webp';
+  /** Encoder quality, 0.5–1. Default: 0.92 for selfies and 0.95 for document photos. */
+  quality?: number;
+  /** Longest side in pixels, 480–4096. Default: the camera's native resolution. */
+  maxDimension?: number;
+}
+export interface RetryOptions {
+  /** Additional attempts after network errors and 408, 429 or 5xx responses, 0–5. Default: 2. */
+  attempts?: number;
+  /** First backoff delay in milliseconds, 0–30000; doubles per attempt with jitter. Default: 500. */
+  baseDelayMs?: number;
+}
+export interface HttpApiOptions {
+  retry?: RetryOptions;
+  /** Capture upload progress in bytes. Uses XMLHttpRequest when set. */
+  onProgress?: (loaded: number, total: number) => void;
+}
+export type UploadOptions = HttpApiOptions;
+export type KycPhase = 'intro' | 'document' | 'face' | 'review' | 'submitting' | 'complete' | 'error' | 'cancelled';
+export type KycErrorStage = 'camera' | 'document' | 'submission';
+/** Privacy-safe analytics events. They never include media, URLs, tokens, scores or embeddings. */
+export type KycEvent =
+  | { type: 'step'; step: KycPhase; elapsedMs: number }
+  | { type: 'retry'; from: KycErrorStage }
+  | { type: 'retake' }
+  | { type: 'error'; stage: KycErrorStage; code: string }
+  | { type: 'complete'; durationMs: number; faceMatchStatus?: FaceMatchResult['status'] }
+  | { type: 'cancel'; step: KycPhase };
 export interface CapturePayload {
   selfie: Blob;
   /** Silent WebM or MP4 recording of the guided movements, when enabled. */
@@ -146,9 +177,15 @@ export interface KycFlowProps {
   api?: KycApi;
   /** Headers for the built-in HTTP adapter (e.g. your host app's session auth). */
   headers?: HeadersInit;
+  /** Retry and progress options for the built-in HTTP adapter. */
+  upload?: UploadOptions;
+  /** Image encoding for selfie and document photos. */
+  output?: OutputOptions;
   onComplete?: (result: CaptureResult) => void;
   onCancel?: () => void;
   onError?: (error: Error) => void;
+  /** Privacy-safe analytics events. Exceptions thrown by this callback are ignored. */
+  onEvent?: (event: KycEvent) => void;
   /** Explicit camera-free demo driver; never use this to evaluate identity. */
   simulation?: boolean;
   className?: string;

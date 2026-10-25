@@ -4,15 +4,17 @@ import { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { initialTransition, transition } from 'xstate';
 import type { EventFrom, SnapshotFrom } from 'xstate';
-import { createHttpApi, KycHttpError } from '../api.js';
+import { createHttpApi, KycHttpError, validateHttpApiOptions } from '../api.js';
 import { validateDocumentCameraOptions } from '../camera/document-devices.js';
+import { validateOutputOptions } from '../camera/output.js';
 import { DEFAULT_CHALLENGES, validateFaceOptions } from '../core/challenges.js';
 import { compareFaces } from '../matching/client.js';
 import { comparisonResult, DEFAULT_INCONCLUSIVE_MARGIN, DEFAULT_MATCH_THRESHOLD, validDecisionOptions } from '../matching/protocol.js';
 import { resolveTheme, themeVariables } from '../themes.js';
 import type { KycThemeDefinition } from '../themes.js';
-import type { AssetOptions, CapturePayload, CaptureResult, DocumentCapture, DocumentOptions, FaceChallenge, FaceMatchOptions, FaceMatchResult, FaceOptions, KycFlowProps, KycScreenContext, KycSession, KycStep } from '../types.js';
+import type { AssetOptions, CapturePayload, CaptureResult, DocumentCapture, DocumentOptions, FaceChallenge, FaceMatchOptions, FaceMatchResult, FaceOptions, KycErrorStage, KycFlowProps, KycScreenContext, KycSession, KycStep, OutputOptions } from '../types.js';
 import { DocumentScreen } from './DocumentScreen.js';
+import { createEventReporter } from './events.js';
 import { FaceScreen } from './FaceScreen.js';
 import { createFlowMachine, DEFAULT_STEPS, validateFlowConfiguration } from './flow.js';
 import { Icon } from './Icons.js';
@@ -20,7 +22,7 @@ import { IntroScreen, ResultScreen, ReviewScreen } from './Screens.js';
 import { getStrings } from './strings.js';
 import { useScreenTransition } from './useScreenTransition.js';
 
-type Configuration = { steps: readonly KycStep[]; document: DocumentOptions; face: FaceOptions; faceMatch: FaceMatchOptions | false; assets: AssetOptions; challenges: readonly FaceChallenge[]; simulation: boolean };
+type Configuration = { steps: readonly KycStep[]; document: DocumentOptions; face: FaceOptions; faceMatch: FaceMatchOptions | false; assets: AssetOptions; challenges: readonly FaceChallenge[]; output: OutputOptions; simulation: boolean };
 
 function readableError(error: Error, strings: Record<string, string>): string {
   if (strings[error.message]) return strings[error.message];
@@ -54,10 +56,12 @@ export function KycFlow(props: KycFlowProps) {
       const timeout = props.faceMatch.timeoutMs ?? 45_000;
       if (!Number.isFinite(timeout) || timeout < 1_000 || timeout > 120_000) throw new Error('faceMatch.timeoutMs must be between 1000 and 120000.');
     }
+    validateOutputOptions(props.output); validateHttpApiOptions(props.upload);
+    if (props.onEvent !== undefined && typeof props.onEvent !== 'function') throw new Error('onEvent must be a function.');
   }
   catch (error) { invalid = error instanceof Error ? error : new Error(String(error)); }
   if (invalid) return <section className={`kyc-kit ${props.className ?? ''}`} lang={props.locale ?? 'en'}><div className="kyc-screen" role="alert"><div className="kyc-screen-heading"><h2>{s.configError}</h2><p className="kyc-description">{invalid.message}</p></div><div className="kyc-media" /><div className="kyc-actions" /></div></section>;
-  const configuration: Configuration = { steps: [...steps], challenges: [...challenges], document: { ...props.document }, face: { ...props.face }, faceMatch: props.faceMatch === false ? false : { ...props.faceMatch }, assets: { ...props.assets }, simulation: props.simulation === true };
+  const configuration: Configuration = { steps: [...steps], challenges: [...challenges], document: { ...props.document }, face: { ...props.face }, faceMatch: props.faceMatch === false ? false : { ...props.faceMatch }, assets: { ...props.assets }, output: { ...props.output }, simulation: props.simulation === true };
   const sessionKey = JSON.stringify(configuration);
   // Theme changes restyle the running flow; they are not part of the session key.
   return <FlowSession key={sessionKey} {...props} configuration={configuration} resolvedTheme={theme!} />;
@@ -66,7 +70,7 @@ export function KycFlow(props: KycFlowProps) {
 function FlowSession(props: KycFlowProps & { configuration: Configuration; resolvedTheme: KycThemeDefinition }) {
   // The outer key resets changed settings; hold their references stable within this attempt.
   const [configuration] = useState(props.configuration);
-  const { steps, document: documentOptions, face, faceMatch, assets, challenges, simulation } = configuration;
+  const { steps, document: documentOptions, face, faceMatch, assets, challenges, output, simulation } = configuration;
   const s = getStrings(props.locale, props.strings);
   const machine = useMemo(() => createFlowMachine(steps), [steps.join('|')]);
   type Machine = typeof machine;
@@ -79,17 +83,32 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
   const [selfieUrl, setSelfieUrl] = useState<string | undefined>();
   const [videoUrl, setVideoUrl] = useState<string | undefined>();
   const [comparing, setComparing] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const sessionRef = useRef<KycSession | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const completionDelivered = useRef(false);
   const cancellationDelivered = useRef(false);
-  const latestCallbacks = useRef({ onComplete: props.onComplete, onCancel: props.onCancel, onError: props.onError });
-  latestCallbacks.current = { onComplete: props.onComplete, onCancel: props.onCancel, onError: props.onError };
-  const api = useMemo(() => props.api ?? (props.apiBaseUrl !== undefined ? createHttpApi(props.apiBaseUrl, props.headers) : undefined), [props.api, props.apiBaseUrl, props.headers]);
+  const latestCallbacks = useRef({ onComplete: props.onComplete, onCancel: props.onCancel, onError: props.onError, onEvent: props.onEvent, onProgress: props.upload?.onProgress });
+  latestCallbacks.current = { onComplete: props.onComplete, onCancel: props.onCancel, onError: props.onError, onEvent: props.onEvent, onProgress: props.upload?.onProgress };
+  const [events] = useState(() => createEventReporter(() => latestCallbacks.current.onEvent));
+  const retryKey = JSON.stringify(props.upload?.retry ?? null);
+  const uploadEnabled = props.upload !== undefined;
+  // Setting `upload` reports progress on the submitting screen; the host callback is read at call time.
+  const api = useMemo(() => props.api ?? (props.apiBaseUrl !== undefined ? createHttpApi(props.apiBaseUrl, props.headers, uploadEnabled ? {
+    retry: props.upload?.retry,
+    onProgress: (loaded, total) => {
+      if (total > 0) setUploadPercent(Math.min(100, Math.round(loaded / total * 100)));
+      try { latestCallbacks.current.onProgress?.(loaded, total); } catch { /* Host callbacks must not break uploads. */ }
+    },
+  } : {}) : undefined), [props.api, props.apiBaseUrl, props.headers, uploadEnabled, retryKey]);
+  const fail = (stage: KycErrorStage, failure: Error) => {
+    setError(failure); send({ type: 'FAILURE', stage }); events.error(stage, failure); latestCallbacks.current.onError?.(failure);
+  };
   const contentRef = useRef<HTMLDivElement>(null);
   const screenId = useId();
   useScreenTransition(contentRef, phase);
 
+  useEffect(() => { events.step(phase); }, [phase, events]);
   useEffect(() => {
     if (!contentRef.current) return;
     contentRef.current.scrollTop = 0;
@@ -107,6 +126,7 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
     if (phase !== 'submitting' || !capture) return;
     const controller = new AbortController(); requestRef.current = controller;
     let current = true;
+    setUploadPercent(null);
     void (async () => {
       try {
         let serverResult: unknown;
@@ -138,7 +158,7 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
         setComparing(false);
         const actual = failure instanceof Error ? failure : new Error(String(failure));
         if (actual instanceof KycHttpError && [401, 404, 410].includes(actual.status)) sessionRef.current = null;
-        setError(actual); send({ type: 'FAILURE', stage: 'submission' }); latestCallbacks.current.onError?.(actual);
+        fail('submission', actual);
       }
     })();
     return () => { current = false; controller.abort(); if (requestRef.current === controller) requestRef.current = null; };
@@ -146,17 +166,18 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
 
   useEffect(() => {
     if (phase !== 'complete' || !result || completionDelivered.current) return;
-    completionDelivered.current = true; latestCallbacks.current.onComplete?.(result);
+    completionDelivered.current = true; events.complete(result); latestCallbacks.current.onComplete?.(result);
   }, [phase, result]);
 
   const cancel = () => {
     if (phase === 'complete' || phase === 'cancelled') return;
+    events.cancel(phase);
     requestRef.current?.abort(); setCapture(null); setDocumentCapture(undefined); setResult(undefined); sessionRef.current = null; send({ type: 'CANCEL' });
     if (!cancellationDelivered.current) { cancellationDelivered.current = true; latestCallbacks.current.onCancel?.(); }
   };
   const retry = () => {
-    if (phase === 'review') { setCapture(null); setResult(undefined); send({ type: 'RETAKE' }); }
-    else if (phase === 'error') { setError(null); send({ type: 'RETRY' }); }
+    if (phase === 'review') { events.retake(); setCapture(null); setResult(undefined); send({ type: 'RETAKE' }); }
+    else if (phase === 'error') { events.retry(state.context.errorStage); setError(null); send({ type: 'RETRY' }); }
   };
   const context: KycScreenContext = { next: () => send({ type: 'NEXT' }), cancel, retry, result: result ?? (capture ? { status: 'capture_complete', payload: capture } : undefined), selfieUrl, videoUrl };
   const { Intro, Review, Result } = props.components ?? {};
@@ -168,10 +189,10 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
     {simulation ? <aside className="kyc-simulation-banner" aria-label={s.simulationBody}>{s.simulation}</aside> : null}
     <div ref={contentRef} id={screenId} className="kyc-content" tabIndex={-1}>
       {phase === 'intro' ? Intro ? <Intro {...context} /> : <IntroScreen {...context} strings={s} hasDocument={steps.includes('document')} /> : null}
-      {phase === 'document' ? <DocumentScreen options={documentOptions} assets={assets} simulation={simulation} strings={s} onCapture={document => { setDocumentCapture(document); send({ type: 'DOCUMENT_CAPTURE' }); }} onFailure={failure => { setError(failure); send({ type: 'FAILURE', stage: 'document' }); latestCallbacks.current.onError?.(failure); }} /> : null}
-      {phase === 'face' ? <FaceScreen face={face} assets={assets} challenges={challenges} simulation={simulation} strings={s} onCapture={payload => { setCapture({ ...payload, ...(documentCapture ? { document: documentCapture } : {}) }); send({ type: 'CAPTURE' }); }} onFailure={failure => { setError(failure); send({ type: 'FAILURE', stage: 'camera' }); latestCallbacks.current.onError?.(failure); }} /> : null}
+      {phase === 'document' ? <DocumentScreen options={documentOptions} assets={assets} simulation={simulation} output={output} strings={s} onCapture={document => { setDocumentCapture(document); send({ type: 'DOCUMENT_CAPTURE' }); }} onFailure={failure => fail('document', failure)} /> : null}
+      {phase === 'face' ? <FaceScreen face={face} assets={assets} challenges={challenges} simulation={simulation} output={output} strings={s} onCapture={payload => { setCapture({ ...payload, ...(documentCapture ? { document: documentCapture } : {}) }); send({ type: 'CAPTURE' }); }} onFailure={failure => fail('camera', failure)} /> : null}
       {phase === 'review' ? Review ? <Review {...context} /> : <ReviewScreen {...context} strings={s} /> : null}
-      {phase === 'submitting' ? <div className="kyc-screen kyc-status-screen"><div className="kyc-screen-heading"><h2>{comparing ? s.matchingTitle : api ? s.submittingTitle : s.processingTitle}</h2><p className="kyc-description" role="status">{comparing ? s.matchingBody : s.submittingBody}</p></div><div className="kyc-media"><span className="kyc-spinner" /></div><div className="kyc-actions">{comparing ? <button type="button" className="kyc-button kyc-button-secondary" onClick={cancel}>{s.cancel}</button> : null}</div></div> : null}
+      {phase === 'submitting' ? <div className="kyc-screen kyc-status-screen"><div className="kyc-screen-heading"><h2>{comparing ? s.matchingTitle : api ? s.submittingTitle : s.processingTitle}</h2><p className="kyc-description" role="status">{comparing ? s.matchingBody : uploadPercent !== null ? (s.uploadProgress ?? '{percent}%').replace('{percent}', String(uploadPercent)) : s.submittingBody}</p></div><div className="kyc-media"><span className="kyc-spinner" /></div><div className="kyc-actions">{comparing ? <button type="button" className="kyc-button kyc-button-secondary" onClick={cancel}>{s.cancel}</button> : null}</div></div> : null}
       {phase === 'complete' ? Result ? <Result {...context} /> : <ResultScreen {...context} strings={s} /> : null}
       {phase === 'error' ? <div className="kyc-screen kyc-error-screen"><div className="kyc-screen-heading"><h2>{s.errorTitle}</h2><p className="kyc-description">{error?.name === 'FaceMatchError' ? s.matchingErrorBody : state.context.errorStage === 'submission' ? s.submissionErrorBody : s.cameraErrorBody}</p></div><div className="kyc-media kyc-error-media"><div className="kyc-error-icon"><Icon name="refresh" size={28} /></div><p className="kyc-error-detail" role="alert">{error ? readableError(error, s) : s.cameraErrorBody}</p></div><div className="kyc-actions"><button type="button" className="kyc-button kyc-button-primary" onClick={retry}>{s.retry}<Icon name="arrow" size={18} /></button></div></div> : null}
       {phase === 'cancelled' ? <div className="kyc-screen kyc-status-screen"><div className="kyc-screen-heading"><h2>{s.cancelledTitle}</h2><p className="kyc-description">{s.cancelledBody}</p></div><div className="kyc-media" /><div className="kyc-actions" /></div> : null}
