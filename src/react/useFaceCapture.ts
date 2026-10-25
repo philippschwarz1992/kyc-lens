@@ -3,6 +3,7 @@ import { ChallengeRunner } from '../core/challenges.js';
 import { startVideoRecording, type VideoRecording } from '../camera/recording.js';
 import { createSimulatedCamera } from '../camera/simulation.js';
 import { drawScaled, encodeCanvas } from '../camera/output.js';
+import type { FaceTracker } from '../camera/tracker.js';
 import type { AssetOptions, CapturePayload, ChallengeFeedback, FaceChallenge, FaceObservation, FaceOptions, OutputOptions } from '../types.js';
 
 export type CameraStatus = 'idle' | 'requesting' | 'loading' | 'tracking' | 'capturing';
@@ -94,10 +95,12 @@ export function useFaceCapture({
 
   const observe = useCallback((observation: FaceObservation, attempt: number) => {
     if (!mounted.current || generation.current !== attempt || captureStarted.current) return;
+    const completedSteps = feedbackRef.current?.evidence.length ?? 0;
     const next = runnerRef.current!.update(observation);
     feedbackRef.current = next; setFeedback(next);
+    if (next.evidence.length > completedSteps && !simulation && settings.current.options.haptics !== false && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(30);
     if (next.completed) void finish(next, attempt);
-  }, [finish]);
+  }, [finish, simulation]);
 
   const start = useCallback(async () => {
     stop();
@@ -107,13 +110,28 @@ export function useFaceCapture({
     captureStarted.current = false;
     runnerRef.current = new ChallengeRunner(challenges, options.holdDurationMs ?? 650);
     feedbackRef.current = null; setFeedback(null);
-    timerRef.current = setTimeout(() => {
-      const error = new Error('cameraTimeout'); error.name = 'CaptureTimeoutError'; fail(error, attempt);
-    }, options.timeoutMs ?? 90_000);
+    const live = () => mounted.current && generation.current === attempt;
+    // The movement timeout starts with tracking. Permission prompts are user-paced; startup is bounded by
+    // the recorder's first-chunk timeout and the tracker's worker/model startup timeout instead.
+    const beginTracking = () => {
+      setStatus('tracking');
+      timerRef.current = setTimeout(() => {
+        const error = new Error('cameraTimeout'); error.name = 'CaptureTimeoutError'; fail(error, attempt);
+      }, options.timeoutMs ?? 90_000);
+    };
     setStatus('requesting');
     try {
       if (!simulation && (!globalThis.isSecureContext || !navigator.mediaDevices?.getUserMedia)) {
         const error = new Error('cameraUnsupported'); error.name = 'UnsupportedCameraError'; throw error;
+      }
+      // Load the tracking worker and model while the camera permission and recorder start. Sampling waits for both.
+      let pendingTracker: Promise<FaceTracker> | null = null;
+      if (!simulation) {
+        pendingTracker = import('../camera/tracker.js').then(({ createFaceTracker }) => {
+          if (controller.signal.aborted) throw new DOMException('Face tracking was cancelled.', 'AbortError');
+          return createFaceTracker({ assets, previewFit: 'cover', signal: controller.signal, trackingFps: options.trackingFps ?? 12, onObservation: value => observe(value, attempt), onError: error => fail(error, attempt) });
+        });
+        pendingTracker.then(tracker => { if (!live()) tracker.stop(); }, error => fail(error, attempt));
       }
       const simulator = simulation ? createSimulatedCamera() : null;
       simulationRef.current = simulator;
@@ -140,17 +158,14 @@ export function useFaceCapture({
         }, 100);
         await recorderRef.current?.ready;
         if (!mounted.current || generation.current !== attempt) return;
-        canObserve = true; setStatus('tracking');
+        canObserve = true; beginTracking();
         return;
       }
       setStatus('loading');
-      await recorderRef.current?.ready;
-      if (!mounted.current || generation.current !== attempt) return;
-      const { createFaceTracker } = await import('../camera/tracker.js');
-      if (!mounted.current || generation.current !== attempt) return;
-      const tracker = await createFaceTracker({ video, assets, previewFit: 'cover', signal: controller.signal, trackingFps: options.trackingFps ?? 12, onObservation: value => observe(value, attempt), onError: error => fail(error, attempt) });
+      // Pose observations start only after the recording has emitted its first chunk.
+      const [tracker] = await Promise.all([pendingTracker!, recorderRef.current?.ready]);
       if (!mounted.current || generation.current !== attempt) { tracker.stop(); return; }
-      trackerRef.current = tracker; setStatus('tracking');
+      trackerRef.current = tracker; tracker.start(video); beginTracking();
     } catch (error) { fail(error, attempt); }
   }, [fail, observe, simulation, stop]);
 

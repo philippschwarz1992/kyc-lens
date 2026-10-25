@@ -24,6 +24,39 @@ export function resolveMatchAssets(assets: FaceMatchAssets | undefined, baseURI:
   } catch { return null; }
 }
 
+/**
+ * Warms the HTTP cache with the runtime and models at low priority, in the order the worker needs them.
+ * Failures are silent: compareFaces still fetches and verifies pinned sizes and hashes. Returns a cancel function.
+ */
+export function prefetchMatchingAssets(assets?: FaceMatchAssets): () => void {
+  if (typeof window === 'undefined' || typeof document === 'undefined' || typeof fetch !== 'function' || typeof AbortController === 'undefined') return () => {};
+  const resolved = resolveMatchAssets(assets, document.baseURI, window.location.origin);
+  if (!resolved) return () => {};
+  const controller = new AbortController();
+  const { signal } = controller;
+  // Same request mode and credentials as the worker's loader, so its default-mode fetch can reuse these entries.
+  const urls = [`${resolved.wasmBaseUrl}ort-wasm-simd-threaded.mjs`, `${resolved.wasmBaseUrl}ort-wasm-simd-threaded.wasm`, resolved.detectorUrl, resolved.recognizerUrl];
+  const run = async () => {
+    for (const url of urls) {
+      if (signal.aborted) return;
+      try {
+        const response = await fetch(url, { cache: 'force-cache', credentials: 'same-origin', mode: 'same-origin', redirect: 'error', priority: 'low', signal } as RequestInit & { priority?: 'low' });
+        // Drain without retaining bytes; an unread body would not be completely written to the cache.
+        const reader = response.ok ? response.body?.getReader() : undefined;
+        if (!reader) { await response.body?.cancel(); continue; }
+        while (!(await reader.read()).done) if (signal.aborted) { await reader.cancel(); return; }
+      } catch { /* Offline, blocked or cancelled: the real comparison loads and verifies the files. */ }
+    }
+  };
+  const idle = window.requestIdleCallback as typeof window.requestIdleCallback | undefined;
+  const handle = idle ? idle.call(window, () => void run(), { timeout: 2_000 }) : setTimeout(() => void run(), 0);
+  return () => {
+    if (signal.aborted) return;
+    controller.abort();
+    if (idle) window.cancelIdleCallback?.(handle as number); else clearTimeout(handle as ReturnType<typeof setTimeout>);
+  };
+}
+
 /** Runs one isolated worker and destroys it on result, timeout, error or cancellation. No uploads or persistence. */
 export async function compareFaces(options: FaceMatchOptions): Promise<FaceMatchResult> {
   if (options.signal?.aborted) throw new DOMException('Face comparison cancelled.', 'AbortError');

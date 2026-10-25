@@ -225,7 +225,7 @@ test('real worker initializes with local assets, runs on fake camera frames and 
   page.on('response', response => { if (response.url().endsWith('/face_landmarker.task')) modelLoaded = response.ok(); });
   await page.getByRole('button', { name: 'Start face capture', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Start camera', exact: true })).toHaveCount(0);
-  await expect(page.locator('.kyc-current-instruction[role="status"], .kyc-error-screen')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.kyc-current-instruction.is-active, .kyc-error-screen')).toBeVisible({ timeout: 30_000 });
   if (await page.locator('.kyc-error-screen').isVisible()) {
     const events = await page.evaluate(() => (window as unknown as { faceRecordingEvents?: unknown[] }).faceRecordingEvents);
     throw new Error(`Real camera recording failed: ${await page.locator('.kyc-error-detail').textContent()}\nMediaRecorder events: ${JSON.stringify(events)}`);

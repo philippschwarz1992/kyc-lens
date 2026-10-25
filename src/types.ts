@@ -65,6 +65,7 @@ export interface FaceOptions {
   timeoutMs?: number;
   /** Target inference rate, 3–30 fps; defaults to 12. */
   trackingFps?: number;
+  /** Short vibration after each completed movement where supported; never in simulation. Default: true. */ haptics?: boolean;
   camera?: MediaTrackConstraints;
 }
 export interface AssetOptions {
