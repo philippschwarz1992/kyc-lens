@@ -15,6 +15,10 @@ export interface DocumentOptions {
   autoCapture?: boolean;
   /** Required stable document hold in milliseconds. Default: 800; range: 200–10000. */
   holdDurationMs?: number;
+  /** Show a Switch camera control when more than one camera is available. Default: true. */
+  cameraSwitch?: boolean;
+  /** Show a flashlight toggle when the active camera supports torch. Default: true. */
+  torch?: boolean;
 }
 export interface DocumentCapture {
   type: DocumentType;

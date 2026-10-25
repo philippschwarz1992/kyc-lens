@@ -26,6 +26,8 @@ All flow props are optional. The default steps are `['intro', 'face', 'review', 
 | `document.detection` | `true` | Local guidance; `false` uses a neutral guide. |
 | `document.autoCapture` | `true` | Capture after a stable good-quality hold and encoded-photo recheck; manual shutter remains available. |
 | `document.holdDurationMs` | `800` | 200–10,000 ms of consecutive suitable document frames. |
+| `document.cameraSwitch` | `true` | Show a Switch camera control when more than one camera is available; `false` hides it. |
+| `document.torch` | `true` | Show a flashlight toggle when the active camera reports torch support; `false` hides it. |
 | `faceMatch` | Enabled with documents | `false` disables it; otherwise an options object configures local comparison. |
 | `faceMatch.threshold` | `0.363` | Cosine threshold in [-1, 1], requiring calibration on the target population. |
 | `faceMatch.inconclusiveMargin` | `0.03` | 0–0.25; threshold ± margin must stay within [-1, 1]. |
@@ -67,6 +69,8 @@ interface DocumentOptions {
   detection?: boolean; // Defaults to true: local framing/quality guidance.
   autoCapture?: boolean; // Defaults to true, requires successful live analysis.
   holdDurationMs?: number; // Defaults to 800.
+  cameraSwitch?: boolean; // Defaults to true: Switch camera control when several cameras exist.
+  torch?: boolean; // Defaults to true: flashlight toggle when the camera supports torch.
 }
 
 interface FaceOptions {
@@ -103,6 +107,8 @@ Enable document photographs with `steps={['intro', 'document', 'face', 'review',
 `document.detection` defaults to `true`. Live preview analysis checks document-shaped boundaries against the visible guide and applies brightness, glare, sharpness and detail heuristics. The outline turns green only after suitable framing and quality remain stable; otherwise red feedback suggests an adjustment. `detection: false` disables the analyzer and uses a neutral guide. The camera-ready shutter stays available regardless of guidance, and each photo still requires review. This feedback does not read text, identify document types or verify authenticity. Detector feedback and metrics are transient UI state; they are not included in `DocumentCapture`, `CapturePayload` or HTTP metadata.
 
 If Worker, `createImageBitmap` or OffscreenCanvas support is missing, or the worker fails/is blocked, feedback stays red with “Keep all four corners visible. Check the photo after capture.” Manual capture remains available. Disabled detection and explicit simulation use a neutral outline and do not report green detection.
+
+After camera permission the document screen lists video inputs with `enumerateDevices()` and refreshes the list on `devicechange`. With more than one camera, a Switch camera button cycles through them: the current tracks stop, the next camera opens with `deviceId: { exact }` (replacing the default or host `facingMode`; other `document.camera` constraints still apply), and the automatic-capture hold and live analysis start over. If the chosen camera cannot be opened, the previous camera reopens and a recoverable message is shown. The chosen camera is reused for the back side and retakes. When the active track reports `getCapabilities().torch`, a flashlight toggle applies `applyConstraints({ advanced: [{ torch }] })`; the torch resets to off on every camera switch and is hidden when unsupported. Glare guidance is unchanged by the torch.
 
 ## Custom screens
 

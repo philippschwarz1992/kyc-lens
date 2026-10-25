@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 
-export function Icon({ name, size = 20, className, style }: { name: 'arrow' | 'check' | 'camera' | 'sun' | 'face' | 'shield' | 'refresh' | 'close' | 'upload'; size?: number; className?: string; style?: CSSProperties }) {
+export function Icon({ name, size = 20, className, style }: { name: 'arrow' | 'check' | 'camera' | 'sun' | 'face' | 'shield' | 'refresh' | 'close' | 'upload' | 'switchCamera' | 'flash'; size?: number; className?: string; style?: CSSProperties }) {
   const paths = {
     arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
     check: <path d="m5 12 4 4L19 6" />,
@@ -11,6 +11,8 @@ export function Icon({ name, size = 20, className, style }: { name: 'arrow' | 'c
     refresh: <><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1" /></>,
     close: <path d="m6 6 12 12M6 18 18 6" />,
     upload: <><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4" /></>,
+    switchCamera: <><path d="M4 7h3l2-2h6l2 2h3v12H4z" /><path d="M8.5 12a3.5 3.5 0 0 1 6-2.4M15.5 12a3.5 3.5 0 0 1-6 2.4" /><path d="M14.8 7.6v2h-2M9.2 16.4v-2h2" /></>,
+    flash: <path d="M13 3 5 14h6l-1 7 8-11h-6z" />,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className} style={style}>{paths[name]}</svg>;
 }
