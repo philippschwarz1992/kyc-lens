@@ -78,6 +78,9 @@ def test_returns_a_verification_result(client):
 
 def test_a_different_person_is_rejected(client):
     result = client.post("/analyze", files=files(selfie="ride-portrait.jpg", video=False), headers=HEADERS).json()
+    # The gateway's shape check needs every top-level key, with null for checks that did not run.
+    assert set(result) == {"status", "reasons", "document", "faceMatch", "liveFaceMatch", "liveness"}
+    assert result["liveFaceMatch"] is None and result["liveness"] is None
     assert result["faceMatch"]["decision"] == "no-match"
     assert "face-mismatch" in result["reasons"]
     assert result["status"] == "rejected"
