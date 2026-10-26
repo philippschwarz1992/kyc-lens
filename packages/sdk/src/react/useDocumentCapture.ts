@@ -440,6 +440,8 @@ export function useDocumentCapture({ options, assets, type, side = 'front', othe
       // Freezing the preview on the photographed frame shows the shot was taken while it is checked.
       const live = configuration.current.simulation ? null : video;
       live?.pause();
+      // Every path back to the camera resumes the frozen preview, or the detector never sees a new frame.
+      const backToCamera = () => { void live?.play().catch(() => {}); updateStatus('ready'); };
       const photo = configuration.current.simulation ? await simulatedDocument(type, side, output) : await snapshot(video!, output, framed?.rect);
       if (!mounted.current || generation.current !== attempt) return;
       const readZone = configuration.current.options.mrz !== false;
@@ -451,9 +453,8 @@ export function useDocumentCapture({ options, assets, type, side = 'front', othe
         if (!mounted.current || generation.current !== attempt) return;
         const currentGeometry = video && guideRef.current ? documentPreviewGeometry(video, guideRef.current) : null;
         if (detection.reason !== 'ready' || geometry!.key !== currentGeometry?.key || document.hidden) {
-          void live?.play().catch(() => {});
           setFeedback(guidanceAvailable.current ? detection.reason === 'ready' ? 'searching' : detection.reason : 'unavailable');
-          updateStatus('ready'); return;
+          backToCamera(); return;
         }
         const previous = configuration.current.otherSide;
         if (previous) {
@@ -462,12 +463,12 @@ export function useDocumentCapture({ options, assets, type, side = 'front', othe
           if (!mounted.current || generation.current !== attempt) return;
           if (sameDocumentSide(before, after)) {
             turnOver.current = { until: performance.now() + TURN_OVER_MS, reason: 'same-side' };
-            setFeedback('same-side'); updateStatus('ready'); return;
+            setFeedback('same-side'); backToCamera(); return;
           }
         }
         if (readZone) {
           const settings = configuration.current;
-          const pause = (reason: PauseReason) => { turnOver.current = { until: performance.now() + MESSAGE_MS, reason }; setFeedback(reason); updateStatus('ready'); };
+          const pause = (reason: PauseReason) => { turnOver.current = { until: performance.now() + MESSAGE_MS, reason }; setFeedback(reason); backToCamera(); };
           // Only a zone whose check digits all match counts; a misread is treated as no zone.
           const found = read?.summary.valid ? read.summary : null;
           const expected = settings.type === 'passport' ? 'passport' : settings.type === 'id-card' ? 'id-card' : null;
