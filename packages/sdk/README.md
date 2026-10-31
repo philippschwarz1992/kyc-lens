@@ -23,7 +23,7 @@ Document detection, face tracking and document-to-selfie comparison run inside t
 | Face media | Automatic silent video plus a final selfie; configurable still-only mode |
 | Local face comparison | YuNet portrait detection and SFace embeddings in a separate browser worker; explicit match, no match, inconclusive or unavailable result |
 | Configurable flow | Optional intro, document, review, and result screens; required face screen |
-| Customization | Five built-in themes (Classic, Aurora, Ledger, Pebble, Halo), your own token-based themes, built-in English, German, French, Spanish, Italian, Polish, and Turkish copy, typed custom strings, and intro/review/result components |
+| Customization | Six built-in themes (Classic, Aurora, Ledger, Pebble, Halo, Capital), your own token-based themes, built-in English, German, French, Spanish, Italian, Polish, and Turkish copy, typed custom strings, and intro/review/result components |
 | Backend integration | Local Blob payloads, a multipart HTTP adapter, or your own API functions |
 | Bundled assets | Face/document/comparison workers, WASM, pinned models, checksums and license notices |
 | Developer playground | Settings, a visual theme studio, camera-free simulation, generated integration code, and metadata summaries |

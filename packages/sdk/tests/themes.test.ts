@@ -4,14 +4,14 @@ import { builtInThemes, defineTheme, getTheme, listThemes, registerTheme, resolv
 afterEach(() => { unregisterTheme('brand'); });
 
 describe('themes', () => {
-  it('ships five complete built-in themes with the same token shape', () => {
-    expect(Object.keys(builtInThemes)).toEqual(['classic', 'aurora', 'ledger', 'pebble', 'halo']);
+  it('ships six complete built-in themes with the same token shape', () => {
+    expect(Object.keys(builtInThemes)).toEqual(['classic', 'aurora', 'ledger', 'pebble', 'halo', 'capital']);
     const names = Object.keys(themeVariables(builtInThemes.classic)).sort();
     for (const theme of Object.values(builtInThemes)) {
       expect(Object.keys(themeVariables(theme)).sort()).toEqual(names);
       expect(() => defineTheme({ id: `copy-${theme.id}`, name: 'Copy', extends: theme, tokens: theme.tokens })).not.toThrow();
     }
-    expect(listThemes().map(theme => theme.id)).toEqual(['classic', 'aurora', 'ledger', 'pebble', 'halo']);
+    expect(listThemes().map(theme => theme.id)).toEqual(['classic', 'aurora', 'ledger', 'pebble', 'halo', 'capital']);
   });
 
   it('extends a base theme with partial overrides without changing the base', () => {

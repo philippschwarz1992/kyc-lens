@@ -195,8 +195,33 @@ const soft = defineIconPack({
   },
 });
 
+// Drawn from the Capital design: 1.8 px outlines with round caps, no fills.
+const capitalCamera = 'M3 8.5A2.5 2.5 0 0 1 5.5 6h1.8l1.4-2h6.6l1.4 2h1.8A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z';
+const capitalCard = 'M3 6.5A2.5 2.5 0 0 1 5.5 4h13A2.5 2.5 0 0 1 21 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z';
+const capital = defineIconPack({
+  id: 'capital', name: 'Capital', description: 'Rounded 1.8 px outlines with soft corners, drawn for the Capital theme.',
+  strokeWidth: 1.8,
+  icons: {
+    arrow: 'M5 12h14M13 6l6 6-6 6',
+    back: 'M15 5l-7 7 7 7',
+    check: 'M5 12.5l4.5 4.5L19 7.5',
+    close: 'M6 6l12 12M18 6L6 18',
+    camera: [capitalCamera, circle(12, 13, 3.5)],
+    sun: [circle(12, 12, 4), 'M12 2.5v2M12 19.5v2M4.6 4.6L6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4'],
+    face: ['M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3', 'M9 10h.01M15 10h.01M9 15s1.3 1.5 3 1.5 3-1.5 3-1.5'],
+    shield: ['M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6z', 'M9 12l2 2 4-4'],
+    refresh: 'M20 11a8 8 0 0 0-14.6-4.5L4 8M4 3.5V8h4.5M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20.5V16h-4.5',
+    upload: 'M12 16V4M7 9l5-5 5 5M5 20h14',
+    switchCamera: [capitalCamera, 'M9 12.5a3 3 0 0 1 5.4-1.8M15 13.5a3 3 0 0 1-5.4 1.8M14.6 9v2h-2M9.4 18v-2h2'],
+    flash: 'M13 2.5L5 13.5h6l-1 8 8-11h-6z',
+    idCard: [capitalCard, 'M8.5 12a2 2 0 1 0 0-4a2 2 0 1 0 0 4M5.8 16c.5-1.6 1.5-2.4 2.7-2.4s2.2.8 2.7 2.4M14 9h4M14 12.5h3'],
+    license: [capitalCard, 'M6.5 16v-1.6l1.4-2.2h4.2l1.4 2.2V16zM6.5 8.5h7M16 8.5h2M16 12h2'],
+    passport: 'M6 3h11a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 17 21H6zM6 3v18M12.2 13.5a3 3 0 1 0 0-6a3 3 0 1 0 0 6M9.7 17h5',
+  },
+});
+
 /** Icon packs that ship with KYC Lens. `classic` is the built-in drawing set. */
-export const builtInIconPacks = { classic, halo, viewfinder, tabletop, signal, soft } as const;
+export const builtInIconPacks = { classic, halo, viewfinder, tabletop, signal, soft, capital } as const;
 export type KycBuiltInIconPackId = keyof typeof builtInIconPacks;
 
 const registry = new Map<string, KycResolvedIconPack>(Object.values(builtInIconPacks).map(pack => [pack.id, pack]));

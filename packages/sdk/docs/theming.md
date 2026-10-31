@@ -1,6 +1,6 @@
 # Theming
 
-KYC Lens styles every screen from one set of design tokens. A theme is a complete set of token values. Five themes ship with the package, and you can define as many of your own as you need.
+KYC Lens styles every screen from one set of design tokens. A theme is a complete set of token values. Six themes ship with the package, and you can define as many of your own as you need.
 
 | Theme | Look |
 | --- | --- |
@@ -9,6 +9,7 @@ KYC Lens styles every screen from one set of design tokens. A theme is a complet
 | `ledger` | Swiss editorial: warm paper, serif headings, square corners and a deep emerald accent. |
 | `pebble` | Soft fintech: lavender, chunky rounded shapes and springy motion. |
 | `halo` | Airy verification app: white cards on a misty lavender glow, navy type and soft brackets. |
+| `capital` | Lime noir banking: near-black cards, electric lime actions and Geist type. |
 
 ## Use a theme
 
@@ -58,7 +59,7 @@ Themes are validated when they are defined. Ids use lowercase letters, digits an
 
 ## Icon packs
 
-A theme can swap the flow's icons by naming an icon pack. Six packs ship with the package: `classic` (the built-in thin-line drawings, used when a theme names no pack), `halo` (rounded outlines with a soft tint, used by the `halo` theme), `viewfinder` (thin monoline icons that match the Viewfinder illustrations), `tabletop` (flat tonal shapes with solid details), `signal` (bold solid pictograms with cut-out details) and `soft` (an ink outline over a pastel fill in the illustration color). A theme inherits its base theme's pack, and `icons: 'classic'` switches back to the built-in drawings.
+A theme can swap the flow's icons by naming an icon pack. Seven packs ship with the package: `classic` (the built-in thin-line drawings, used when a theme names no pack), `halo` (rounded outlines with a soft tint, used by the `halo` theme), `capital` (rounded 1.8 px outlines, used by the `capital` theme), `viewfinder` (thin monoline icons that match the Viewfinder illustrations), `tabletop` (flat tonal shapes with solid details), `signal` (bold solid pictograms with cut-out details) and `soft` (an ink outline over a pastel fill in the illustration color). A theme inherits its base theme's pack, and `icons: 'classic'` switches back to the built-in drawings.
 
 ```tsx
 import { KycFlow, registerIconPack, registerTheme } from 'kyc-lens-react';
