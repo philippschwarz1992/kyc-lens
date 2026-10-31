@@ -4,7 +4,7 @@ const gateway = 'http://127.0.0.1:8797', receiver = 'http://127.0.0.1:8788', vie
 const png = await readFile(process.argv[2] ?? new URL('../../../packages/sdk/tests/fixtures/astronaut.png', import.meta.url));
 const check = (ok, label) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${label}`); if (!ok) process.exitCode = 1; };
 
-const created = await fetch(`${gateway}/api/kyc/sessions`, { method: 'POST', headers: { Authorization: 'Bearer server-key' }, body: JSON.stringify({ reference: 'crm-e2e-1' }) });
+const created = await fetch(`${gateway}/api/kyc/sessions`, { method: 'POST', headers: { Authorization: 'Bearer server-key' }, body: JSON.stringify({ reference: 'crm-e2e-1', applicant: { givenNames: 'Anna Maria', surname: 'Eriksson', birthDate: '1974-08-12' } }) });
 check(created.status === 201, `session created (${created.status})`);
 const session = await created.json();
 check((await fetch(`${gateway}/api/kyc/sessions`, { method: 'POST', body: '{}' })).status === 401, 'browser cannot create sessions in server mode');

@@ -13,7 +13,8 @@ function deps(): ReceiverDeps & { rows: Map<string, CaseRow>; blobs: Map<string,
 const sessionId = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const event: VerificationEvent = { type: 'verification.completed', sessionId, reference: 'crm-42', receivedAt: new Date().toISOString(),
   metadata: { challenges: [{ challenge: 'center', completedAt: 1, durationMs: 650 }], capturedAt: new Date().toISOString(), mode: 'camera' },
-  analysis: { status: 'review', reasons: ['liveness-missing'], document: { type: 'passport', quality: { sharpness: 310, glare: 0.01, brightness: 180, rectified: true, acceptable: true, issues: [] }, mrz: null, printedFields: null, fieldMismatches: [] }, faceMatch: null, liveFaceMatch: null, liveness: null },
+  analysis: { status: 'review', reasons: ['liveness-missing'], document: { type: 'passport', quality: { sharpness: 310, glare: 0.01, brightness: 180, rectified: true, acceptable: true, issues: [] }, mrz: null, printedFields: null, fieldMismatches: [] }, faceMatch: null, liveFaceMatch: null, liveness: null,
+    applicantCheck: { result: 'mismatch', fields: { surname: { expected: 'MUELLER', document: 'MEIER', source: 'mrz', result: 'mismatch' } } } },
   files: [{ field: 'selfie', filename: 'selfie.jpg', type: 'image/jpeg', sizeBytes: 3 }] };
 
 async function delivery(secret = 'webhook-secret', body = event) {
@@ -47,6 +48,8 @@ describe('reference receiver', () => {
     expect((await browse(new Request('https://crm.test/'), store, '/')).status).toBe(401);
     const page = await (await browse(new Request('https://crm.test/', { headers: { Authorization: `Basic ${btoa('viewer:pass')}` } }), store, '/')).text();
     expect(page).toContain(sessionId);
+    const detail = await (await browse(new Request('https://crm.test/', { headers: { Authorization: `Basic ${btoa('viewer:pass')}` } }), store, `/cases/${sessionId}`)).text();
+    expect(detail).toContain('<td>MUELLER</td><td>MEIER</td><td>mrz</td>');
     expect(page).not.toContain('<script>x');
     const image = await browse(new Request('https://crm.test/', { headers: { Authorization: `Basic ${btoa('viewer:pass')}` } }), store, `/cases/${sessionId}/files/selfie.jpg`);
     expect(new Uint8Array(await image.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));

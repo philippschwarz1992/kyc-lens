@@ -1,3 +1,4 @@
+import type { Applicant } from '@kyc-lens/contracts';
 import { DurableObject } from 'cloudflare:workers';
 
 export type SessionStatus = 'pending_capture' | 'processing' | 'delivered' | 'failed';
@@ -6,6 +7,8 @@ export interface SessionRecord {
   /** SHA-256 of the bearer token; the token itself is never stored. */
   tokenHash: string;
   reference?: string;
+  /** Compared with the document by the analysis service; delivered with the case, never shown to the browser. */
+  applicant?: Applicant;
   status: SessionStatus;
   createdAt: number;
   /** End of the capture window. */

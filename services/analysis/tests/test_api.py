@@ -79,8 +79,21 @@ def test_returns_a_verification_result(client):
 def test_a_different_person_is_rejected(client):
     result = client.post("/analyze", files=files(selfie="ride-portrait.jpg", video=False), headers=HEADERS).json()
     # The gateway's shape check needs every top-level key, with null for checks that did not run.
-    assert set(result) == {"status", "reasons", "document", "faceMatch", "liveFaceMatch", "liveness"}
-    assert result["liveFaceMatch"] is None and result["liveness"] is None
+    assert set(result) == {"status", "reasons", "document", "faceMatch", "liveFaceMatch", "liveness", "applicantCheck"}
+    assert result["liveFaceMatch"] is None and result["liveness"] is None and result["applicantCheck"] is None
     assert result["faceMatch"]["decision"] == "no-match"
     assert "face-mismatch" in result["reasons"]
     assert result["status"] == "rejected"
+
+
+def test_compares_applicant_data_with_the_document(client):
+    parts = files(video=False) | {"applicant": (None, json.dumps({"surname": "Eriksson", "birthDate": "1974-08-12"}))}
+    check = client.post("/analyze", files=parts, headers=HEADERS).json()["applicantCheck"]
+    assert check["result"] == "match"
+    assert check["fields"]["surname"] == {"expected": "ERIKSSON", "document": "ERIKSSON", "source": "mrz", "result": "match"}
+
+
+@pytest.mark.parametrize("applicant", ["not json", json.dumps({"email": "a@b.c"}), json.dumps({"birthDate": "12.08.1974"})])
+def test_refuses_malformed_applicant_data(client, applicant):
+    response = client.post("/analyze", files=files(video=False) | {"applicant": (None, applicant)}, headers=HEADERS)
+    assert response.status_code == 400

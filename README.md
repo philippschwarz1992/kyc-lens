@@ -32,6 +32,8 @@ npm run check
 npm run test:e2e -- --project=chrome
 ```
 
+For deploying the verification Worker, see the [advanced installation guide](./docs/installation.md).
+
 `npm run check` typechecks all workspaces, runs their unit tests and builds the SDK. Package checks run from the root as well: `check:package`, `check:size`, `check:consumer` and `check:matching-reference`. See [CONTRIBUTING.md](./CONTRIBUTING.md) and [releasing](./packages/sdk/docs/releasing.md).
 
 ## License

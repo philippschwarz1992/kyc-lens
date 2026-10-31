@@ -229,8 +229,33 @@ const halo: KycThemeDefinition = {
   },
 };
 
+const capital: KycThemeDefinition = {
+  id: 'capital', name: 'Capital', description: 'Lime noir banking: near-black cards, electric lime actions and Geist type.',
+  fonts: ['https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap'],
+  icons: 'capital',
+  tokens: {
+    colorScheme: 'dark',
+    color: {
+      primary: '#c6f432', onPrimary: '#0f1300', background: '#0e0f0d', surface: '#181917', selected: '#1f201d',
+      text: '#f3f4ef', muted: '#b4b7ac', line: 'rgb(255 255 255 / 8%)', lineStrong: 'rgb(255 255 255 / 20%)',
+      accent: '#c6f432', accentText: '#d8f77a', success: '#c6f432', danger: '#ff8f5e',
+      noticeText: '#ffc2a6', noticeSurface: 'rgb(255 143 94 / 10%)', camera: '#0f100e', cameraOverlay: 'rgb(14 15 13 / 55%)',
+      illustration: '#c6f432', paper: '#20211e', focus: '#c6f432',
+    },
+    font: { body: '"Geist", "Inter", system-ui, sans-serif', heading: '"Geist", "Inter", system-ui, sans-serif', mono: '"Geist Mono", ui-monospace, monospace' },
+    type: { headingSize: '30px', headingWeight: '500', headingTracking: '-1px', bodySize: '15px', buttonWeight: '600' },
+    shape: { radius: '28px', control: '28px', media: '24px' },
+    elevation: {
+      card: 'inset 0 0 0 1px rgb(255 255 255 / 6%), 0 30px 80px -24px rgb(0 0 0 / 70%)',
+      button: 'inset 0 1px 0 rgb(255 255 255 / 45%)',
+    },
+    backdrop: 'none',
+    motion: { easing: 'cubic-bezier(0.22, 1, 0.36, 1)', press: 'cubic-bezier(0.22, 1, 0.36, 1)', durationScale: 1, entrance: 'rise', ambient: false },
+  },
+};
+
 /** Themes that ship with KYC Lens. `classic` is the default. */
-export const builtInThemes = { classic, aurora, ledger, pebble, halo } as const;
+export const builtInThemes = { classic, aurora, ledger, pebble, halo, capital } as const;
 export type KycBuiltInThemeId = keyof typeof builtInThemes;
 
 const registry = new Map<string, KycThemeDefinition>(Object.values(builtInThemes).map(theme => [theme.id, theme]));

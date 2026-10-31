@@ -44,6 +44,7 @@ Header `X-Analysis-Secret: <ANALYSIS_SECRET>` (compared in constant time). Witho
 | `selfie` | yes | JPEG, PNG or WebP |
 | `faceVideo` | no | WebM or MP4 |
 | `metadata` | yes | JSON: `{challenges, capturedAt, mode, document?: {type, mrz?}}` |
+| `applicant` | no | JSON: `{givenNames?, surname?, birthDate?}`, what the customer's backend knows about the person |
 
 Errors are `{"error": "..."}`: 400 (malformed body, missing field, bad metadata), 401, 413 (over
 `MAX_UPLOAD_BYTES`), 422 (an image that cannot be decoded), 500, 503.
@@ -70,7 +71,10 @@ The response is a `VerificationResult` (pydantic models in [`app/schema.py`](app
   "faceMatch": {"score": 0.8098, "threshold": 0.363, "decision": "match" | "no-match"} | null,
   "liveFaceMatch": {"score": 0.8098, "threshold": 0.363, "decision": "match" | "no-match",
                     "framesCompared": 8, "framesMatched": 8} | null,
-  "liveness": {"score": 0.76, "decision": "pass" | "fail", "framesWithFace": 8, "framesSampled": 8} | null
+  "liveness": {"score": 0.76, "decision": "pass" | "fail", "framesWithFace": 8, "framesSampled": 8} | null,
+  "applicantCheck": {"result": "match" | "mismatch" | "incomplete",
+                     "fields": {"surname": {"expected": "ERIKSSON", "document": "ERIKSSON", "source": "mrz" | "printed" | null,
+                                            "result": "match" | "mismatch" | "not-read"}, ...}} | null
 }
 ```
 
@@ -109,6 +113,11 @@ The response is a `VerificationResult` (pydantic models in [`app/schema.py`](app
    holds the median similarity over those frames, compared with `FACE_MATCH_THRESHOLD`, and how many frames
    matched on their own. It is `null` without a video, or when the document or the video shows no face.
 
+8. **Applicant data.** With an `applicant` field, [`app/applicant.py`](app/applicant.py) compares its given names,
+   surname and birth date with the valid zone and the printed page; a field matches when either agrees. Names are
+   compared on their letters, folded as in the MRZ, with Ü as UE or as U; a first given name alone matches the full
+   given names, and a name the zone truncated only has to start the applicant's.
+
 ### Decision
 
 | Reason | Effect |
@@ -121,6 +130,8 @@ The response is a `VerificationResult` (pydantic models in [`app/schema.py`](app
 | `mrz-invalid` (zone found, check digits or dates fail; often a misread) | review |
 | `mrz-not-found` (passport or identity card without a readable zone) | review |
 | `printed-data-mismatch` (printed data and a valid zone disagree; see `fieldMismatches`) | review |
+| `applicant-data-mismatch` (the applicant data and the document disagree; see `applicantCheck`) | review |
+| `applicant-data-not-read` (an applicant field could not be read from the document) | review |
 | `printed-expiry-passed` (no valid zone, and the printed expiry date is before today) | review |
 | `document-quality-poor`, `document-type-unknown` | review |
 | `document-face-not-found`, `selfie-face-not-found` | review |

@@ -55,8 +55,9 @@ function setup(mode: 'server' | 'open' = 'server') {
   return { sessions, staging, jobs, deps, call };
 }
 
-async function newSession(call: ReturnType<typeof setup>['call'], reference?: string) {
-  const response = await call('/api/kyc/sessions', { method: 'POST', headers: { Authorization: 'Bearer server-key' }, body: JSON.stringify(reference ? { reference } : {}) });
+const applicant = { givenNames: 'Anna Maria', surname: 'Eriksson', birthDate: '1974-08-12' };
+async function newSession(call: ReturnType<typeof setup>['call'], reference?: string, extra: object = {}) {
+  const response = await call('/api/kyc/sessions', { method: 'POST', headers: { Authorization: 'Bearer server-key' }, body: JSON.stringify({ ...(reference ? { reference } : {}), ...extra }) });
   expect(response.status).toBe(201);
   return response.json() as Promise<{ id: string; token: string }>;
 }
@@ -105,6 +106,21 @@ describe('gateway API', () => {
     expect((await call('/api/kyc/sessions/not-a-uuid', { headers: { Authorization: 'Bearer server-key' } })).status).toBe(404);
   });
 
+  it('validates applicant data and keeps it from the browser', async () => {
+    const { call, sessions } = setup();
+    const session = await newSession(call, 'user-123', { applicant });
+    expect(sessions.records.get(session.id)!.applicant).toEqual(applicant);
+    const create = (body: object, headers: Record<string, string> = { Authorization: 'Bearer server-key' }, mode: 'server' | 'open' = 'server') =>
+      (mode === 'open' ? setup('open').call : call)('/api/kyc/sessions', { method: 'POST', headers, body: JSON.stringify(body) });
+    expect((await create({ applicant: { surname: 'Eriksson', birthDate: '1974-13-01' } })).status).toBe(400);
+    expect((await create({ applicant: { surname: '' } })).status).toBe(400);
+    expect((await create({ applicant: { email: 'a@b.c' } })).status).toBe(400);
+    expect((await create({ aplicant: applicant })).status).toBe(400);
+    expect((await create({ applicant }, {}, 'open')).status).toBe(403);
+    const status = await call(`/api/kyc/sessions/${session.id}`, { headers: { Authorization: `Bearer ${session.token}` } });
+    expect(JSON.stringify(await status.json())).not.toContain('Eriksson');
+  });
+
   it('refuses uploads after the capture window', async () => {
     const { call, deps } = setup();
     const session = await newSession(call);
@@ -114,9 +130,9 @@ describe('gateway API', () => {
 });
 
 describe('delivery', () => {
-  async function staged() {
+  async function staged(extra: object = {}) {
     const context = setup();
-    const session = await newSession(context.call, 'crm-42');
+    const session = await newSession(context.call, 'crm-42', extra);
     await upload(context.call, session);
     return { ...context, session };
   }
@@ -147,6 +163,24 @@ describe('delivery', () => {
     expect(context.staging.objects.size).toBe(0);
     expect(context.sessions.records.get(context.session.id)!.status).toBe('delivered');
     expect(await deliver(context.session.id, 2, deps)).toBe('already-delivered');
+  });
+
+  it('sends the applicant data to analysis and returns it with the check', async () => {
+    const context = await staged({ applicant });
+    const check = { result: 'match', fields: { surname: { expected: 'ERIKSSON', document: 'ERIKSSON', source: 'mrz', result: 'match' } } } as const;
+    let sent: unknown;
+    const deps = deliveryDeps(context, { analyze: async form => { sent = JSON.parse(form.get('applicant') as string); return { ...result, applicantCheck: check }; } });
+    expect(await deliver(context.session.id, 1, deps)).toBe('delivered');
+    expect(sent).toEqual(applicant);
+    const event = JSON.parse(await ((await deps.requests[0]!.formData()).get('event') as Blob).text()) as VerificationEvent;
+    expect(event).toMatchObject({ reference: 'crm-42', applicant, analysis: { applicantCheck: check } });
+  });
+
+  it('sends no applicant field without applicant data', async () => {
+    const context = await staged();
+    let fields: string[] = [];
+    expect(await deliver(context.session.id, 1, deliveryDeps(context, { analyze: async form => { fields = [...form.keys()]; return result; } }))).toBe('delivered');
+    expect(fields).not.toContain('applicant');
   });
 
   it('retries a failing webhook without re-running analysis, then marks the session failed', async () => {

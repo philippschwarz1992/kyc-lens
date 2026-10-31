@@ -22,6 +22,11 @@ const FILE_NAME = /^(?:selfie|face-video|document-front|document-back)\.(?:jpg|p
 const text = (body: string, status = 200, type = 'text/plain; charset=utf-8') =>
   new Response(body, { status, headers: { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'" } });
 const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => `&#${char.charCodeAt(0)};`);
+const FIELD_LABELS: Record<string, string> = { givenNames: 'Given names', surname: 'Surname', birthDate: 'Date of birth' };
+/** The applicant data from session creation next to what the document says. */
+const applicantTable = (check: NonNullable<VerificationEvent['analysis']>['applicantCheck']) => check ? `<h2>Applicant data <span class="${check.result === 'match' ? 'approved' : check.result === 'mismatch' ? 'rejected' : 'review'}">${escape(check.result)}</span></h2>
+<table><tr><th>Field</th><th>Expected</th><th>Document</th><th>Source</th><th>Result</th></tr>${Object.entries(check.fields).map(([field, entry]) =>
+  `<tr><td>${escape(FIELD_LABELS[field] ?? field)}</td><td>${escape(entry!.expected)}</td><td>${escape(entry!.document ?? '–')}</td><td>${escape(entry!.source ?? '–')}</td><td class="${entry!.result === 'match' ? 'approved' : entry!.result === 'mismatch' ? 'rejected' : 'review'}">${escape(entry!.result)}</td></tr>`).join('')}</table>` : '';
 const fileKey = (sessionId: string, filename: string) => `cases/${sessionId}/${filename}`;
 
 export async function receive(request: Request, deps: ReceiverDeps): Promise<Response> {
@@ -76,7 +81,7 @@ export async function browse(request: Request, deps: ReceiverDeps, pathname: str
     const analysis = row.event.analysis;
     return page(`Case ${row.sessionId}`, `<p><a href="/">All cases</a></p><h1 class="${escape(row.status)}">${escape(row.status ?? 'No verdict')}</h1>
 <p>Reference ${escape(row.reference ?? '–')} · received ${escape(row.receivedAt)}${row.event.analysisError ? ` · analysis: ${escape(row.event.analysisError)}` : ''}</p>
-${analysis?.reasons.length ? `<p>Reasons: ${analysis.reasons.map(escape).join(', ')}</p>` : ''}<div class="grid">${media}</div><h2>Result</h2><pre>${escape(JSON.stringify(analysis, null, 2))}</pre>`);
+${analysis?.reasons.length ? `<p>Reasons: ${analysis.reasons.map(escape).join(', ')}</p>` : ''}${applicantTable(analysis?.applicantCheck)}<div class="grid">${media}</div><h2>Result</h2><pre>${escape(JSON.stringify(analysis, null, 2))}</pre>`);
   }
   const file = /^\/cases\/([0-9a-f-]{36})\/files\/([\w.-]+)$/.exec(pathname);
   if (file && FILE_NAME.test(file[2]!)) {

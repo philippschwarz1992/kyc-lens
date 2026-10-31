@@ -5,13 +5,14 @@ import { builtInThemes, defineTheme } from '../src/themes.js';
 afterEach(() => { unregisterIconPack('brand'); });
 
 describe('icon packs', () => {
-  it('ships the classic drawings and complete Halo, Viewfinder, Tabletop, Signal and Soft packs', () => {
-    expect(listIconPacks().map(pack => pack.id)).toEqual(['classic', 'halo', 'viewfinder', 'tabletop', 'signal', 'soft']);
+  it('ships the classic drawings and complete Halo, Viewfinder, Tabletop, Signal, Soft and Capital packs', () => {
+    expect(listIconPacks().map(pack => pack.id)).toEqual(['classic', 'halo', 'viewfinder', 'tabletop', 'signal', 'soft', 'capital']);
     expect(builtInIconPacks.classic.icons).toEqual({});
-    for (const pack of [builtInIconPacks.halo, builtInIconPacks.viewfinder, builtInIconPacks.tabletop, builtInIconPacks.signal, builtInIconPacks.soft]) {
+    for (const pack of [builtInIconPacks.halo, builtInIconPacks.viewfinder, builtInIconPacks.tabletop, builtInIconPacks.signal, builtInIconPacks.soft, builtInIconPacks.capital]) {
       expect(Object.keys(pack.icons).sort()).toEqual([...iconNames].sort());
     }
     expect(builtInThemes.halo.icons).toBe('halo');
+    expect(builtInThemes.capital.icons).toBe('capital');
     expect(resolveIconPack(builtInThemes.classic.icons)).toBe(builtInIconPacks.classic);
   });
 

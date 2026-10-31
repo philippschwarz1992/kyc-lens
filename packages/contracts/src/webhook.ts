@@ -1,3 +1,4 @@
+import type { Applicant } from './applicant.ts';
 import type { CaptureField, CaptureMetadata } from './capture.ts';
 import { sha256Hex } from './capture.ts';
 import type { VerificationResult } from './result.ts';
@@ -11,6 +12,8 @@ export interface VerificationEvent {
   sessionId: string;
   /** The customer's own reference, given when the session was created. */
   reference?: string;
+  /** The applicant data given when the session was created, as stored; `analysis.applicantCheck` compares it with the document. */
+  applicant?: Applicant;
   receivedAt: string;
   metadata: CaptureMetadata;
   /** Null when analysis could not run; `analysisError` then says why and the case needs manual review. */

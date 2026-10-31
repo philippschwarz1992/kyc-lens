@@ -20,11 +20,11 @@ from python_multipart.multipart import parse_options_header
 from .config import get_settings
 from .document import InvalidImage
 from .pipeline import Analyzer, Uploads
-from .schema import Metadata, VerificationResult
+from .schema import Applicant, Metadata, VerificationResult
 
 logger = logging.getLogger("kyc_lens.analysis")
 FILE_FIELDS = {"documentFront", "documentBack", "selfie", "faceVideo"}
-FIELDS = FILE_FIELDS | {"metadata"}
+FIELDS = FILE_FIELDS | {"metadata", "applicant"}
 
 
 class RequestError(Exception):
@@ -132,8 +132,15 @@ async def analyze(request: Request) -> VerificationResult:
         metadata = Metadata.model_validate(json.loads(parts["metadata"]))
     except (ValueError, ValidationError) as error:
         raise RequestError(400, "metadata is not valid JSON of the expected shape.") from error
+    applicant = None
+    if parts.get("applicant"):
+        try:
+            applicant = Applicant.model_validate(json.loads(parts["applicant"]))
+        except (ValueError, ValidationError) as error:
+            raise RequestError(400, "applicant is not valid JSON of the expected shape.") from error
     uploads = Uploads(document_front=parts["documentFront"], selfie=parts["selfie"], metadata=metadata,
-                      document_back=parts.get("documentBack") or None, face_video=parts.get("faceVideo") or None)
+                      document_back=parts.get("documentBack") or None, face_video=parts.get("faceVideo") or None,
+                      applicant=applicant)
     del parts
     try:
         return await run_in_threadpool(request.app.state.analyzer.analyze, uploads, settings)

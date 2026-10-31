@@ -8,13 +8,14 @@ from pathlib import Path
 
 import numpy as np
 
+from .applicant import check_applicant
 from .config import Settings
 from .document import decode_image, measure_quality, rectify
 from .face import FaceModels
 from .liveness import InvalidVideo, SpoofModels, check_liveness, sample_frames
 from .mrz import DecodedMrz, mrz_fields
 from .ocr import read_side, type_from_text
-from .schema import (Document, DocumentType, FaceMatch, LiveFaceMatch, Liveness, Metadata, Mrz, MrzFields, PrintedFields,
+from .schema import (Applicant, Document, DocumentType, FaceMatch, LiveFaceMatch, Liveness, Metadata, Mrz, MrzFields, PrintedFields,
                      VerificationResult)
 from .viz import mismatches, read_printed_fields, respace
 
@@ -32,6 +33,7 @@ class Uploads:
     metadata: Metadata
     document_back: bytes | None = None
     face_video: bytes | None = None
+    applicant: Applicant | None = None
 
 
 class Analyzer:
@@ -95,6 +97,13 @@ class Analyzer:
             # Without a valid zone the printed date is all there is, but a misread digit must not reject on its own.
             reasons.append("printed-expiry-passed")
 
+        # The applicant data the customer's backend sent, against the zone and the page.
+        applicant_check = check_applicant(uploads.applicant, mrz, printed) if uploads.applicant else None
+        if applicant_check is not None and applicant_check.result == "mismatch":
+            reasons.append("applicant-data-mismatch")
+        elif applicant_check is not None and applicant_check.result == "incomplete":
+            reasons.append("applicant-data-not-read")
+
         # Face: the upscaled document portrait against the selfie.
         selfie_image = decode_image(uploads.selfie)
         selfie_face = self.faces.largest(selfie_image)
@@ -144,7 +153,8 @@ class Analyzer:
                                   document=Document(type=detected, quality=quality, mrz=mrz, ocrText=ocr_text,
                                                     printedFields=PrintedFields(**printed) if printed else None,
                                                     fieldMismatches=field_mismatches),
-                                  faceMatch=face_match, liveFaceMatch=live_face_match, liveness=liveness)
+                                  faceMatch=face_match, liveFaceMatch=live_face_match, liveness=liveness,
+                                  applicantCheck=applicant_check)
 
     def _live_face_match(self, portrait: np.ndarray, frames: list[np.ndarray], threshold: float) -> LiveFaceMatch:
         """The median keeps one blurred or turned-away frame from deciding either way."""
