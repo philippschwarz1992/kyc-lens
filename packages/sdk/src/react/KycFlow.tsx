@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { initialTransition, transition } from 'xstate';
 import type { EventFrom, SnapshotFrom } from 'xstate';
@@ -20,8 +20,10 @@ import { createEventReporter } from './events.js';
 import { FaceScreen } from './FaceScreen.js';
 import { createFlowMachine, DEFAULT_STEPS, validateFlowConfiguration } from './flow.js';
 import { Icon, IconPackContext } from './Icons.js';
+import { LayoutContext, PanelHeader } from './Panel.js';
+import type { StatusTone } from './Panel.js';
 import { prefersHandoff, validateHandoffOptions } from './Handoff.js';
-import { AnalysisScreen, IntroScreen, RejectedScreen, ResultScreen, ReviewScreen } from './Screens.js';
+import { AnalysisScreen, ErrorScreen, IntroScreen, RejectedScreen, ResultScreen, ReviewScreen } from './Screens.js';
 import type { AnalysisStage } from './Screens.js';
 import { getStrings } from './strings.js';
 import { useScreenTransition } from './useScreenTransition.js';
@@ -224,12 +226,24 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
   const { Intro, Review, Result } = props.components ?? {};
   const { resolvedTheme, iconPack } = props;
   const themeStyle = themeVariables(resolvedTheme) as CSSProperties;
+  const layout = resolvedTheme.layout ?? 'card';
+  const panel = layout === 'panel';
+  const [back, setBackState] = useState<(() => void) | null>(null);
+  const setBack = useCallback((handler: (() => void) | null) => setBackState(() => handler), []);
+  const layoutContext = useMemo(() => ({ panel, setBack }), [panel, setBack]);
   if (phase === 'complete' && !steps.includes('result')) return null;
+  const errorDevice = state.context.errorStage === 'camera' || state.context.errorStage === 'document';
+  // The panel header names the current step; failures read in the danger tone.
+  const status: [string, StatusTone] | null = phase === 'intro' ? [s.statusGuided, 'accent'] : phase === 'document' ? [s.statusDocument, 'accent']
+    : phase === 'face' || phase === 'review' ? [s.statusFace, 'accent'] : phase === 'submitting' ? [s.statusVerifying, 'accent']
+      : phase === 'complete' ? [result?.faceMatch?.status === 'match' ? s.statusVerified : s.resultStatus, 'accent']
+        : phase === 'rejected' ? [s.statusRejected, 'danger'] : phase === 'error' ? [errorDevice ? s.statusCamera : s.statusError, 'danger'] : null;
 
-  return <section className={`kyc-kit ${props.className ?? ''}`} style={themeStyle} data-kyc-theme={resolvedTheme.id} data-kyc-scheme={resolvedTheme.tokens.colorScheme} data-kyc-ambient={resolvedTheme.tokens.motion.ambient ? '' : undefined} data-kyc-icons={iconPack.id} lang={props.locale ?? 'en'} aria-label={s.secureCapture}><IconPackContext.Provider value={iconPack}>
+  return <section className={`kyc-kit ${props.className ?? ''}`} style={themeStyle} data-kyc-theme={resolvedTheme.id} data-kyc-scheme={resolvedTheme.tokens.colorScheme} data-kyc-ambient={resolvedTheme.tokens.motion.ambient ? '' : undefined} data-kyc-icons={iconPack.id} data-kyc-layout={layout} lang={props.locale ?? 'en'} aria-label={s.secureCapture}><IconPackContext.Provider value={iconPack}><LayoutContext.Provider value={layoutContext}>
     {simulation ? <aside className="kyc-simulation-banner" aria-label={s.simulationBody}>{s.simulation}</aside> : null}
+    {panel ? <PanelHeader brand={resolvedTheme.brand} status={status?.[0]} tone={status?.[1] ?? 'accent'} back={back} backLabel={s.back} /> : null}
     <div ref={contentRef} id={screenId} className="kyc-content" tabIndex={-1}>
-      {phase === 'intro' ? Intro ? <Intro {...context} /> : <IntroScreen {...context} strings={s} hasDocument={steps.includes('document')} /> : null}
+      {phase === 'intro' ? Intro ? <Intro {...context} /> : <IntroScreen {...context} strings={s} hasDocument={steps.includes('document')} brandMark={resolvedTheme.brand?.mark} /> : null}
       {phase === 'document' ? <DocumentScreen options={documentOptions} assets={assets} simulation={simulation} output={output} strings={s} onCapture={document => { setDocumentCapture(document); send({ type: 'DOCUMENT_CAPTURE' }); }} onFailure={failure => fail('document', failure)} /> : null}
       {phase === 'face' ? <FaceScreen face={face} assets={assets} challenges={challenges} simulation={simulation} output={output} strings={s} onCapture={payload => { setCapture({ ...payload, ...(documentCapture ? { document: documentCapture } : {}) }); send({ type: 'CAPTURE' }); }} onFailure={failure => fail('camera', failure)} /> : null}
       {phase === 'review' ? Review ? <Review {...context} /> : <ReviewScreen {...context} strings={s} /> : null}
@@ -237,8 +251,9 @@ function FlowSession(props: KycFlowProps & { configuration: Configuration; resol
         stage={analysisStage ?? (capture?.document && faceMatch !== false ? 'compare' : api ? 'upload' : null)} uploadPercent={uploadPercent} onCancel={cancel} /> : null}
       {phase === 'rejected' && rejection ? <RejectedScreen strings={s} status={rejection} onRestart={restart} /> : null}
       {phase === 'complete' ? Result ? <Result {...context} /> : <ResultScreen {...context} strings={s} /> : null}
-      {phase === 'error' ? <div className="kyc-screen kyc-error-screen"><div className="kyc-screen-heading"><h2>{s.errorTitle}</h2><p className="kyc-description">{error?.name === 'FaceMatchError' ? s.matchingErrorBody : state.context.errorStage === 'submission' ? s.submissionErrorBody : s.cameraErrorBody}</p></div><div className="kyc-media kyc-error-media"><div className="kyc-error-icon"><Icon name="refresh" size={28} /></div><p className="kyc-error-detail" role="alert">{error ? readableError(error, s) : s.cameraErrorBody}</p></div><div className="kyc-actions"><button type="button" className="kyc-button kyc-button-primary" onClick={retry}>{s.retry}<Icon name="arrow" size={18} /></button></div></div> : null}
+      {phase === 'error' ? <ErrorScreen strings={s} body={error?.name === 'FaceMatchError' ? s.matchingErrorBody : state.context.errorStage === 'submission' ? s.submissionErrorBody : s.cameraErrorBody} detail={error ? readableError(error, s) : s.cameraErrorBody} onRetry={retry} /> : null}
       {phase === 'cancelled' ? <div className="kyc-screen kyc-status-screen"><div className="kyc-screen-heading"><h2>{s.cancelledTitle}</h2><p className="kyc-description">{s.cancelledBody}</p></div><div className="kyc-media" /><div className="kyc-actions" /></div> : null}
     </div>
-  </IconPackContext.Provider></section>;
+    {panel ? <p className="kyc-panel-note"><Icon name="lock" size={14} />{s.captureOnly}</p> : null}
+  </LayoutContext.Provider></IconPackContext.Provider></section>;
 }

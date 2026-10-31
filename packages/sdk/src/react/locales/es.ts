@@ -71,4 +71,10 @@ export const spanish: KycStrings = {
   rejectedInconclusive: 'No hemos podido comparar con claridad tu selfie con la foto del documento.', rejectedTips: 'Para el próximo intento',
   tipLight: 'Busca una luz intensa y uniforme', tipAccessories: 'Quítate gafas de sol, gorra o mascarilla',
   tipDocument: 'Haz la foto del documento nítida y sin reflejos',
+  introChecklist: 'Antes de empezar', stepDocument: 'Documento', stepFace: 'Rostro', statusGuided: 'Captura guiada',
+  statusDocument: 'Documento', statusFace: 'Rostro', statusVerifying: 'Verificando', statusVerified: 'Verificado',
+  statusRejected: 'No verificado', statusCamera: 'Cámara', statusError: 'Error', documentSideFront: 'Anverso', documentSideBack: 'Reverso',
+  resultIdentity: 'Identidad verificada', resultFaceMatched: 'Rostro coincidente',
+  resultCompared: 'Los rostros coinciden', resultPassed: 'Superado',
+  documentPassportHoldStill: 'Ábrelo en plano y mantenlo quieto… la foto se toma automáticamente.', documentPassportReviewBody: 'Asegúrate de que la página con la foto se vea nítida y que las dos líneas de código de abajo se lean bien.', documentLicenseBackBody: 'Mantén la tabla de categorías del permiso completamente visible y nítida.',
 };

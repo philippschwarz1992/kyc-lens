@@ -70,4 +70,10 @@ export const polish: KycStrings = {
   rejectedNoMatch: 'Twoje selfie nie pasuje do zdjęcia w dokumencie.', rejectedInconclusive: 'Nie udało się wyraźnie porównać selfie ze zdjęciem w dokumencie.',
   rejectedTips: 'Przy następnej próbie', tipLight: 'Zadbaj o jasne, równomierne światło', tipAccessories: 'Zdejmij okulary przeciwsłoneczne, czapkę lub maseczkę',
   tipDocument: 'Zrób ostre zdjęcie dokumentu bez odblasków',
+  introChecklist: 'Zanim zaczniesz', stepDocument: 'Dokument', stepFace: 'Twarz', statusGuided: 'Prowadzone nagranie',
+  statusDocument: 'Dokument', statusFace: 'Twarz', statusVerifying: 'Weryfikacja', statusVerified: 'Zweryfikowano',
+  statusRejected: 'Nie zweryfikowano', statusCamera: 'Kamera', statusError: 'Błąd', documentSideFront: 'Przód', documentSideBack: 'Tył',
+  resultIdentity: 'Tożsamość zweryfikowana', resultFaceMatched: 'Twarz dopasowana',
+  resultCompared: 'Twarze pasują', resultPassed: 'Zaliczono',
+  documentPassportHoldStill: 'Otwórz go płasko i trzymaj nieruchomo… zdjęcie zostanie zrobione automatycznie.', documentPassportReviewBody: 'Upewnij się, że strona ze zdjęciem jest wyraźna, a dwie linie kodu na dole są czytelne.', documentLicenseBackBody: 'Trzymaj tabelę kategorii prawa jazdy w całości widoczną i ostrą.',
 };

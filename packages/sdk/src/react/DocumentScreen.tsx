@@ -4,10 +4,11 @@ import type { AssetOptions, DocumentCapture, DocumentOptions, DocumentType, Outp
 import type { MrzSummary } from '../mrz/parse.js';
 import { Icon } from './Icons.js';
 import { Illustration, type IllustrationKind } from './Illustrations.js';
+import { DocumentPhoto, documentPhotoKind, Eyebrow, Hero, PanelArt, SidePager, usePanel, usePanelBack } from './Panel.js';
 import { useDocumentCapture, type DocumentGuideFeedback } from './useDocumentCapture.js';
 import { motionTokens, useBrowserLayoutEffect, useScreenTransition } from './useScreenTransition.js';
 
-type DocumentStage = 'select' | 'prepare-front' | 'camera-front' | 'review-front' | 'done-front'
+export type DocumentStage = 'select' | 'prepare-front' | 'camera-front' | 'review-front' | 'done-front'
   | 'prepare-back' | 'camera-back' | 'review-back' | 'done-back';
 const DEFAULT_DOCUMENT_TYPES: readonly DocumentType[] = ['id-card', 'drivers-license', 'passport'];
 const typeIcons = { 'id-card': 'idCard', 'drivers-license': 'license', passport: 'passport' } as const;
@@ -62,7 +63,7 @@ function useSteadyFeedback(feedback: DocumentGuideFeedback, scope: string): Docu
   return shown;
 }
 
-export function DocumentScreen({ options, assets, simulation, output, strings: s, onCapture, onFailure }: {
+export function DocumentScreen({ options, assets, simulation, output, strings: s, onCapture, onFailure, preview: initial }: {
   options: DocumentOptions;
   assets: AssetOptions;
   simulation: boolean;
@@ -70,12 +71,14 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
   strings: Record<string, string>;
   onCapture: (capture: DocumentCapture) => void;
   onFailure: (error: Error) => void;
+  /** Opens at a later stage with a stand-in photo, for screen previews such as the playground gallery. */
+  preview?: { stage: DocumentStage; type?: DocumentType; photo?: Blob };
 }) {
   const types = options.types ?? DEFAULT_DOCUMENT_TYPES;
-  const [selected, setSelected] = useState<DocumentType>(types[0] ?? 'id-card');
-  const [stage, setStage] = useState<DocumentStage>('select');
-  const [front, setFront] = useState<Blob | null>(null);
-  const [back, setBack] = useState<Blob | null>(null);
+  const [selected, setSelected] = useState<DocumentType>(initial?.type ?? types[0] ?? 'id-card');
+  const [stage, setStage] = useState<DocumentStage>(initial?.stage ?? 'select');
+  const [front, setFront] = useState<Blob | null>(initial?.photo ?? null);
+  const [back, setBack] = useState<Blob | null>(initial?.stage.endsWith('back') ? initial.photo ?? null : null);
   const [frontZone, setFrontZone] = useState<MrzSummary | null>(null);
   const [backZone, setBackZone] = useState<MrzSummary | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>();
@@ -107,6 +110,7 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
     },
   });
   const feedback = useSteadyFeedback(liveFeedback, stage);
+  const panel = usePanel();
 
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
@@ -153,9 +157,12 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
   const body = stage === 'select' ? s.documentSelectBody ?? 'Use a valid, original document.'
     : stage === 'done-front' && selected !== 'passport' ? s.documentTurnOver ?? 'Now turn your document over.'
     : isDone ? s.documentAllCaptured ?? 'Your document photos are done.'
-    : isReview ? s.documentReviewBody ?? 'Make sure the entire document is clear and easy to read.'
-      : isCamera ? s.documentCameraBody ?? 'Fit all four corners inside the frame. Avoid glare.'
-        : isBack ? s.documentBackBody ?? 'Turn your document over. Make sure all four corners are visible.'
+    : isReview ? selected === 'passport' ? s.documentPassportReviewBody ?? 'Make sure the photo page is clear and the two lines of code at the bottom are easy to read.'
+      : s.documentReviewBody ?? 'Make sure the entire document is clear and easy to read.'
+      : isCamera ? stage === 'camera-back' && selected === 'drivers-license' ? s.documentLicenseBackBody ?? 'Keep the table of license categories fully visible and sharp.'
+        : s.documentCameraBody ?? 'Fit all four corners inside the frame. Avoid glare.'
+        : isBack ? selected === 'drivers-license' ? s.documentLicenseBackBody ?? 'Keep the table of license categories fully visible and sharp.'
+          : s.documentBackBody ?? 'Turn your document over. Make sure all four corners are visible.'
           : s.documentFrontBody ?? 'Place your document on a flat surface. Make sure all four corners are visible.';
   // A found, clear document is green while a configured hold completes, not red.
   const guideState = status === 'capturing' || feedback === 'ready' || feedback === 'hold-still' ? 'ready' : feedback === 'off' ? 'off' : 'adjust';
@@ -173,7 +180,8 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
     dark: s.documentDark ?? 'Use brighter, even lighting.',
     glare: s.documentGlare ?? 'Tilt slightly to avoid reflections.',
     blur: s.documentBlur ?? 'Hold steady and let the camera focus.',
-    'hold-still': automatic ? s.documentAutoHoldStill ?? 'Hold steady… taking your photo automatically.' : s.documentHoldStill ?? 'Hold steady…',
+    'hold-still': automatic ? selected === 'passport' ? s.documentPassportHoldStill ?? 'Open it flat and hold steady… taking your photo automatically.'
+      : s.documentAutoHoldStill ?? 'Hold steady… taking your photo automatically.' : s.documentHoldStill ?? 'Hold steady…',
     ready: automatic ? s.documentAutoReady ?? 'Taking your photo automatically…' : s.documentReady ?? 'Looks clear. Take your photo.',
     unavailable: s.documentGuidanceUnavailable ?? 'Keep all four corners visible. Check the photo after capture.',
     'turn-over': s.documentTurnOver ?? 'Now turn your document over.',
@@ -193,6 +201,9 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
     else if (stage === 'review-back') setStage('prepare-back');
     else setStage('select');
   };
+
+  // The panel layout moves the back control into its header.
+  usePanelBack(stage !== 'select' ? goBack : null);
 
   const finish = (frontPhoto: Blob, backPhoto: Blob | null) => {
     if (completed.current || (selected !== 'passport' && !backPhoto)) return;
@@ -214,11 +225,22 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
     else { setFront(null); setBack(null); setStage('camera-front'); }
   };
 
+  const reviewPhoto = <div className={`kyc-media kyc-document-preview ${flight ? 'is-from-camera' : ''}`} data-kyc-motion={flight ? 'own' : undefined}>
+    {previewUrl ? <img src={previewUrl} alt={isBack ? s.documentBackAlt ?? 'Photograph of the back of your document' : s.documentFrontAlt ?? 'Photograph of the front of your document'}
+      onLoad={event => { if (flight) revealPhoto(event.currentTarget, flight, () => setFlight(null)); }} onError={() => setFlight(null)} /> : null}
+  </div>;
+  const capturedLabel = isBack ? s.documentBackCaptured ?? 'Back captured' : selected === 'passport' ? s.documentPageCaptured ?? 'Photo page captured' : s.documentFrontCaptured ?? 'Front captured';
+  const sideLabel = selected === 'passport' ? s.documentPhotoPage ?? 'Photo page' : isBack ? s.documentSideBack ?? 'Back' : s.documentSideFront ?? 'Front';
+  const corners = <><span className="kyc-guide-corner" /><span className="kyc-guide-corner" /><span className="kyc-guide-corner" /><span className="kyc-guide-corner" /></>;
+
   return <div ref={screenRef} className={`kyc-screen kyc-document-screen ${isReview ? 'kyc-document-review-screen' : ''}`}>
-    {stage !== 'select' ? <button type="button" className="kyc-back" aria-label={s.back ?? 'Back'} onClick={goBack}><Icon name="back" size={22} /></button> : null}
+    {stage !== 'select' && !panel ? <button type="button" className="kyc-back" aria-label={s.back ?? 'Back'} onClick={goBack}><Icon name="back" size={22} /></button> : null}
+    {panel && stage === 'select' ? <Hero className="kyc-hero-document"><PanelArt kind="document" /></Hero> : null}
+    {panel && isDone ? <Hero className="kyc-hero-symbol"><span className="kyc-symbol is-filled"><Icon name="check" size={40} /></span></Hero> : null}
     <div className="kyc-screen-heading">
+      {panel && stage !== 'select' ? <Eyebrow>{names[selected]}</Eyebrow> : null}
       <h2 ref={headingRef} id={titleId} tabIndex={-1}>{title}</h2>
-      <p className="kyc-description" role={liveGuidance || isDone ? 'status' : undefined} aria-live={liveGuidance || isDone ? 'polite' : undefined} aria-atomic={liveGuidance || isDone ? true : undefined}>{liveGuidance ? notice === 'cameraSwitchFailed' ? s.documentCameraSwitchFailed ?? 'That camera could not be opened. Your previous camera is back on.' : guideHints[feedback] : body}</p>
+      <p className={`kyc-description ${liveGuidance ? 'is-live' : ''}`} role={liveGuidance || isDone ? 'status' : undefined} aria-live={liveGuidance || isDone ? 'polite' : undefined} aria-atomic={liveGuidance || isDone ? true : undefined}>{liveGuidance ? notice === 'cameraSwitchFailed' ? s.documentCameraSwitchFailed ?? 'That camera could not be opened. Your previous camera is back on.' : guideHints[feedback] : body}</p>
     </div>
     {stage === 'select' ? <div className="kyc-document-body">
       <Illustration kind="identity" />
@@ -230,15 +252,16 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
           <span className="kyc-document-type-radio" aria-hidden="true">{selected === type ? <Icon name="check" size={14} /> : null}</span>
         </label>)}
       </div>
-    </div> : isDone ? <div className="kyc-media kyc-document-done" aria-hidden="true">
+    </div> : isDone ? panel ? null : <div className="kyc-media kyc-document-done" aria-hidden="true">
       <span className="kyc-document-done-mark"><Icon name="check" size={46} /></span>
-    </div> : isReview ? <div className={`kyc-media kyc-document-preview ${flight ? 'is-from-camera' : ''}`} data-kyc-motion={flight ? 'own' : undefined}>
-      {previewUrl ? <img src={previewUrl} alt={isBack ? s.documentBackAlt ?? 'Photograph of the back of your document' : s.documentFrontAlt ?? 'Photograph of the front of your document'}
-        onLoad={event => { if (flight) revealPhoto(event.currentTarget, flight, () => setFlight(null)); }} onError={() => setFlight(null)} /> : null}
-    </div> : isCamera ? <div className={`kyc-media kyc-document-camera ${simulation ? 'is-simulation' : ''}`} data-status={status}>
+    </div> : isReview ? panel ? <section className="kyc-review-card">
+      {reviewPhoto}
+      <div className="kyc-review-meta"><span className="kyc-captured-pill"><Icon name="check" size={14} />{capturedLabel}</span>{selected === 'passport' ? null : <SidePager side={side} />}</div>
+    </section> : reviewPhoto : isCamera ? <div className={`kyc-media kyc-document-camera ${simulation ? 'is-simulation' : ''}`} data-status={status}>
       <video ref={videoRef} className="kyc-document-video" autoPlay muted playsInline aria-label={title} />
-      {simulation ? <div className="kyc-document-demo" aria-hidden="true"><Illustration kind={sideArt} /><span>DEMO</span></div> : null}
-      <div ref={guideRef} className="kyc-document-guide" data-state={guideState} data-reason={liveFeedback} data-document-type={selected} aria-hidden="true" />
+      {simulation ? <div className="kyc-document-demo" aria-hidden="true">{panel ? <DocumentPhoto kind={documentPhotoKind(selected, side)} /> : <Illustration kind={sideArt} />}<span>DEMO</span></div> : null}
+      <div ref={guideRef} className="kyc-document-guide" data-state={guideState} data-reason={liveFeedback} data-document-type={selected} aria-hidden="true">{panel ? corners : null}</div>
+      {panel ? <span className="kyc-document-side">{selected === 'passport' ? null : <SidePager side={side} />}{sideLabel}</span> : null}
       {automatic && feedback === 'hold-still' && progress > 0 ? <div className="kyc-document-auto-progress" role="progressbar" aria-label={s.documentAutoProgress ?? 'Automatic photo capture'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><span style={{ width: `${progress * 100}%` }} /></div> : null}
       {showSwitch || showTorch ? <div className="kyc-document-camera-controls">
         {/* aria-disabled keeps focus on the control while the next camera opens. */}
@@ -248,6 +271,9 @@ export function DocumentScreen({ options, assets, simulation, output, strings: s
       {status === 'requesting' ? <div className="kyc-document-status" role="status"><span className="kyc-spinner" /><span>{notice === 'tapToStart' ? s.tapToStartCamera : s.requesting ?? 'Opening your camera…'}</span></div>
         // The frozen frame stays visible while the photo is checked; only a small label reports it.
         : status === 'capturing' ? <div className="kyc-document-capturing" role="status"><span className="kyc-spinner" /><span>{s.documentCapturing ?? 'Taking your photo…'}</span></div> : null}
+    </div> : panel ? <div className="kyc-media kyc-document-preparation">
+      <DocumentPhoto kind={documentPhotoKind(selected, side)} /><span className="kyc-document-guide" aria-hidden="true">{corners}</span>
+      <span className="kyc-document-side">{selected === 'passport' ? null : <SidePager side={side} />}{sideLabel}</span>
     </div> : <div className="kyc-media kyc-document-preparation"><Illustration kind={sideArt} /></div>}
     <div className="kyc-actions">
       {stage === 'select' ?

@@ -27,6 +27,9 @@ export function Icon({ name, size = 20, className, style }: { name: KycIconName;
     flash: <path d="M13 3 5 14h6l-1 7 8-11h-6z" />,
     idCard: <><rect x="3" y="5.5" width="18" height="13" rx="2.5" /><circle cx="8.5" cy="10.5" r="2" /><path d="M5.8 15.5c.5-1.6 1.5-2.3 2.7-2.3s2.2.7 2.7 2.3M14 10h4M14 13.5h3" /></>,
     license: <><rect x="3" y="5.5" width="18" height="13" rx="2.5" /><circle cx="8.5" cy="10.5" r="2" /><path d="M5.8 15.5c.5-1.6 1.5-2.3 2.7-2.3s2.2.7 2.7 2.3M14 9.5h4" /><path d="M13.5 15.5v-1.8l1-1.7h3l1 1.7v1.8z" /></>,
+    lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
+    phone: <><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M11 18h2" /></>,
+    alert: <><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></>,
     passport: <><rect x="5" y="3" width="14" height="18" rx="2" /><circle cx="12" cy="10.5" r="3.2" /><path d="M8.8 10.5h6.4M12 7.3c-1 .9-1.5 2-1.5 3.2s.5 2.3 1.5 3.2c1-.9 1.5-2 1.5-3.2s-.5-2.3-1.5-3.2M9 17h6" /></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className} style={style}>{paths[name]}</svg>;

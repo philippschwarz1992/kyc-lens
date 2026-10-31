@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import type { AssetOptions, CapturePayload, FaceChallenge, FaceOptions, OutputOptions } from '../types.js';
 import { Icon } from './Icons.js';
 import { Illustration } from './Illustrations.js';
+import { PanelArt, usePanel } from './Panel.js';
 import { useFaceCapture } from './useFaceCapture.js';
 import { useScreenTransition } from './useScreenTransition.js';
 
@@ -24,6 +25,7 @@ export function FaceScreen({ face, assets, challenges, simulation, output, strin
 }) {
   const { videoRef, status, feedback, start, needsTap } = useFaceCapture({ options: face, assets, challenges, simulation, output, onCapture, onFailure });
   const screenRef = useRef<HTMLDivElement>(null);
+  const panel = usePanel();
   useScreenTransition(screenRef, status === 'idle' ? 'prepare' : 'camera');
   const progress = feedback?.progress ?? 0;
   const active = status === 'tracking' || status === 'capturing';
@@ -86,10 +88,12 @@ export function FaceScreen({ face, assets, challenges, simulation, output, strin
           <g className="kyc-guide-ticks">{TICKS.map((path, index) => <path key={index} d={path} className={index < litTicks ? 'is-lit' : undefined} />)}</g>
         </svg>
         {showDirection ? <span className="kyc-direction-arrow" data-direction={direction}>
-          {turning ? <svg viewBox="0 0 48 44" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><path d="M40 30C32 16 18 15 7 25M7 14v11h11" /></svg> : <Icon name="arrow" size={32} />}
+          {turning ? <svg viewBox="0 0 48 44" fill="none" stroke="currentColor" strokeWidth={panel ? 3.4 : 2.8} strokeLinecap="round" strokeLinejoin="round"><path d="M40 30C32 16 18 15 7 25M7 14v11h11" /></svg>
+            // A pack's button arrow may point diagonally; the panel guide always points straight.
+            : panel ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg> : <Icon name="arrow" size={32} />}
         </span> : null}
       </div>
-      {status === 'idle' ? <div className="kyc-camera-placeholder"><Illustration kind="selfie" /></div> : null}
+      {status === 'idle' ? <div className="kyc-camera-placeholder">{panel ? <PanelArt kind="selfie" /> : <Illustration kind="selfie" />}</div> : null}
     </div></div>
     <p className={`kyc-current-instruction ${active ? 'is-active' : ''} ${hint === 'hold-still' ? 'is-holding' : ''}`} aria-hidden={active ? undefined : true}>{active && instruction ? <span key={instruction}>{instruction}</span> : ' '}</p>
     <video ref={backdropRef} autoPlay muted playsInline tabIndex={-1} className={`kyc-face-backdrop ${mirrored ? 'is-mirrored' : ''}`} aria-hidden="true" />

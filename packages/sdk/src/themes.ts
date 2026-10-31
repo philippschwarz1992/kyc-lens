@@ -1,5 +1,5 @@
-import { defineIconPack } from './icons.js';
-import type { KycIconPack } from './icons.js';
+import { defineGlyph, defineIconPack } from './icons.js';
+import type { KycIconGlyph, KycIconPack } from './icons.js';
 import type { KycTheme } from './types.js';
 
 /** Every visual decision of the capture flow. Values are CSS values unless noted. */
@@ -100,7 +100,23 @@ export interface KycThemeDefinition {
   fonts?: readonly string[];
   /** Icon pack: a registered id such as `halo`, or an inline pack. Default: the built-in drawings. */
   icons?: string | KycIconPack;
+  /**
+   * How screens are composed. `card` (default) centres each step in the card; `panel` stacks a header with the
+   * brand and a status badge, hero panels, small labels above headings, checklists and a privacy note.
+   */
+  layout?: KycThemeLayout;
+  /** Shown in the `panel` layout's header. */
+  brand?: KycThemeBrand;
   tokens: KycThemeTokens;
+}
+
+export type KycThemeLayout = 'card' | 'panel';
+
+export interface KycThemeBrand {
+  /** 1-40 characters. */
+  name: string;
+  /** Drawn in a 24-unit grid on a `color.primary` tile, stroked or filled with `color.onPrimary`. */
+  mark?: KycIconGlyph;
 }
 
 export interface KycThemeInput {
@@ -110,6 +126,10 @@ export interface KycThemeInput {
   fonts?: readonly string[];
   /** Icon pack id or inline pack. Default: the base theme's pack. */
   icons?: string | KycIconPack;
+  /** Default: the base theme's layout. */
+  layout?: KycThemeLayout;
+  /** Default: the base theme's brand. */
+  brand?: KycThemeBrand;
   /** Base theme id or definition. Default: `classic`. */
   extends?: string | KycThemeDefinition;
   tokens?: KycThemeTokenOverrides;
@@ -233,20 +253,23 @@ const capital: KycThemeDefinition = {
   id: 'capital', name: 'Capital', description: 'Lime noir banking: near-black cards, electric lime actions and Geist type.',
   fonts: ['https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap'],
   icons: 'capital',
+  layout: 'panel',
+  // The C-shaped mark: an open arc with a dot, scaled from the design's 34 px tile.
+  brand: { name: 'Capital', mark: ['M15.9 7.9A5.65 5.65 0 1 0 15.9 16.1', { d: 'M14.83 12a1.55 1.55 0 1 0 3.1 0a1.55 1.55 0 1 0 -3.1 0z', paint: 'fill' }] },
   tokens: {
     colorScheme: 'dark',
     color: {
-      primary: '#c6f432', onPrimary: '#0f1300', background: '#0e0f0d', surface: '#181917', selected: '#1f201d',
+      primary: '#c6f432', onPrimary: '#0f1300', background: '#141513', surface: '#181917', selected: '#1f201d',
       text: '#f3f4ef', muted: '#b4b7ac', line: 'rgb(255 255 255 / 8%)', lineStrong: 'rgb(255 255 255 / 20%)',
       accent: '#c6f432', accentText: '#d8f77a', success: '#c6f432', danger: '#ff8f5e',
       noticeText: '#ffc2a6', noticeSurface: 'rgb(255 143 94 / 10%)', camera: '#0f100e', cameraOverlay: 'rgb(14 15 13 / 55%)',
       illustration: '#c6f432', paper: '#20211e', focus: '#c6f432',
     },
     font: { body: '"Geist", "Inter", system-ui, sans-serif', heading: '"Geist", "Inter", system-ui, sans-serif', mono: '"Geist Mono", ui-monospace, monospace' },
-    type: { headingSize: '30px', headingWeight: '500', headingTracking: '-1px', bodySize: '15px', buttonWeight: '600' },
-    shape: { radius: '28px', control: '28px', media: '24px' },
+    type: { headingSize: '34px', headingWeight: '500', headingTracking: '-1.2px', bodySize: '15px', buttonWeight: '600' },
+    shape: { radius: '32px', control: '20px', media: '24px' },
     elevation: {
-      card: 'inset 0 0 0 1px rgb(255 255 255 / 6%), 0 30px 80px -24px rgb(0 0 0 / 70%)',
+      card: '0 40px 80px rgb(0 0 0 / 45%)',
       button: 'inset 0 1px 0 rgb(255 255 255 / 45%)',
     },
     backdrop: 'none',
@@ -303,11 +326,17 @@ export function defineTheme(input: KycThemeInput): KycThemeDefinition {
   const icons = input.icons ?? base.icons;
   // Pack ids are looked up when the flow renders, so a pack can be registered after the theme.
   if (typeof icons === 'string' && !/^[a-z][a-z0-9-]{0,47}$/.test(icons)) throw new Error('Theme icons must be an icon pack id or an icon pack.');
+  const layout = input.layout ?? base.layout;
+  if (layout !== undefined && layout !== 'card' && layout !== 'panel') throw new Error('Theme layout must be card or panel.');
+  const brand = input.brand ?? base.brand;
+  if (brand !== undefined && (!brand || typeof brand !== 'object' || typeof brand.name !== 'string' || brand.name.trim() === '' || brand.name.length > 40)) throw new Error('Theme brand name must be 1-40 characters.');
   return {
     id: input.id, name: input.name.trim(),
     ...(input.description ? { description: String(input.description).slice(0, 240) } : {}),
     ...(input.fonts ?? base.fonts ? { fonts: [...(input.fonts ?? base.fonts ?? [])] } : {}),
     ...(icons === undefined ? {} : { icons: typeof icons === 'string' ? icons : defineIconPack(icons) }),
+    ...(layout === undefined ? {} : { layout }),
+    ...(brand === undefined ? {} : { brand: { name: brand.name.trim(), ...(brand.mark === undefined ? {} : { mark: defineGlyph('Theme brand mark', brand.mark) }) } }),
     tokens: merge(base.tokens, input.tokens),
   };
 }

@@ -12,8 +12,10 @@ import { gzipSync } from 'node:zlib';
 // dist/index.js: 74,500 B with the theme icon packs on top (71,107 B; the packs ship in the main entry).
 // dist/index.js: 78,500 B and dist/core/index.js: 2,750 B after the streamlined face capture (75,106 B and 2,604 B;
 // step progress, the verification and try-again screens, and the movement limit and neutral-pose checks in core).
+// dist/index.js: 87,500 B with the panel layout (84,835 B; the panel screens, illustrations and document photos, the lock, phone and
+// alert icons in every pack, and their strings in every locale ship in the main entry).
 const budgets = {
-  'dist/index.js (gzip)': 78_500,
+  'dist/index.js (gzip)': 87_500,
   'dist/core/index.js (gzip)': 2_750,
   'npm pack tarball': 59_340_000,
 };

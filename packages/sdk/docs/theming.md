@@ -80,13 +80,32 @@ registerTheme({ id: 'acme', name: 'Acme Bank', extends: 'ledger', icons: 'acme' 
 <KycFlow theme="acme" />;
 ```
 
-A pack replaces any of these icons: `arrow`, `back`, `check`, `camera`, `sun`, `face`, `shield`, `refresh`, `close`, `upload`, `switchCamera`, `flash`, `idCard`, `license`, `passport` (also exported as `iconNames`). Icons a pack leaves out use the built-in drawing.
+A pack replaces any of these icons: `arrow`, `back`, `check`, `camera`, `sun`, `face`, `shield`, `refresh`, `close`, `upload`, `switchCamera`, `flash`, `idCard`, `license`, `passport`, `lock`, `phone`, `alert` (also exported as `iconNames`). Icons a pack leaves out use the built-in drawing.
 
 - Each icon is one SVG path data string, or a list of paths drawn in order. A path is a string, or `{ d, paint, opacity }`.
 - `paint` is `stroke` (default, outlined in the text color), `fill` (filled with the text color) or `tint` (filled with `color.illustration`). `opacity` is 0–1.
 - `grid` sets the square drawing grid (default 24, so paths use a `0 0 24 24` view box). `strokeWidth` is in grid units (default 1.6).
 
 Path data may only contain SVG path commands and numbers, so a stored or user-supplied pack cannot inject markup. Use `defineIconPack()` to validate a pack without registering it. A theme can also carry the pack inline: `defineTheme({ ..., icons: { id: 'inline', name: 'Inline', icons: { … } } })`. `getIconPack(id)`, `listIconPacks()` and `unregisterIconPack(id)` manage the registry, and built-in pack ids cannot be replaced. Packs are looked up when the flow renders, so you can register a pack after the theme that names it. An unknown pack id shows a configuration error before camera access. The flow root carries `data-kyc-icons` with the active pack id.
+
+## Layouts
+
+A theme also chooses how each screen is composed with `layout`:
+
+- `card` (default) centres the heading, the illustration or camera, and the actions in the card.
+- `panel` stacks the screen in one column. A header shows the brand and a status badge for the current step (*Document*, *Face*, *Verifying*, *Verified*, or *Not verified* and *Camera* in the danger color), and holds the back control. Hero panels with a cut-out corner carry the illustrations. Headings are left-aligned, with small mono labels above them. Tips and progress appear as lists with icon tiles and check marks, and a privacy note sits under the actions. On phones the panel fills the screen. The `capital` theme uses it.
+
+`brand` names the brand in the panel header and can carry a mark. The mark is drawn in a 24-unit grid on a `color.primary` tile, stroked or filled with `color.onPrimary`, and is validated like icon path data. With a mark, the handoff QR code shows it in the centre and is encoded with high error correction, so the covered modules are recovered.
+
+```tsx
+registerTheme({
+  id: 'northwind', name: 'Northwind', extends: 'capital',
+  brand: { name: 'Northwind', mark: ['M6 17V7l12 10V7'] },
+  tokens: { color: { primary: '#7dd3fc', accent: '#7dd3fc', illustration: '#7dd3fc', focus: '#7dd3fc' } },
+});
+```
+
+Both options are inherited from the base theme. The panel draws everything from the theme's tokens, so a panel theme can be light or dark. The flow root carries `data-kyc-layout` with the active layout.
 
 ## Theme studio
 

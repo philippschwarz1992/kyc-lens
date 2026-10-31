@@ -1,5 +1,5 @@
 /** Every icon the capture flow draws. */
-export const iconNames = ['arrow', 'back', 'check', 'camera', 'sun', 'face', 'shield', 'refresh', 'close', 'upload', 'switchCamera', 'flash', 'idCard', 'license', 'passport'] as const;
+export const iconNames = ['arrow', 'back', 'check', 'camera', 'sun', 'face', 'shield', 'refresh', 'close', 'upload', 'switchCamera', 'flash', 'idCard', 'license', 'passport', 'lock', 'phone', 'alert'] as const;
 export type KycIconName = typeof iconNames[number];
 
 /** One SVG path of an icon. */
@@ -35,6 +35,21 @@ export interface KycResolvedIconPack {
 
 const pathData = /^[MmZzLlHhVvCcSsQqTtAa0-9eE.,+\-\s]+$/;
 
+/** Validate one glyph and normalise it to a list of paths. `label` names it in error messages. */
+export function defineGlyph(label: string, glyph: KycIconGlyph): readonly Required<KycIconPath>[] {
+  const parts = typeof glyph === 'string' ? [glyph] : glyph;
+  if (!Array.isArray(parts) || parts.length < 1 || parts.length > 16) throw new Error(`${label} must be path data or a list of 1-16 paths.`);
+  return parts.map(part => {
+    const path = typeof part === 'string' ? { d: part } : part;
+    if (!path || typeof path.d !== 'string' || path.d.length > 2000 || !pathData.test(path.d)) throw new Error(`${label} path data may only contain SVG path commands and numbers.`);
+    const paint = path.paint ?? 'stroke';
+    if (paint !== 'stroke' && paint !== 'fill' && paint !== 'tint') throw new Error(`${label} paint must be stroke, fill or tint.`);
+    const opacity = path.opacity ?? 1;
+    if (typeof opacity !== 'number' || !Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new Error(`${label} opacity must be between 0 and 1.`);
+    return { d: path.d.trim(), paint, opacity };
+  });
+}
+
 /** Validate an icon pack. Path data may only contain SVG path commands and numbers, so a stored pack cannot inject markup. */
 export function defineIconPack(input: KycIconPack): KycResolvedIconPack {
   if (!input || typeof input.id !== 'string' || !/^[a-z][a-z0-9-]{0,47}$/.test(input.id)) throw new Error('Icon pack id must start with a letter and use 1-48 lowercase letters, digits or hyphens.');
@@ -48,17 +63,7 @@ export function defineIconPack(input: KycIconPack): KycResolvedIconPack {
   for (const [name, glyph] of Object.entries(input.icons)) {
     if (glyph === undefined) continue;
     if (!(iconNames as readonly string[]).includes(name)) throw new Error(`Unknown icon "${name}".`);
-    const parts = typeof glyph === 'string' ? [glyph] : glyph;
-    if (!Array.isArray(parts) || parts.length < 1 || parts.length > 16) throw new Error(`Icon ${name} must be path data or a list of 1-16 paths.`);
-    icons[name as KycIconName] = parts.map(part => {
-      const path = typeof part === 'string' ? { d: part } : part;
-      if (!path || typeof path.d !== 'string' || path.d.length > 2000 || !pathData.test(path.d)) throw new Error(`Icon ${name} path data may only contain SVG path commands and numbers.`);
-      const paint = path.paint ?? 'stroke';
-      if (paint !== 'stroke' && paint !== 'fill' && paint !== 'tint') throw new Error(`Icon ${name} paint must be stroke, fill or tint.`);
-      const opacity = path.opacity ?? 1;
-      if (typeof opacity !== 'number' || !Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new Error(`Icon ${name} opacity must be between 0 and 1.`);
-      return { d: path.d.trim(), paint, opacity };
-    });
+    icons[name as KycIconName] = defineGlyph(`Icon ${name}`, glyph);
   }
   return { id: input.id, name: input.name.trim(), ...(input.description ? { description: String(input.description).slice(0, 240) } : {}), grid, strokeWidth, icons };
 }
@@ -91,6 +96,9 @@ const halo = defineIconPack({
     idCard: [rect(5, 3, 14, 18, 3), 'M10.2 6.2h3.6', tint(circle(12, 11, 2.6), 0.5), circle(12, 11, 2.6), 'M8.4 17.4c.6-1.9 2-2.9 3.6-2.9s3 1 3.6 2.9'],
     license: [rect(3, 5.5, 18, 13, 3), tint(circle(8.5, 10.6, 2.1), 0.5), circle(8.5, 10.6, 2.1), 'M5.8 15.6c.5-1.5 1.5-2.2 2.7-2.2s2.2.7 2.7 2.2', 'M14 10h4M14 13.5h2.5'],
     passport: [rect(5, 3, 14, 18, 2.5), tint(circle(12, 10.2, 3.3), 0.4), circle(12, 10.2, 3.3), 'M8.7 10.2h6.6M12 6.9c-.9.9-1.4 2-1.4 3.3s.5 2.4 1.4 3.3c.9-.9 1.4-2 1.4-3.3s-.5-2.4-1.4-3.3', 'M9.5 17h5'],
+    lock: [tint(rect(5, 10.5, 14, 10, 3), 0.3), rect(5, 10.5, 14, 10, 3), 'M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5'],
+    phone: [tint(rect(6.5, 2.5, 11, 19, 3), 0.25), rect(6.5, 2.5, 11, 19, 3), 'M10.8 18.2h2.4'],
+    alert: [tint(circle(12, 12, 9), 0.3), circle(12, 12, 9), 'M12 7.5v5.2M12 16.3h.01'],
   },
 });
 
@@ -123,6 +131,9 @@ const viewfinder = defineIconPack({
     idCard: [rect(3, 5.5, 18, 13, 2.5), circle(8.5, 10.5, 2), 'M5.8 15.5c.5-1.6 1.5-2.3 2.7-2.3s2.2.7 2.7 2.3M14 10h4M14 13.5h3'],
     license: [rect(3, 5.5, 18, 13, 2.5), circle(8.5, 10.5, 2), 'M5.8 15.5c.5-1.6 1.5-2.3 2.7-2.3s2.2.7 2.7 2.3M14 9.5h4', 'M13.5 15.5v-1.8l1-1.7h3l1 1.7v1.8z'],
     passport: [rect(5, 3, 14, 18, 2), circle(12, 10.5, 3.2), 'M8.8 10.5h6.4M12 7.3c-1 .9-1.5 2-1.5 3.2s.5 2.3 1.5 3.2c1-.9 1.5-2 1.5-3.2s-.5-2.3-1.5-3.2M9 17h6'],
+    lock: ['M5 11h14v10H5z', 'M8 11V7a4 4 0 0 1 8 0v4'],
+    phone: ['M7 2h10v20H7z', 'M11 18h2'],
+    alert: [circle(12, 12, 9), 'M12 7v6M12 16.5h.01'],
   },
 });
 
@@ -145,6 +156,9 @@ const tabletop = defineIconPack({
     idCard: [fill(rect(3, 5, 18, 14, 2.5), 0.3), fill(rect(5.5, 8, 5, 6.5, 1)), 'M13 9.5h5M13 12.5h3.5'],
     license: [fill(rect(3, 5, 18, 14, 2.5), 0.3), fill(rect(5.5, 8, 5, 6.5, 1)), 'M13 9.5h5', fill('M13 16.5v-1.8l1-1.7h3l1 1.7v1.8z')],
     passport: [fill(rect(5, 2.5, 14, 19, 2.5), 0.3), fill(circle(12, 10.5, 3.6)), 'M9 17.5h6'],
+    lock: [fill(rect(4.5, 10, 15, 11, 2.5), 0.3), 'M8 10V7.5a4 4 0 0 1 8 0V10', fill(circle(12, 15.5, 1.6))],
+    phone: [fill(rect(6, 2, 12, 20, 3), 0.3), 'M10.5 18h3'],
+    alert: [fill(circle(12, 12, 10), 0.3), 'M12 7.5v5', fill(circle(12, 16.2, 1.3))],
   },
 });
 
@@ -168,6 +182,9 @@ const signal = defineIconPack({
     idCard: [fill(rect(2, 4.5, 20, 15, 3) + portraitHole + hole(13, 8.6, 6, 2, 1) + hole(13, 12.4, 4, 2, 1))],
     license: [fill(rect(2, 4.5, 20, 15, 3) + portraitHole + hole(13, 8.6, 6, 2, 1) + 'M13 16.5H19V14.7L17.9 12.9H14.1L13 14.7z')],
     passport: [fill(rect(4.5, 2, 15, 20, 2.8) + circle(12, 10.5, 3.8) + hole(9, 17, 6, 2, 1)), fill(rect(8.2, 9.9, 7.6, 1.2, 0.6))],
+    lock: ['M8 10V7.5a4 4 0 0 1 8 0V10', fill(rect(4, 10, 16, 12, 2.5) + circle(12, 16, 1.8))],
+    phone: [fill(rect(5.5, 1.5, 13, 21, 3) + hole(9.5, 17.2, 5, 2, 1))],
+    alert: [fill(disc(12, 12, 10) + hole(10.8, 6.5, 2.4, 7.5, 1.2) + circle(12, 16.8, 1.4))],
   },
 });
 
@@ -192,6 +209,9 @@ const soft = defineIconPack({
     idCard: [rect(5, 3, 14, 18, 3), tint(circle(12, 9.5, 2.4), 0.5), circle(12, 9.5, 2.4), 'M8.3 15.5c.6-1.9 2-2.9 3.7-2.9s3.1 1 3.7 2.9M9.5 18.2h5'],
     license: [rect(3, 5.5, 18, 13, 3), tint(circle(8.5, 12, 3), 0.4), circle(8.5, 12, 3), 'M14 9.5h4.5M14 12.2h3M14 14.8h4'],
     passport: [tint(rect(5, 3, 14, 18, 2.5), 0.25), rect(5, 3, 14, 18, 2.5), circle(12, 10, 3.4), globe, 'M9.5 17h5'],
+    lock: [tint(rect(5, 10.5, 14, 10, 2.5), 0.3), rect(5, 10.5, 14, 10, 2.5), 'M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3'],
+    phone: [tint(rect(6.5, 2.5, 11, 19, 2.5), 0.3), rect(6.5, 2.5, 11, 19, 2.5), 'M11 18.5h2'],
+    alert: [tint(circle(12, 12, 9), 0.3), circle(12, 12, 9), 'M12 7.5V13M12 16.5h.01'],
   },
 });
 
@@ -202,7 +222,7 @@ const capital = defineIconPack({
   id: 'capital', name: 'Capital', description: 'Rounded 1.8 px outlines with soft corners, drawn for the Capital theme.',
   strokeWidth: 1.8,
   icons: {
-    arrow: 'M5 12h14M13 6l6 6-6 6',
+    arrow: 'M7 17L17 7M9 7h8v8',
     back: 'M15 5l-7 7 7 7',
     check: 'M5 12.5l4.5 4.5L19 7.5',
     close: 'M6 6l12 12M18 6L6 18',
@@ -217,6 +237,9 @@ const capital = defineIconPack({
     idCard: [capitalCard, 'M8.5 12a2 2 0 1 0 0-4a2 2 0 1 0 0 4M5.8 16c.5-1.6 1.5-2.4 2.7-2.4s2.2.8 2.7 2.4M14 9h4M14 12.5h3'],
     license: [capitalCard, 'M6.5 16v-1.6l1.4-2.2h4.2l1.4 2.2V16zM6.5 8.5h7M16 8.5h2M16 12h2'],
     passport: 'M6 3h11a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 17 21H6zM6 3v18M12.2 13.5a3 3 0 1 0 0-6a3 3 0 1 0 0 6M9.7 17h5',
+    lock: [rect(5, 11, 14, 9, 2.5), 'M8 11V8a4 4 0 0 1 8 0v3'],
+    phone: [rect(6.5, 2.5, 11, 19, 2.5), 'M11 18.5h2'],
+    alert: [circle(12, 12, 9), 'M12 7.5v5.5M12 16.5h.01'],
   },
 });
 
