@@ -231,7 +231,7 @@ export function ThemeStudio() {
   return <div className="studio-page">
     <header className="studio-header">
       <a className="demo-brand" href="/settings"><span className="studio-logo" aria-hidden="true" />KYC Lens</a>
-      <nav aria-label="Playground"><a href="/settings">Settings</a><a href="/themes" aria-current="page">Theme studio</a></nav>
+      <nav aria-label="Playground"><a href="/settings">Settings</a><a href="/themes" aria-current="page">Theme studio</a><a href="/screens">Screens</a></nav>
     </header>
     <div className="studio-layout">
       <aside className="studio-library" aria-label="Themes">

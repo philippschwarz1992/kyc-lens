@@ -7,6 +7,7 @@ const LOCALES: readonly [KycLocale, string][] = [['en', 'English'], ['de', 'Deut
 import FaceWorkerUrl from '@sdk/camera/face.worker.ts?worker&url';
 import DocumentWorkerUrl from '@sdk/camera/document.worker.ts?worker&url';
 import MatchWorkerUrl from '@sdk/matching/match.worker.ts?worker&url';
+import { ScreenGallery } from './ScreenGallery';
 import { ThemeStudio } from './ThemeStudio';
 import { allThemes, findTheme, isBuiltIn, useThemeFonts } from './themeStore';
 
@@ -289,7 +290,7 @@ function SettingsPage() {
   }
 
   return <div className="demo-settings-page">
-    <header className="demo-settings-header"><a className="demo-brand" href="/" aria-label="KYC Lens capture preview"><Icon name="face" size={22} /><span>KYC Lens</span></a><nav className="demo-nav" aria-label="Playground"><a href="/settings" aria-current="page">Settings</a><a href="/themes">Theme studio</a></nav></header>
+    <header className="demo-settings-header"><a className="demo-brand" href="/" aria-label="KYC Lens capture preview"><Icon name="face" size={22} /><span>KYC Lens</span></a><nav className="demo-nav" aria-label="Playground"><a href="/settings" aria-current="page">Settings</a><a href="/themes">Theme studio</a><a href="/screens">Screens</a></nav></header>
     <main className="demo-settings-main">
       <div className="demo-settings-title"><h1>Demo settings</h1><p>Choose your flow, then try it on a separate page.</p></div>
       <section className="demo-config-panel" aria-label="Capture configuration">
@@ -337,5 +338,5 @@ function SettingsPage() {
 
 export default function App() {
   const path = window.location.pathname.replace(/\/$/, '');
-  return path === '/settings' ? <SettingsPage /> : path === '/themes' ? <ThemeStudio /> : <PreviewPage />;
+  return path === '/settings' ? <SettingsPage /> : path === '/themes' ? <ThemeStudio /> : path === '/screens' ? <ScreenGallery /> : <PreviewPage />;
 }

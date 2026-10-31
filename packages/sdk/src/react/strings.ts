@@ -74,6 +74,11 @@ export const english = {
   rejectedNoMatch: 'Your selfie doesn’t match the photo on your document.', rejectedInconclusive: 'We couldn’t compare your selfie with your document photo clearly.',
   rejectedTips: 'For your next try', tipLight: 'Find bright, even light', tipAccessories: 'Remove sunglasses, hats or masks',
   tipDocument: 'Keep the document photo sharp and free of glare',
+  introChecklist: 'Before you start', stepDocument: 'Document', stepFace: 'Face', statusGuided: 'Guided capture', statusDocument: 'Document',
+  statusFace: 'Face', statusVerifying: 'Verifying', statusVerified: 'Verified', statusRejected: 'Not verified', statusCamera: 'Camera',
+  statusError: 'Error', documentSideFront: 'Front', documentSideBack: 'Back', 
+  resultIdentity: 'Identity verified', resultFaceMatched: 'Face matched', resultCompared: 'Faces matched', resultPassed: 'Passed',
+  documentPassportHoldStill: 'Open it flat and hold steady… taking your photo automatically.', documentPassportReviewBody: 'Make sure the photo page is clear and the two lines of code at the bottom are easy to read.', documentLicenseBackBody: 'Keep the table of license categories fully visible and sharp.',
 } satisfies Record<string, string>;
 
 export type KycStringKey = keyof typeof english;
@@ -151,6 +156,12 @@ const german: KycStrings = {
   rejectedInconclusive: 'Ihr Selfie konnte nicht eindeutig mit dem Dokumentfoto verglichen werden.', rejectedTips: 'Für den nächsten Versuch',
   tipLight: 'Sorgen Sie für helles, gleichmäßiges Licht', tipAccessories: 'Sonnenbrille, Mütze oder Maske abnehmen',
   tipDocument: 'Das Dokumentfoto scharf und ohne Reflexionen aufnehmen',
+  introChecklist: 'Bevor Sie beginnen', stepDocument: 'Dokument', stepFace: 'Gesicht', statusGuided: 'Geführte Aufnahme',
+  statusDocument: 'Dokument', statusFace: 'Gesicht', statusVerifying: 'Wird geprüft', statusVerified: 'Verifiziert',
+  statusRejected: 'Nicht verifiziert', statusCamera: 'Kamera', statusError: 'Fehler', documentSideFront: 'Vorderseite',
+  documentSideBack: 'Rückseite', resultIdentity: 'Identität verifiziert',
+  resultFaceMatched: 'Gesicht erkannt', resultCompared: 'Gesichter stimmen überein', resultPassed: 'Bestanden',
+  documentPassportHoldStill: 'Flach aufschlagen und ruhig halten… das Foto wird automatisch aufgenommen.', documentPassportReviewBody: 'Die Fotoseite sollte klar sein und die zwei Codezeilen unten gut lesbar.', documentLicenseBackBody: 'Die Tabelle der Führerscheinklassen vollständig und scharf im Bild halten.',
 };
 
 export const locales: Record<KycLocale, KycStrings> = { en: english, de: german, fr: french, es: spanish, it: italian, pl: polish, tr: turkish };

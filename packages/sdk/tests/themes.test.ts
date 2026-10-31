@@ -54,6 +54,19 @@ describe('themes', () => {
     expect(() => defineTheme({ id: 'brand', name: 'Brand', fonts: ['http://insecure.example/font.css'] })).toThrow(/https/);
   });
 
+  it('inherits, overrides and validates the layout and brand', () => {
+    expect(builtInThemes.capital.layout).toBe('panel');
+    expect(builtInThemes.classic.layout).toBeUndefined();
+    const brand = defineTheme({ id: 'brand', name: 'Brand', extends: 'capital', brand: { name: ' Northwind ', mark: 'M6 12h12' } });
+    expect(brand.layout).toBe('panel');
+    expect(brand.brand).toEqual({ name: 'Northwind', mark: [{ d: 'M6 12h12', paint: 'stroke', opacity: 1 }] });
+    expect(defineTheme({ id: 'brand', name: 'Brand', extends: 'capital', layout: 'card' }).layout).toBe('card');
+    expect(defineTheme({ id: 'brand', name: 'Brand', extends: 'capital' }).brand?.name).toBe('Capital');
+    expect(() => defineTheme({ id: 'brand', name: 'Brand', layout: 'grid' as never })).toThrow(/layout/);
+    expect(() => defineTheme({ id: 'brand', name: 'Brand', brand: { name: '' } })).toThrow(/brand name/);
+    expect(() => defineTheme({ id: 'brand', name: 'Brand', brand: { name: 'Brand', mark: 'M0 0"/><script>' } })).toThrow(/path commands/);
+  });
+
   it('writes CSS variables and a scoped stylesheet', () => {
     const variables = themeVariables(builtInThemes.aurora);
     expect(variables['--kyc-color-primary']).toBe('#f3f6fc');

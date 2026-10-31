@@ -69,4 +69,9 @@ export const turkish: KycStrings = {
   successBody: 'Selfie’niz belgenizdeki fotoğrafla eşleşiyor.', rejectedTitle: 'Sizi doğrulayamadık', rejectedNoMatch: 'Selfie’niz belgenizdeki fotoğrafla eşleşmiyor.',
   rejectedInconclusive: 'Selfie’nizi belge fotoğrafıyla net biçimde karşılaştıramadık.', rejectedTips: 'Bir sonraki denemeniz için',
   tipLight: 'Parlak ve eşit bir ışık bulun', tipAccessories: 'Güneş gözlüğü, şapka veya maskeyi çıkarın', tipDocument: 'Belge fotoğrafını net ve parlamasız çekin',
+  introChecklist: 'Başlamadan önce', stepDocument: 'Belge', stepFace: 'Yüz', statusGuided: 'Rehberli çekim', statusDocument: 'Belge',
+  statusFace: 'Yüz', statusVerifying: 'Doğrulanıyor', statusVerified: 'Doğrulandı', statusRejected: 'Doğrulanmadı', statusCamera: 'Kamera',
+  statusError: 'Hata', documentSideFront: 'Ön yüz', documentSideBack: 'Arka yüz', 
+  resultIdentity: 'Kimlik doğrulandı', resultFaceMatched: 'Yüz eşleşti', resultCompared: 'Yüzler eşleşti', resultPassed: 'Geçti',
+  documentPassportHoldStill: 'Düz açın ve sabit tutun… fotoğrafınız otomatik olarak çekiliyor.', documentPassportReviewBody: 'Fotoğraf sayfasının net olduğundan ve alttaki iki kod satırının kolayca okunduğundan emin olun.', documentLicenseBackBody: 'Ehliyet sınıfları tablosunu tamamen görünür ve net tutun.',
 };

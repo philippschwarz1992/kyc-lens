@@ -71,4 +71,10 @@ export const italian: KycStrings = {
   rejectedInconclusive: 'Non siamo riusciti a confrontare chiaramente il selfie con la foto del documento.', rejectedTips: 'Per il prossimo tentativo',
   tipLight: 'Cerca una luce intensa e uniforme', tipAccessories: 'Togli occhiali da sole, cappello o mascherina',
   tipDocument: 'Scatta la foto del documento nitida e senza riflessi',
+  introChecklist: 'Prima di iniziare', stepDocument: 'Documento', stepFace: 'Volto', statusGuided: 'Acquisizione guidata',
+  statusDocument: 'Documento', statusFace: 'Volto', statusVerifying: 'Verifica in corso', statusVerified: 'Verificato',
+  statusRejected: 'Non verificato', statusCamera: 'Fotocamera', statusError: 'Errore', documentSideFront: 'Fronte',
+  documentSideBack: 'Retro', resultIdentity: 'Identità verificata',
+  resultFaceMatched: 'Volto corrispondente', resultCompared: 'I volti corrispondono', resultPassed: 'Superato',
+  documentPassportHoldStill: 'Aprilo in piano e tienilo fermo… la foto viene scattata automaticamente.', documentPassportReviewBody: 'Assicurati che la pagina con la foto sia nitida e che le due righe di codice in basso siano leggibili.', documentLicenseBackBody: 'Tieni la tabella delle categorie della patente completamente visibile e nitida.',
 };

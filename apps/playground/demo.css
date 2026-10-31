@@ -220,3 +220,21 @@ html.demo-app-mode .demo-preview-page { height: 100%; }
 
 /* Holds the frame's space while the desktop checks the phone-handoff relay, so nothing jumps. */
 .demo-flow-pending { width: 100%; height: min(700px, calc(100svh - 48px)); }
+
+/* Screens gallery: every flow screen side by side at its real size. */
+.gallery-page { min-height: 100vh; padding: 0 24px 64px; background: #eef0f4; color: #172033; }
+.gallery-page[data-scheme="dark"] { background: #0b0c0a; color: #e9ebe4; }
+.gallery-header { display: flex; justify-content: space-between; align-items: center; max-width: 1680px; margin: 0 auto; padding: 24px 0 0; font-size: 12px; }
+.gallery-page[data-scheme="dark"] .demo-nav a { color: #a9ada2; }
+.gallery-page[data-scheme="dark"] .demo-nav a:hover, .gallery-page[data-scheme="dark"] .demo-nav a[aria-current="page"] { background: #1c1d1a; color: #f3f4ef; box-shadow: none; }
+.gallery-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; max-width: 1680px; margin: 28px auto 32px; }
+.gallery-toolbar h1 { margin: 0 12px 0 0; font-size: 24px; letter-spacing: -.4px; }
+.gallery-toolbar label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
+.gallery-toolbar select { min-height: 36px; padding: 0 10px; border: 1px solid #c9ced8; border-radius: 8px; background: #fff; color: #172033; font: inherit; }
+.gallery-toolbar p { flex-basis: 100%; margin: 0; font-size: 13px; opacity: .7; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(390px, 1fr)); gap: 48px 32px; max-width: 1680px; margin: 0 auto; justify-items: center; }
+.gallery-item { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 420px; margin: 0; }
+.gallery-item > figcaption { font-size: 13px; font-weight: 600; opacity: .75; }
+.gallery-item > .kyc-kit.gallery-kit { height: 844px; max-height: none; flex: none; }
+.gallery-item > .kyc-kit.gallery-kit:not([data-kyc-layout="panel"]) { height: 700px; }
+@media (max-width: 480px) { .gallery-page { padding-inline: 0; } .gallery-header, .gallery-toolbar { padding-inline: 16px; } .gallery-item > .kyc-kit.gallery-kit { height: 100svh; } }

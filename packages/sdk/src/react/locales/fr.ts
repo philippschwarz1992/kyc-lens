@@ -71,4 +71,10 @@ export const french: KycStrings = {
   rejectedInconclusive: 'Nous n’avons pas pu comparer clairement votre selfie avec la photo du document.', rejectedTips: 'Pour le prochain essai',
   tipLight: 'Trouvez une lumière vive et uniforme', tipAccessories: 'Retirez lunettes de soleil, chapeau ou masque',
   tipDocument: 'Gardez la photo du document nette et sans reflets',
+  introChecklist: 'Avant de commencer', stepDocument: 'Document', stepFace: 'Visage', statusGuided: 'Capture guidée',
+  statusDocument: 'Document', statusFace: 'Visage', statusVerifying: 'Vérification', statusVerified: 'Vérifié',
+  statusRejected: 'Non vérifié', statusCamera: 'Caméra', statusError: 'Erreur', documentSideFront: 'Recto', documentSideBack: 'Verso',
+  resultIdentity: 'Identité vérifiée', resultFaceMatched: 'Visage reconnu',
+  resultCompared: 'Visages concordants', resultPassed: 'Réussi',
+  documentPassportHoldStill: 'Ouvrez-le à plat et ne bougez plus… la photo est prise automatiquement.', documentPassportReviewBody: 'Vérifiez que la page photo est nette et que les deux lignes de code en bas sont lisibles.', documentLicenseBackBody: 'Gardez le tableau des catégories de permis entièrement visible et net.',
 };
